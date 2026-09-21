@@ -57,11 +57,15 @@ function readToken(req: Request): string | null {
 }
 
 export function roleFor(email: string, adminEmails: string | undefined): Role {
-  const admins = (adminEmails ?? "")
+  return parseEmails(adminEmails).includes(email.toLowerCase()) ? "admin" : "agent";
+}
+
+/** Comma-separated env list to lowercased emails. Empty entries are dropped. */
+export function parseEmails(value: string | undefined): string[] {
+  return (value ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  return admins.includes(email.toLowerCase()) ? "admin" : "agent";
 }
 
 function unauthorized(message: string): HTTPException {

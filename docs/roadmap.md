@@ -20,15 +20,19 @@ vendored component ships with the French one from `src/client/copy.ts`.
 ## M1 — Prospects & CSV import
 - [x] Schema + first migration
 - [x] Auth middleware (Access JWT), `/api/me`
-- [ ] **UI foundation**: Tailwind v4 via `@tailwindcss/vite`, `shadcn init`, design
+- [x] **UI foundation**: Tailwind v4 via `@tailwindcss/vite`, `shadcn init`, design
       tokens moved from `tokens.css` into `@theme`, `app.css` migrated (ADR-0014)
-- [ ] **Design pass** with the `frontend-design` skill: app shell, the prospect
-      table and the import flow, decided before any of them is built
-- [ ] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
-- [ ] `GET /api/admin/prospects` — list with status / assignedTo / source filters
-- [ ] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`
-- [ ] Admin: CSV import with column mapping and preview (parsed in the browser) — shadcn `table`, `select`, `dialog`
-- [ ] Admin: prospect list, assign (single + bulk) — shadcn `data-table`, `checkbox`, `dropdown-menu`
+- [x] **Design pass** with the `frontend-design` skill: app shell, the prospect
+      table and the import flow, decided before any of them is built —
+      written up in [design.md](design.md)
+- [x] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
+- [x] `GET /api/admin/prospects` — list with status / assignedTo / source filters
+- [x] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`, `GET /api/admin/agents`
+- [x] Admin: CSV import with column mapping and preview (parsed in the browser) — shadcn
+      `table`, `select`, `dialog`, `progress`, `alert`
+- [x] Admin: prospect list, assign (single + bulk) — composed over shadcn `table`,
+      `checkbox`, `dropdown-menu`, `select`. Not the `data-table` recipe: that needs
+      @tanstack/react-table, and this screen filters and sorts server-side
 
 ## M2 — Field PWA
 - [x] Offline outbox + sync engine and endpoint
@@ -40,7 +44,9 @@ vendored component ships with the French one from `src/client/copy.ts`.
 - [ ] Visit form (flyer, outcome, follow-up, notes) writing to the outbox — shadcn `form`, `radio-group`, `calendar`, `textarea`
 - [ ] Add field prospect — shadcn `form`, `select`
 - [ ] Sync triggers wired: app start, `online`, after each visit, every 60 s, with a shadcn `sonner` toast on failure
-- [ ] Measure the field route's JS bundle against the ADR-0014 budget note
+- [x] Measure the field route's JS bundle against the ADR-0014 budget note — the admin
+      side is a lazy chunk, the budget is in [vision.md](vision.md); re-measure once the
+      real field screens exist
 
 ## M3 — Scripts
 - [ ] **Design pass** with the `frontend-design` skill: the question editor is the
@@ -59,7 +65,7 @@ vendored component ships with the French one from `src/client/copy.ts`.
 - [ ] Orphan visits: report ids the server could not store in a `rejected` field so a phone stops resending for ever (see [field-operations](domains/field-operations.md#rules))
 - [ ] Data retention decided and written down (visit notes, agent positions)
 - [ ] CSV export of prospects and visits
-- [ ] Manual prospect merge (dedupe misses)
+- [x] Manual prospect merge (dedupe misses) — see [prospecting](domains/prospecting.md#merging)
 
 ## M6 — Go live
 Everything here is account setup, done once, by hand. Runbook:

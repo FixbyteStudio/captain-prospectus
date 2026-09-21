@@ -39,6 +39,10 @@
     "ACCESS_AUD": "",
     // Comma-separated. Everyone else who passes Access is an agent.
     "ADMIN_EMAILS": "",
+    // Comma-separated. Not a permission: only who the assign menu offers,
+    // since ADR-0006 leaves us without a users table. Keep it in step with
+    // the Access policy.
+    "AGENT_EMAILS": "",
   },
 
   // Deliberately NO `access.dev` block: a Worker serving Static Assets never

@@ -32,6 +32,7 @@ export default defineConfig({
                 // Local-only identity, exactly as .dev.vars does in development.
                 DEV_USER_EMAIL: "admin@example.com",
                 ADMIN_EMAILS: "admin@example.com",
+                AGENT_EMAILS: "agent@example.com",
               },
             },
           }),

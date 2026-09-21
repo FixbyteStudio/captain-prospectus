@@ -1,59 +1,217 @@
-@import "./tokens.css";
+/**
+ * The whole visual system (ADR-0014). Tokens live here, in @theme; there is no
+ * tokens.css and no per-component CSS file any more.
+ *
+ * Design direction: the admin side is a ledger, not a dashboard. Status is read
+ * down a row's leading edge before it is read as a word, numbers are tabular and
+ * right-aligned, and nothing is wrapped in a card. Colours are cool zinc around
+ * the brasserie green that is already the PWA's theme_color.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
 
-* {
-  box-sizing: border-box;
+/**
+ * Archivo, latin subset, weight axis only — one file, 35 KB.
+ *
+ * Deliberately NOT the width-axis build: it is 90 KB for the same glyphs, and
+ * the field PWA pays that on a phone on a bad connection (vision.md) for a
+ * width shift on three strings. Display type gets its character from weight and
+ * tracking instead. Latin alone covers French, including œ (U+0153).
+ *
+ * Importing the fontsource stylesheet instead would emit every subset, and
+ * Workbox's globPatterns precaches every woff2 it finds — so we name the one
+ * file we actually want.
+ */
+@font-face {
+  font-family: "Archivo Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/archivo/files/archivo-latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-body {
-  margin: 0;
-  font-family: var(--font);
-  font-size: var(--text-base);
-  color: var(--color-text);
-  background: var(--color-bg);
-  padding-top: env(safe-area-inset-top, 0);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+/**
+ * Dark mode follows the system by default and can be pinned with
+ * data-theme on <html>. Tokens swap their *values* below, so most components
+ * need no dark: utility at all — this variant exists for the few that do.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
 }
 
-.app {
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: var(--space-4);
+/**
+ * `inline` matters: it makes each utility reference var(--…) rather than bake
+ * the literal in, which is what lets the :root blocks below swap themes.
+ *
+ * The names shadcn's vendored components expect (background, primary, muted,
+ * border, ring…) are the canonical ones. App-specific tokens are added on top
+ * rather than duplicating a colour under a second name.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--secondary);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--secondary);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+
+  /* The dark band the app shell sits under. */
+  --color-band: var(--band);
+  --color-band-foreground: var(--band-foreground);
+  --color-band-muted: var(--band-muted);
+
+  /* follow_up. Neither success nor failure — someone owes this place a visit. */
+  --color-warn: var(--warn);
+
+  /* The leading edge of a ledger row. One per status, in ramp order. */
+  --color-status-new: var(--status-new);
+  --color-status-assigned: var(--status-assigned);
+  --color-status-follow-up: var(--warn);
+  --color-status-converted: var(--primary);
+  --color-status-rejected: var(--destructive);
+
+  --font-sans: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* 1.75rem sits between Tailwind's 2xl and 3xl; it is the count display. */
+  --text-display: 1.75rem;
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.01em;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  /* ADR-0013/0014: an agent taps this with one thumb, outdoors, in a hurry. */
+  --spacing-touch: 3rem;
+
+  /* The ledger row. Dense enough to scan, tall enough to hit. */
+  --spacing-row: 2.75rem;
 }
 
-.app__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
+:root {
+  --background: #f0f2f1;
+  --foreground: #16211c;
+  --card: #ffffff;
+  --secondary: #e7eae8;
+  --muted-foreground: #56635d;
+  --border: #d5dcd8;
+  --primary: #1f6f4a;
+  --primary-foreground: #ffffff;
+  --warn: #9a6b12;
+  --destructive: #8c2f39;
+  --band: #16211c;
+  --band-foreground: #e6ebe8;
+  --band-muted: #8b9a93;
+
+  /* Nothing has happened here yet: present, but the quietest thing in the column. */
+  --status-new: color-mix(in oklab, var(--foreground) 16%, transparent);
+  /* Someone owes this a visit. Legible, but it must not outshout converted. */
+  --status-assigned: color-mix(in oklab, var(--foreground) 55%, transparent);
+
+  --radius: 0.375rem;
+
+  color-scheme: light;
 }
 
-.app__title {
-  font-size: var(--text-xl);
-  margin: 0;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #121815;
+    --foreground: #e6ebe8;
+    --card: #19211d;
+    --secondary: #222c27;
+    --muted-foreground: #94a29b;
+    --border: #2c3832;
+    --primary: #4fa97d;
+    --primary-foreground: #0c1310;
+    --warn: #d4a23e;
+    --destructive: #d2757e;
+    --band: #0c1310;
+    --band-foreground: #e6ebe8;
+    --band-muted: #7d8c85;
+
+    color-scheme: dark;
+  }
 }
 
-.app__nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
+:root[data-theme="dark"] {
+  --background: #121815;
+  --foreground: #e6ebe8;
+  --card: #19211d;
+  --secondary: #222c27;
+  --muted-foreground: #94a29b;
+  --border: #2c3832;
+  --primary: #4fa97d;
+  --primary-foreground: #0c1310;
+  --warn: #d4a23e;
+  --destructive: #d2757e;
+  --band: #0c1310;
+  --band-foreground: #e6ebe8;
+  --band-muted: #7d8c85;
+
+  color-scheme: dark;
 }
 
-.app__nav a {
-  color: var(--color-accent);
-  min-height: var(--touch-target);
-  display: inline-flex;
-  align-items: center;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans text-sm antialiased;
+  }
+
+  /* The field client runs full-screen on a notched phone. Applied to the band
+     and the scrolling region, not to body, so the band stays flush with the top. */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  :focus-visible {
+    @apply outline-ring rounded-xs outline-2 outline-offset-2;
+  }
+
+  /* Tabular figures are what make the ledger read as a ledger. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: var(--space-4);
-}
-
-.muted {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

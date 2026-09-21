@@ -7,6 +7,7 @@
  */
 import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { OUTCOMES, PROSPECT_TYPES, SOURCES, STATUSES } from "../../shared/constants";
 
 export const prospects = sqliteTable(
@@ -35,6 +36,18 @@ export const prospects = sqliteTable(
     lastVisitAt: integer("last_visit_at"),
     nextVisitAt: integer("next_visit_at"),
 
+    /**
+     * Set when an admin merges this prospect into another one: the same place
+     * imported twice, usually because it was renamed between imports and the
+     * dedupe key is built from the name (prospecting.md).
+     *
+     * Null for a live prospect. A merged prospect keeps everything it had,
+     * visits included — nothing is deleted and no visit is ever repointed,
+     * because visits are append-only — so a merge stays reversible. Every
+     * query that lists live prospects must filter on this being null.
+     */
+    mergedInto: text("merged_into").references((): AnySQLiteColumn => prospects.id),
+
     createdBy: text("created_by").notNull(),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
@@ -43,6 +56,11 @@ export const prospects = sqliteTable(
     uniqueIndex("prospects_dedupe_key_idx").on(t.dedupeKey),
     index("prospects_assigned_status_idx").on(t.assignedTo, t.status),
     index("prospects_status_idx").on(t.status),
+    // The admin list filters by source and orders by updatedAt. Without these
+    // both are full scans, and D1's free tier bills scanned rows.
+    index("prospects_source_idx").on(t.source),
+    index("prospects_updated_idx").on(t.updatedAt),
+    index("prospects_merged_idx").on(t.mergedInto),
   ],
 );
 
