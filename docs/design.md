@@ -12,8 +12,9 @@ right and this file needs updating.
 ## Grounding
 
 The artifact this app replaces is a **carnet de tournée** — a route notebook: a
-list of addresses, ticks, and scribbled outcomes. The places in it are French
-food businesses: the deep green of a brasserie facade, the pewter of *le zinc*.
+list of addresses, ticks, and scribbled outcomes. The mark is a ship's wheel
+around a map pin: a captain plotting a round. Navy and gold come from it, and
+they suit the ledger — navy is ink, gold is what you are steering towards.
 
 So the admin side is a **ledger, not a dashboard**. Ruled, dense, numeric. No
 cards around rows, no tiles, no gradient washes, no zebra striping. The field
@@ -22,25 +23,45 @@ gets its own design pass in M2 (ADR-0014, decision 3).
 
 ## Colour
 
-Cool zinc neutrals, deliberately away from the warm-cream palette that generated
-interfaces default to. The accent is the `#1F6F4A` already fixed as the PWA's
-`theme_color` in `index.html` and the manifest.
+The brand: **navy `#1b2a4a`** and **gold `#c9a227`**, taken from the mark — a
+ship's wheel and a map pin — and the off-white `#f6f7f0` it sits on. Navy is the
+ink and the band. Gold is the primary action and nothing else.
 
 | Role | Light | Dark |
 |---|---|---|
-| `background` (page) | `#F0F2F1` | `#121815` |
-| `card` (table, panels) | `#FFFFFF` | `#19211D` |
-| `foreground` (ink) | `#16211C` | `#E6EBE8` |
-| `muted-foreground` | `#56635D` | `#94A29B` |
-| `border` (hairlines) | `#D5DCD8` | `#2C3832` |
-| `primary` (action, `converted`) | `#1F6F4A` | `#4FA97D` |
-| `warn` (`follow_up`) | `#9A6B12` | `#D4A23E` |
+| `background` (page) | `#F6F7F0` | `#101726` |
+| `card` (table, panels) | `#FFFFFF` | `#182031` |
+| `foreground` (ink) | `#1B2A4A` | `#E7EAF0` |
+| `muted-foreground` | `#5A6478` | `#97A2B8` |
+| `border` (hairlines) | `#D7DAE2` | `#2B3547` |
+| `primary` (the action) | `#C9A227` | `#D9B43C` |
+| `primary-foreground` | `#1B2A4A` | `#141C2E` |
+| `primary-edge` (its border) | `#A8801A` | `#E6C65C` |
+| `ring` (focus) | `#1B2A4A` | `#E7EAF0` |
+| `success` (`converted`) | `#1F6F4A` | `#4FA97D` |
+| `warn` (`follow_up`) | `#9A6B12` | `#D98A3C` |
 | `destructive` (`rejected`) | `#8C2F39` | `#D2757E` |
-| `band` (top bar) | `#16211C` | `#0C1310` |
+| `band` (top bar) | `#1B2A4A` | `#0B1120` |
 
-The three chromatic values clear 4.5:1 on their surface in both themes. `ink` is
-a green-black rather than a tinted grey — it sits in the accent's hue family, so
-the neutrals and the accent read as one palette rather than two.
+### What gold may and may not do
+
+Three rules, each forced by a measurement rather than taste. They are asserted in
+`src/client/styles/palette.test.ts`, so nudging a hex fails CI.
+
+- **Gold is never text on a light surface.** It is 2.4:1 on white. It is a fill,
+  with navy on top at 5.9:1 — and navy, not white, which would be 2.4:1.
+- **Gold is never the focus ring.** A ring needs 3:1 against what it sits on and
+  gold gives 2.4:1, so `--color-ring` points at the ink. This is the one place
+  shadcn's default wiring (`ring` follows `primary`) had to be broken.
+- **A gold button needs its own edge.** The fill is 2.2:1 against the page, below
+  the 3:1 WCAG 1.4.11 wants for a control's boundary, so the `default` button
+  variant carries `border-primary-edge` — a darker gold at 3.4:1.
+
+`converted` has its own `success` token rather than following `primary`, because
+a gold `converted` would sit **7°** in hue from the mustard that means
+`follow_up` and the two would stop being separable. Gold and mustard do share a
+screen — a gold button above a column of `À relancer` rows. If that ever reads
+muddy, `--warn` moves to `#9A5B18`, which is 5.4:1 and 15° clear.
 
 Dark follows the system by default and can be pinned with `data-theme` on
 `<html>`. Tokens swap their *values*, so components rarely need a `dark:`
@@ -58,7 +79,7 @@ reading a word.
 | `new` | `status-new` — 16% ink | `muted-foreground` |
 | `assigned` | `status-assigned` — 55% ink | `foreground` |
 | `follow_up` | `status-follow-up` — `warn` | `warn` |
-| `converted` | `status-converted` — `primary` | `primary` |
+| `converted` | `status-converted` — `success` | `success` |
 | `rejected` | `status-rejected` — `destructive` | `destructive` |
 
 Two rules this encodes, both deliberate:
@@ -172,8 +193,8 @@ else needs editing:
 
 | File | Size | Why |
 |---|---|---|
-| `favicon.svg` | scalable | The browser tab. Modern browsers prefer it and it stays sharp. |
-| `favicon.ico` | 32×32 | Fallback for browsers that ignore the SVG. Optional. |
+| `favicon.ico` | 48×48 + 32×32 | The browser tab. |
+| `mark.svg` | scalable | The mark in the band, with its navy swapped for the band's foreground — a navy wheel on a navy band is 1:1. |
 | `apple-touch-icon.png` | 180×180 | The iOS home screen. iOS ignores the manifest's icons for this, so without it an agent's iPhone renders a screenshot of the page. |
 | `icon-192.png` | 192×192 | Android install prompt. |
 | `icon-512.png` | 512×512 | Android splash screen. |
@@ -186,8 +207,8 @@ Two things to get right in the artwork:
   centre — and the rest must be filled background, not transparency. A normal
   icon reused here gets its edges cut off.
 - **The others should not be transparent either.** A transparent PNG on the iOS
-  home screen renders on black. Use the brand green `#1F6F4A` or white, matching
-  the manifest's `theme_color` and `background_color`.
+  home screen renders on black. Use the brand off-white `#F6F7F0` or navy
+  `#1B2A4A`, matching the manifest's `background_color` and `theme_color`.
 
 An installable PWA needs at least the 192 and the 512; a manifest with no icons
 gets no install prompt, and "agents install the PWA from the phone browser"

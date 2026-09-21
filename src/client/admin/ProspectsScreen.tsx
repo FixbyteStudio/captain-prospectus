@@ -134,7 +134,9 @@ export function ProspectsScreen() {
       <div
         className={cn(
           "border-border bg-card flex min-h-11 flex-wrap items-center gap-2 rounded-t-md border border-b-0 px-3",
-          selected.size > 0 && "border-primary/35 bg-primary/8",
+          // A gold wash, not gold text: the fill is what the brand colour is
+          // allowed to do, and navy ink still reads at ~12:1 over it.
+          selected.size > 0 && "border-primary-edge/45 bg-primary/12",
         )}
       >
         {selected.size === 0 ? (
@@ -235,6 +237,10 @@ export function ProspectsScreen() {
               <TableRow
                 key={prospect.id}
                 data-state={selected.has(prospect.id) ? "selected" : undefined}
+                // Selection is gold throughout — the toolbar and the rows it
+                // refers to. shadcn's default paints selected rows muted grey,
+                // which reads as unrelated to the gold bar above them.
+                className="data-[state=selected]:bg-primary/10"
               >
                 <TableCell className={cn("pl-3.5", STATUS_EDGE[prospect.status])}>
                   <Checkbox
