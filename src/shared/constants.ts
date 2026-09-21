@@ -82,6 +82,20 @@ export const SYNC_VISITS_PER_REQUEST = 200;
 export const SYNC_PROSPECTS_PER_REQUEST = 100;
 export const ADMIN_VISITS_PAGE_SIZE = 500;
 
+/**
+ * One page of the admin prospect list. Also the cap: D1's free tier counts
+ * *scanned* rows, so an unbounded select over a few thousand prospects is a
+ * real cost every time the admin changes a filter.
+ */
+export const PROSPECTS_PAGE_SIZE = 200;
+
+/**
+ * How deep the list can be paged. SQLite walks the index to reach an offset, so
+ * an unbounded one is a full scan that returns nothing. 100 pages is far past
+ * the few thousand prospects this project plans for (vision.md).
+ */
+export const PROSPECTS_MAX_OFFSET = PROSPECTS_PAGE_SIZE * 100;
+
 /** D1 allows at most 100 bound parameters per statement. See chunk(). */
 export const D1_MAX_BOUND_PARAMS = 100;
 

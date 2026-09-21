@@ -25,9 +25,9 @@ vendored component ships with the French one from `src/client/copy.ts`.
 - [x] **Design pass** with the `frontend-design` skill: app shell, the prospect
       table and the import flow, decided before any of them is built —
       written up in [design.md](design.md)
-- [ ] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
-- [ ] `GET /api/admin/prospects` — list with status / assignedTo / source filters
-- [ ] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`
+- [x] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
+- [x] `GET /api/admin/prospects` — list with status / assignedTo / source filters
+- [x] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`, `GET /api/admin/agents`
 - [ ] Admin: CSV import with column mapping and preview (parsed in the browser) — shadcn `table`, `select`, `dialog`
 - [ ] Admin: prospect list, assign (single + bulk) — shadcn `data-table`, `checkbox`, `dropdown-menu`
 

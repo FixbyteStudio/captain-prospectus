@@ -9,6 +9,8 @@ import { z } from "zod";
 import {
   ADMIN_VISITS_PAGE_SIZE,
   IMPORT_ROWS_PER_REQUEST,
+  PROSPECTS_MAX_OFFSET,
+  PROSPECTS_PAGE_SIZE,
   OUTCOMES,
   POLYGON_MAX_VERTICES,
   POLYGON_MIN_VERTICES,
@@ -149,11 +151,53 @@ export const assignSchema = z.object({
   assignedTo: emailSchema.nullable(),
 });
 
+/** Query string, so every value arrives as text and has to be coerced. */
 export const prospectsQuerySchema = z.object({
   status: statusSchema.optional(),
   assignedTo: emailSchema.optional(),
   source: sourceSchema.optional(),
+  limit: z.coerce.number().int().positive().max(PROSPECTS_PAGE_SIZE).default(PROSPECTS_PAGE_SIZE),
+  /**
+   * Capped like the limit is. SQLite walks the index to reach an offset, so an
+   * arbitrarily large one is a scan of the whole table that returns nothing.
+   */
+  offset: z.coerce.number().int().nonnegative().max(PROSPECTS_MAX_OFFSET).default(0),
 });
+
+export const prospectsResponseSchema = z.object({
+  prospects: z.array(prospectSchema),
+  /** Rows matching the filters, ignoring limit/offset. The list header shows it. */
+  total: z.int().nonnegative(),
+});
+export type ProspectsResponse = z.infer<typeof prospectsResponseSchema>;
+
+/**
+ * An import never reports "skipped": a row that matches an existing dedupe key
+ * is an update, not a duplicate, and that is the whole point of re-importing.
+ */
+export const importResultSchema = z.object({
+  created: z.int().nonnegative(),
+  updated: z.int().nonnegative(),
+});
+export type ImportResult = z.infer<typeof importResultSchema>;
+
+export const assignResultSchema = z.object({
+  /** Rows whose assignment was written. Unknown ids are silently not counted. */
+  assigned: z.int().nonnegative(),
+});
+export type AssignResult = z.infer<typeof assignResultSchema>;
+
+/** Route params are strings; an id that is not a UUID must 400, not 404. */
+export const prospectIdParamSchema = z.object({ id: uuidSchema });
+
+/**
+ * Everyone a prospect can be assigned to. There is no users table (ADR-0006),
+ * so this is the ADMIN_EMAILS and AGENT_EMAILS vars, not a query.
+ */
+export const agentsResponseSchema = z.object({
+  agents: z.array(z.object({ email: emailSchema, role: roleSchema })),
+});
+export type AgentsResponse = z.infer<typeof agentsResponseSchema>;
 
 /* ----------------------------------------------------------------------- sync */
 

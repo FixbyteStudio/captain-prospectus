@@ -21,10 +21,11 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Admin
 | Route | Purpose |
 |---|---|
-| `GET /api/admin/prospects?status=&assignedTo=&source=` | List prospects |
-| `POST /api/admin/prospects/batch` | Upsert `{source: "csv" \| "osm", rows[]}` by dedupe key |
-| `PATCH /api/admin/prospects/:id` | Edit fields, `assignedTo`, `status`, `nextVisitAt` |
-| `POST /api/admin/prospects/assign` | Bulk `{ids[], assignedTo}` |
+| `GET /api/admin/agents` | `{agents: [{email, role}]}` — everyone a prospect can be assigned to |
+| `GET /api/admin/prospects?status=&assignedTo=&source=&limit=&offset=` | `{prospects[], total}`, newest edit first |
+| `POST /api/admin/prospects/batch` | Upsert `{source: "csv" \| "osm", rows[]}` by dedupe key → `{created, updated}` |
+| `PATCH /api/admin/prospects/:id` | Edit fields, `assignedTo`, `status`, `nextVisitAt` → the updated prospect |
+| `POST /api/admin/prospects/assign` | Bulk `{ids[], assignedTo}` → `{assigned}`; `assignedTo: null` unassigns |
 | `POST /api/admin/import/overpass` | `{polygon: [lat,lng][]}` → candidates (not saved) |
 | `GET /api/admin/visits?since=<ms>` | Visits with `received_at > since`, newest first, max 500 |
 | `GET /api/admin/scripts` | All script versions |
@@ -46,7 +47,20 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 Every array is bounded, because one request must stay inside the Workers Free
 10 ms CPU budget (`docs/free-tier-budget.md`). The limits live in
 `src/shared/constants.ts`: 250 import rows, 200 visits and 100 field prospects
-per sync, 500 ids per bulk assign, 500 visits per live-feed page.
+per sync, 500 ids per bulk assign, 500 visits per live-feed page, 200 prospects
+per list page.
+
+`GET /api/admin/prospects` returns at most `PROSPECTS_PAGE_SIZE` rows; `total`
+counts every row matching the filters, so the list header can say "412
+prospects" while holding one page. D1's free tier bills *scanned* rows, which is
+why the page size is a cap and not just a default.
+
+## Who can be assigned
+There is no users table (ADR-0006). `GET /api/admin/agents` returns the union of
+the `ADMIN_EMAILS` and `AGENT_EMAILS` vars with each address's role, so the
+assign menu has something to offer before anyone has been assigned anything.
+Neither var grants access — Cloudflare Access decides who gets in — so
+`AGENT_EMAILS` has to be kept in step with the Access policy by hand.
 
 ## Conventions
 - Timestamps: epoch ms integers.

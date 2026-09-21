@@ -8,10 +8,19 @@ import type { Role } from "../shared/constants";
  * as `""`. We widen them to `string` here, and add DEV_USER_EMAIL, which lives
  * in .dev.vars and so never appears in the generated file.
  */
-export type Bindings = Omit<Env, "ACCESS_TEAM_DOMAIN" | "ACCESS_AUD" | "ADMIN_EMAILS"> & {
+export type Bindings = Omit<
+  Env,
+  "ACCESS_TEAM_DOMAIN" | "ACCESS_AUD" | "ADMIN_EMAILS" | "AGENT_EMAILS"
+> & {
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
   ADMIN_EMAILS?: string;
+  /**
+   * Comma-separated. Not a permission — Access decides who gets in, and
+   * ADMIN_EMAILS decides who is an admin. This is only who the assign menu
+   * offers, because ADR-0006 leaves us without a users table to query.
+   */
+  AGENT_EMAILS?: string;
   /** Local development only; honoured only on localhost. See ADR-0006. */
   DEV_USER_EMAIL?: string;
 };

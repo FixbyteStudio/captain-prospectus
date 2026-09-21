@@ -43,6 +43,10 @@ export const prospects = sqliteTable(
     uniqueIndex("prospects_dedupe_key_idx").on(t.dedupeKey),
     index("prospects_assigned_status_idx").on(t.assignedTo, t.status),
     index("prospects_status_idx").on(t.status),
+    // The admin list filters by source and orders by updatedAt. Without these
+    // both are full scans, and D1's free tier bills scanned rows.
+    index("prospects_source_idx").on(t.source),
+    index("prospects_updated_idx").on(t.updatedAt),
   ],
 );
 

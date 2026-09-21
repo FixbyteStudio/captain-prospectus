@@ -51,8 +51,16 @@ One place must exist once. The **dedupe key** (unique) is computed server-side:
 
 Normalisation: strip accents, lowercase, collapse non-alphanumerics.
 
-Known limits: two branches of the same chain in the same cell merge; the same place just across a cell boundary does not. Accepted for v1. The admin can merge manually later (roadmap).
+Known limits, accepted for v1; the admin can merge manually later (roadmap M5):
+
+- Two branches of the same chain in the same cell merge; the same place just across a cell boundary does not.
+- **A rename is a new prospect.** Tiers 2 and 3 are built from the name, so correcting a spelling in the spreadsheet and re-importing creates a second row rather than updating the first. Only tier 1 — a source that supplies a stable `source_ref`, such as OSM — survives a rename.
+- The dedupe key is **import-time identity and is never recomputed**. Editing a name or address through `PATCH /api/admin/prospects/:id` leaves the key as it was, because recomputing it could collide with the unique index and fail an otherwise valid edit.
 
 ## Rules
-- Re-importing updates descriptive fields (name, phone, website, address, cuisine, coordinates). It **never** touches status, assignment or visit history.
+- Re-importing updates descriptive fields (name, phone, website, address, cuisine, coordinates). It **never** touches status, assignment or visit history. A changed *name* only reaches an existing row through tier 1 of the dedupe key; see the limits above.
+- An import overwrites a field **only when it carries a value for it**. A column left unmapped sends nothing, and the stored value stays as it was — otherwise forgetting to map the phone column would erase every phone number in the base. The spreadsheet is authoritative about what it says, not about what it omits. Clearing a field on purpose is what `PATCH` is for. `name` and `type` are the exceptions: name is required, and type carries a default, so neither can arrive empty to mean "unchanged".
+- An import never reports "skipped": a row matching an existing key is an update, which is the point of re-importing. The result is `{created, updated}`.
+- Duplicate rows **within one import request** collapse to one before they reach the database; the last one wins. SQLite refuses an `ON CONFLICT DO UPDATE` that would touch the same row twice in one statement.
+- Assignment moves status along exactly two edges: `new → assigned` when a prospect is assigned, `assigned → new` when it is unassigned. A prospect whose status came from a visit (`follow_up`, `converted`, `rejected`) keeps it.
 - Prospects are never hard-deleted once they have visits.

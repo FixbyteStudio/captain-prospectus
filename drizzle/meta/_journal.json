@@ -8,6 +8,13 @@
       "when": 1789986694243,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790008764658,
+      "tag": "0001_prospect_list_indexes",
+      "breakpoints": true
     }
   ]
 }

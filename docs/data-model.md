@@ -79,6 +79,16 @@ erDiagram
 |---|---|
 | `prospects(dedupe_key)` unique | import upsert, field-prospect dedupe |
 | `prospects(assigned_to, status)` | sync pull |
+| `prospects(status)` | admin list filtered by status |
+| `prospects(source)` | admin list filtered by source |
+| `prospects(updated_at)` | admin list default order |
+
+SQLite uses one index per table reference, so a filtered *and* sorted admin list
+(`status=X` ordered by `updated_at`) filters on the index and then sorts the
+matches in memory. Composite `(status, updated_at)`-style indexes would remove
+that sort, and were deliberately not added: at the few thousand prospects this
+project plans for, the sort is negligible, and three more indexes would cost a
+write on every imported row. Revisit if the base grows by an order of magnitude.
 | `visits(prospect_id, visited_at)` | visit history on a prospect |
 | `visits(received_at)` | live feed |
 | `visits(agent_email, visited_at)` | an agent's own history |
