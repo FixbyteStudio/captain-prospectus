@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "captain-prospectus",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+
+    // MUST stay an array of API paths, never `true`.
+    // Requests to static assets are free and unlimited ONLY while they do not
+    // invoke the Worker. `true` runs the Worker for every app-shell request and
+    // puts the whole PWA on the 100,000/day free quota.
+    // See ADR-0003 and docs/free-tier-budget.md. Asserted in src/worker/config.test.ts.
+    "run_worker_first": ["/api/*"],
+  },
+
+  // Free; the release checklist ("Workers logs show no new errors") depends on it.
+  "observability": { "enabled": true },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "captain-prospectus",
+      // Replace after `npx wrangler d1 create captain-prospectus`.
+      // See docs/deployment.md, "One-time setup".
+      "database_id": "REPLACE_ME_SEE_docs_deployment_md",
+      "migrations_dir": "drizzle",
+    },
+  ],
+
+  "vars": {
+    // Filled in during one-time setup; see docs/deployment.md.
+    // ACCESS_TEAM_DOMAIN is the full origin, e.g. https://acme.cloudflareaccess.com
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    // Comma-separated. Everyone else who passes Access is an agent.
+    "ADMIN_EMAILS": "",
+  },
+
+  // Deliberately NO `access.dev` block: a Worker serving Static Assets never
+  // receives `ctx.access`, so we verify the JWT ourselves. See ADR-0006.
+}

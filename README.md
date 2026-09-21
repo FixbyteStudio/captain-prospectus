@@ -6,7 +6,21 @@ B2B field-canvassing app. An admin imports restaurants and food trucks (CSV or a
 
 ## Status
 
-Pre-code. Documentation and decisions first. See [roadmap](docs/roadmap.md).
+M0 done: the app is scaffolded, CI runs lint, typecheck, tests and build, and the
+sync endpoint works end to end against a local D1. Not yet deployed — the
+Cloudflare account and Access application are set up by hand, see
+[deployment](docs/deployment.md). Next: M1, prospects and CSV import.
+See the [roadmap](docs/roadmap.md).
+
+## Develop
+
+```sh
+npm install
+cp .dev.vars.example .dev.vars
+npm run db:migrate:local
+npm run dev              # then, in another terminal:
+npm run db:seed:local
+```
 
 ## Where to start
 

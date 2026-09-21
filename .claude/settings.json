@@ -9,7 +9,13 @@
       "Bash(npm run db:migrate:local)",
       "Bash(git status)",
       "Bash(git diff:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run format)",
+      "Bash(npm run db:seed:local)",
+      "Bash(npm run cf-typegen)",
+      "Bash(npm ci)",
+      "Bash(npm install:*)"
     ],
     "deny": [
       "Bash(npx wrangler deploy:*)",
@@ -18,7 +24,9 @@
       "Bash(npm run db:migrate:remote:*)",
       "Bash(npx wrangler secret:*)",
       "Bash(npx wrangler d1 execute:*)",
-      "Read(./.dev.vars)"
+      "Read(./.dev.vars)",
+      "Bash(npx wrangler d1 export:*)",
+      "Bash(npx wrangler d1 time-travel:*)"
     ]
   }
 }

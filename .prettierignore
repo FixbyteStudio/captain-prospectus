@@ -1,0 +1,8 @@
+dist
+drizzle
+.wrangler
+node_modules
+package-lock.json
+
+# Docs are hand-formatted prose and tables; Prettier reflows them into noise.
+*.md

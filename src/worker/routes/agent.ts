@@ -1,0 +1,269 @@
+/**
+ * Agent routes — docs/domains/field-operations.md, ADR-0007.
+ *
+ * One endpoint does the work: push the phone's outbox, pull its today list.
+ * Everything here is insert-only and idempotent, because a phone may resend a
+ * payload any number of times (INVARIANT 4).
+ */
+import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import {
+  CLIENT_VERSION,
+  MIN_CLIENT_VERSION,
+  OPEN_STATUSES,
+  OUTCOME_TO_STATUS,
+} from "../../shared/constants";
+import { chunk } from "../../shared/chunk";
+import { dedupeKey } from "../../shared/dedupe";
+import { syncRequestSchema } from "../../shared/schemas";
+import type { Prospect, Script, SyncResponse } from "../../shared/schemas";
+import { validate } from "../validate";
+import { boundParamsPerRow, getDb } from "../db/client";
+import { prospects, scripts, visits } from "../db/schema";
+import type { AppEnv } from "../types";
+import type { NewProspectRow, NewVisitRow, ProspectRow } from "../db/schema";
+
+export const agentRoutes = new Hono<AppEnv>();
+
+function toWireProspect(row: ProspectRow): Prospect {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    lat: row.lat,
+    lng: row.lng,
+    address: row.address,
+    phone: row.phone,
+    website: row.website,
+    cuisine: row.cuisine,
+    source: row.source,
+    status: row.status,
+    assignedTo: row.assignedTo,
+    lastVisitAt: row.lastVisitAt,
+    nextVisitAt: row.nextVisitAt,
+  };
+}
+
+/**
+ * Runs BEFORE validation, on purpose.
+ *
+ * A build old enough to be unsupported may also send a payload that no longer
+ * matches the current schema. Validating first would answer 400 "your data is
+ * wrong", when the true answer is 426 "update the app" — and the difference
+ * matters, because only one of those tells the client its outbox is fine
+ * (INVARIANT 5). Hono caches the parsed body, so this costs no second parse.
+ */
+const requireSupportedClientVersion = createMiddleware<AppEnv>(async (c, next) => {
+  const body: unknown = await c.req.json().catch(() => null);
+  const version = (body as { clientVersion?: unknown } | null)?.clientVersion;
+
+  if (typeof version === "number" && version < MIN_CLIENT_VERSION) {
+    return c.json(
+      {
+        error: "client_too_old",
+        message: "Mettez l'application à jour pour synchroniser.",
+        minClientVersion: MIN_CLIENT_VERSION,
+      },
+      426,
+    );
+  }
+  return next();
+});
+
+agentRoutes.post(
+  "/sync",
+  requireSupportedClientVersion,
+  validate("json", syncRequestSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const { email } = c.get("identity");
+    const db = getDb(c.env.DB);
+    const now = Date.now();
+
+    // ---- 1. Field prospects first: a visit in this payload may reference one.
+    const idMap: Record<string, string> = {};
+    const acceptedProspects: string[] = [];
+
+    if (body.prospects.length > 0) {
+      const rows: NewProspectRow[] = body.prospects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        lat: p.lat ?? null,
+        lng: p.lng ?? null,
+        address: p.address ?? null,
+        phone: p.phone ?? null,
+        website: null,
+        cuisine: null,
+        source: "field" as const,
+        sourceRef: null,
+        dedupeKey: dedupeKey({ name: p.name, lat: p.lat, lng: p.lng, address: p.address }),
+        // A field prospect belongs to the agent who found it.
+        status: "assigned" as const,
+        assignedTo: email,
+        createdBy: email,
+        createdAt: p.createdAt,
+        updatedAt: now,
+      }));
+
+      for (const batch of chunk(rows, boundParamsPerRow(prospects))) {
+        await db.insert(prospects).values(batch).onConflictDoNothing();
+      }
+
+      // Dedupe collisions: the place already existed, so the existing row wins and
+      // the client is told which id to use instead.
+      const keys = rows.map((r) => r.dedupeKey);
+      const existing = await db
+        .select({ id: prospects.id, dedupeKey: prospects.dedupeKey })
+        .from(prospects)
+        .where(inArray(prospects.dedupeKey, keys));
+      const byKey = new Map(existing.map((r) => [r.dedupeKey, r.id]));
+
+      for (const row of rows) {
+        const serverId = byKey.get(row.dedupeKey);
+        if (!serverId) continue;
+        if (serverId !== row.id) idMap[row.id] = serverId;
+        // Accepted either way: the client's outbox row is done with.
+        acceptedProspects.push(row.id);
+      }
+    }
+
+    // ---- 2. Visits, with the collision map applied.
+    const acceptedVisits: string[] = [];
+    const touchedProspectIds = new Set<string>();
+
+    if (body.visits.length > 0) {
+      const rows: NewVisitRow[] = body.visits.map((v) => {
+        const prospectId = idMap[v.prospectId] ?? v.prospectId;
+        return {
+          id: v.id,
+          prospectId,
+          agentEmail: email,
+          // INVARIANT 12: a phone's clock can be ahead. An unclamped future date
+          // would win every later comparison and freeze this prospect's status.
+          visitedAt: Math.min(v.visitedAt, now),
+          clientVisitedAt: v.visitedAt,
+          receivedAt: now,
+          lat: v.lat ?? null,
+          lng: v.lng ?? null,
+          flyerGiven: v.flyerGiven,
+          outcome: v.outcome,
+          followUpAt: v.followUpAt ?? null,
+          notes: v.notes ?? null,
+          scriptId: v.scriptId ?? null,
+          answers: v.answers,
+          clientVersion: body.clientVersion,
+        };
+      });
+
+      // Only insert visits whose prospect exists: a foreign-key failure would
+      // reject the whole statement and cost the agent every visit in the batch.
+      const referenced = [...new Set(rows.map((r) => r.prospectId))];
+      const known = new Set(
+        (
+          await db
+            .select({ id: prospects.id })
+            .from(prospects)
+            .where(inArray(prospects.id, referenced))
+        ).map((r) => r.id),
+      );
+      const insertable = rows.filter((r) => known.has(r.prospectId));
+
+      for (const batch of chunk(insertable, boundParamsPerRow(visits))) {
+        const inserted = await db
+          .insert(visits)
+          .values(batch)
+          .onConflictDoNothing()
+          .returning({ id: visits.id, prospectId: visits.prospectId });
+        for (const row of inserted) touchedProspectIds.add(row.prospectId);
+      }
+
+      // Idempotency: a visit already stored counts as accepted, so a retry lets
+      // the client clear its outbox instead of resending forever.
+      for (const row of insertable) acceptedVisits.push(row.id);
+    }
+
+    // ---- 3. Derive prospect status from the newly stored visits (INVARIANT 3).
+    for (const prospectId of touchedProspectIds) {
+      const [latest] = await db
+        .select({
+          outcome: visits.outcome,
+          visitedAt: visits.visitedAt,
+          followUpAt: visits.followUpAt,
+        })
+        .from(visits)
+        .where(eq(visits.prospectId, prospectId))
+        .orderBy(desc(visits.visitedAt))
+        .limit(1);
+      if (!latest) continue;
+
+      // Only the latest visit moves the status; a late-syncing older visit is
+      // stored but does not overwrite a newer outcome.
+      await db
+        .update(prospects)
+        .set({
+          status: OUTCOME_TO_STATUS[latest.outcome],
+          lastVisitAt: latest.visitedAt,
+          nextVisitAt: latest.followUpAt,
+          updatedAt: now,
+        })
+        .where(eq(prospects.id, prospectId));
+    }
+
+    // ---- 4. Pull: the agent's open prospects and the active script.
+    const todayList = await db
+      .select()
+      .from(prospects)
+      .where(and(eq(prospects.assignedTo, email), inArray(prospects.status, [...OPEN_STATUSES])));
+
+    const [activeScript] = await db
+      .select()
+      .from(scripts)
+      .where(eq(scripts.isActive, true))
+      .limit(1);
+
+    const response: SyncResponse = {
+      serverTime: now,
+      accepted: { prospects: acceptedProspects, visits: acceptedVisits },
+      idMap,
+      prospects: todayList.map(toWireProspect),
+      script: activeScript ? (toWireScript(activeScript) as Script) : null,
+    };
+    return c.json(response);
+  },
+);
+
+function toWireScript(row: typeof scripts.$inferSelect): Script {
+  return {
+    id: row.id,
+    name: row.name,
+    version: row.version,
+    // Stored as JSON; the shape is guaranteed by scriptCreateSchema on write.
+    questions: row.questions as Script["questions"],
+    isActive: row.isActive,
+    createdAt: row.createdAt,
+  };
+}
+
+/** Last 20 visits of a prospect. An agent sees only prospects assigned to them. */
+agentRoutes.get("/prospects/:id/visits", async (c) => {
+  const db = getDb(c.env.DB);
+  const { email, role } = c.get("identity");
+  const id = c.req.param("id");
+
+  const [prospect] = await db.select().from(prospects).where(eq(prospects.id, id)).limit(1);
+  if (!prospect) return c.json({ error: "not_found" }, 404);
+  if (role !== "admin" && prospect.assignedTo !== email) {
+    return c.json({ error: "forbidden", message: "Ce prospect ne vous est pas assigné." }, 403);
+  }
+
+  const history = await db
+    .select()
+    .from(visits)
+    .where(eq(visits.prospectId, id))
+    .orderBy(desc(visits.visitedAt))
+    .limit(20);
+
+  return c.json({ visits: history, clientVersion: CLIENT_VERSION });
+});

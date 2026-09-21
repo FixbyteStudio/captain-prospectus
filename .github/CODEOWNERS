@@ -1,6 +1,6 @@
-# Replace @OWNER with your GitHub username.
-*                       @OWNER
-/docs/adr/              @OWNER
-/src/worker/db/         @OWNER
-/drizzle/               @OWNER
-/.github/workflows/     @OWNER
+# Owner of the repository. Update if the GitHub account changes.
+*                       @mohss
+/docs/adr/              @mohss
+/src/worker/db/         @mohss
+/drizzle/               @mohss
+/.github/workflows/     @mohss

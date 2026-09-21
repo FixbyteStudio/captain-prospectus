@@ -20,18 +20,17 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v7
-      - name: Skip until the app is scaffolded
-        id: scaffold
-        run: echo "present=$([ -f wrangler.jsonc ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v7
-        if: steps.scaffold.outputs.present == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
-      - if: steps.scaffold.outputs.present == 'true'
-        run: npm ci && npm run build
+      - run: npm ci
+      # The Cloudflare Vite plugin writes the deploy configuration into
+      # dist/captain_prospectus/wrangler.json; `wrangler deploy` picks it up.
+      - run: npm run build
+      # Migrations run BEFORE the new code, so every migration must work with
+      # the currently deployed Worker (expand -> deploy -> contract).
       - name: Apply D1 migrations, then deploy
-        if: steps.scaffold.outputs.present == 'true'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

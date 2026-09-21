@@ -50,8 +50,10 @@ Response
 ### Rules
 - **Order matters on the server:** field prospects first, then visits (visits may reference a prospect created in the same payload).
 - **Dedupe collision on a field prospect:** if the agent adds a place that already exists, the server keeps the existing prospect, returns `idMap[clientId] = existingId`, and rewrites `prospectId` on visits in the same payload. The client applies `idMap` to anything still in its outbox.
-- **Idempotency:** resending an accepted payload is a no-op. The client deletes outbox rows only after they appear in `accepted`.
-- **Versioning:** `clientVersion` is an integer bumped on any breaking contract change. The server answers `426 Upgrade Required` below the minimum supported version; the client then forces a service worker update *without* dropping the outbox.
+- **Idempotency:** resending an accepted payload is a no-op. The client deletes outbox rows only after they appear in `accepted`. A visit the server already holds is listed in `accepted` again, so a phone that lost the first response can still clear its outbox instead of resending for ever.
+- **Bounded payload:** the client sends at most `SYNC_VISITS_PER_REQUEST` visits and `SYNC_PROSPECTS_PER_REQUEST` field prospects per sync (`src/shared/constants.ts`) and repeats until the outbox is empty. A phone offline for a week must not build one request that exceeds the Worker's CPU budget.
+- **A visit whose prospect the server does not know is held, not dropped.** It stays in the outbox rather than failing the whole batch on a foreign key.
+- **Versioning:** `clientVersion` is an integer bumped on any breaking contract change. The server answers `426 Upgrade Required` below the minimum supported version; the client then forces a service worker update *without* dropping the outbox. The version is checked **before** the body is validated, so a build old enough to send a now-invalid shape is told to update rather than that its data is bad.
 - **Never lose a visit.** The outbox survives app updates, reloads and failed syncs. Clearing it requires a successful sync.
 
 ### Triggers

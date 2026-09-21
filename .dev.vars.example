@@ -1,0 +1,8 @@
+# Copy to .dev.vars (git-ignored) for local development.
+#
+# Impersonates a signed-in user. Honoured ONLY when the request host is
+# localhost or 127.0.0.1 — see docs/domains/identity-access.md and ADR-0006.
+DEV_USER_EMAIL="admin@example.com"
+
+# Comma-separated admin emails. Anyone else who signs in is an agent.
+ADMIN_EMAILS="admin@example.com"

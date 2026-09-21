@@ -7,6 +7,11 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 |---|---|---|
 | `GET /api/me` | any | `{email, role}` |
 
+## Local development only
+| Route | Purpose |
+|---|---|
+| `POST /api/dev/seed` | Fills the local database with sample prospects and a script. Answers 404 unless the request host is localhost. Run through `npm run db:seed:local` |
+
 ## Agent
 | Route | Purpose |
 |---|---|
@@ -32,8 +37,16 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | 401 | No or invalid Access token |
 | 403 | Authenticated but wrong role |
 | 404 | Unknown resource |
-| 426 | `clientVersion` no longer supported: update the app |
+| 426 | `clientVersion` no longer supported: update the app. Checked **before** body validation, so an old build is told to update rather than that its data is invalid |
+| 501 | Route declared but not implemented yet (see the roadmap) |
+| 503 | D1 daily free-tier limit reached. Nothing was lost; retry later |
 | 502 | Overpass failed or timed out |
+
+## Payload caps
+Every array is bounded, because one request must stay inside the Workers Free
+10 ms CPU budget (`docs/free-tier-budget.md`). The limits live in
+`src/shared/constants.ts`: 250 import rows, 200 visits and 100 field prospects
+per sync, 500 ids per bulk assign, 500 visits per live-feed page.
 
 ## Conventions
 - Timestamps: epoch ms integers.
