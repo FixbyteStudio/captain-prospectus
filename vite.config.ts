@@ -26,7 +26,7 @@ export default defineConfig({
         // A cached sync response would show an agent a stale today list, or
         // worse, make a failed sync look successful. navigateFallbackDenylist
         // keeps /api out of the SPA fallback; there are no runtimeCaching rules
-        // on purpose. Asserted in src/client/sw.test.ts.
+        // on purpose. Asserted in config.test.ts.
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [],

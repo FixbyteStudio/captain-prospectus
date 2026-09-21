@@ -280,6 +280,68 @@ describe("POST /api/agent/sync", () => {
     expect(await db.select().from(prospects)).toHaveLength(30);
   });
 
+  it("neither stores nor accepts a visit whose prospect is unknown", async () => {
+    // Deliberate: accepting it would tell the phone to delete a visit the
+    // server never stored, which is exactly the loss INVARIANT 5 forbids.
+    //
+    // KNOWN GAP: the phone therefore keeps retrying it. That self-heals when
+    // the prospect is simply in a later outbox page, but not when the prospect
+    // genuinely no longer exists — then the outbox never drains and the phone
+    // resends on every sync. Closing it needs an additive `rejected` field in
+    // the response plus client handling; see the sync-contract-change skill.
+    const response = await sync({
+      visits: [
+        {
+          id: crypto.randomUUID(),
+          prospectId: crypto.randomUUID(), // never inserted
+          visitedAt: Date.now(),
+          flyerGiven: false,
+          outcome: "interested",
+          answers: {},
+        } as never,
+      ],
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as SyncResponse;
+    expect(body.accepted.visits).toHaveLength(0);
+
+    const db = getDb(env.DB);
+    expect(await db.select().from(visits)).toHaveLength(0);
+  });
+
+  it("accepts a visit against a field prospect created in the same payload", async () => {
+    // The ordinary case the filter must not break: prospects are inserted
+    // before visits precisely so a visit can reference one of them.
+    const clientProspectId = crypto.randomUUID();
+    const response = await sync({
+      prospects: [
+        {
+          id: clientProspectId,
+          name: "Camion du marché",
+          type: "food_truck",
+          lat: 45.76,
+          lng: 4.83,
+          createdAt: Date.now(),
+        } as never,
+      ],
+      visits: [
+        {
+          id: crypto.randomUUID(),
+          prospectId: clientProspectId,
+          visitedAt: Date.now(),
+          flyerGiven: true,
+          outcome: "interested",
+          answers: {},
+        } as never,
+      ],
+    });
+
+    const body = (await response.json()) as SyncResponse;
+    expect(body.accepted.visits).toHaveLength(1);
+    expect(await getDb(env.DB).select().from(visits)).toHaveLength(1);
+  });
+
   it("pulls back only the agent's open prospects", async () => {
     const db = getDb(env.DB);
     const mine = crypto.randomUUID();

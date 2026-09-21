@@ -33,6 +33,7 @@ Each milestone ends deployable.
 
 ## M5 — Hardening
 - [ ] Security review against [security.md](security.md)
+- [ ] Orphan visits: report ids the server could not store in a `rejected` field so a phone stops resending for ever (see [field-operations](domains/field-operations.md#rules))
 - [x] Scheduled D1 export backup (`.github/workflows/backup.yml`; inert until the Cloudflare secrets exist)
 - [ ] CSV export of prospects and visits
 - [ ] Manual prospect merge (dedupe misses)

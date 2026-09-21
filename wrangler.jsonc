@@ -14,7 +14,7 @@
     // Requests to static assets are free and unlimited ONLY while they do not
     // invoke the Worker. `true` runs the Worker for every app-shell request and
     // puts the whole PWA on the 100,000/day free quota.
-    // See ADR-0003 and docs/free-tier-budget.md. Asserted in src/worker/config.test.ts.
+    // See ADR-0003 and docs/free-tier-budget.md. Asserted in config.test.ts.
     "run_worker_first": ["/api/*"],
   },
 
