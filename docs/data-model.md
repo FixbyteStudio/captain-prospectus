@@ -23,6 +23,7 @@ erDiagram
     text assigned_to "agent email"
     int last_visit_at
     int next_visit_at
+    text merged_into FK "null = live; set = absorbed by another prospect"
     text created_by
     int created_at
     int updated_at
@@ -72,6 +73,13 @@ erDiagram
   "have all phones upgraded?" a SQL query instead of a log search, which is the gate for raising
   `MIN_CLIENT_VERSION` (`sync-contract-change` skill).
 - **No users table.** Identity is the email asserted by Cloudflare Access ([ADR-0006](adr/0006-cloudflare-access-auth.md)). Role comes from the `ADMIN_EMAILS` variable.
+- **A merge is soft.** `merged_into` points at the survivor; nothing is deleted and no visit is
+  repointed, because visits are append-only. The absorbed prospect keeps its own visits, its own
+  status and its own dedupe key, which is what makes a merge reversible
+  ([prospecting](domains/prospecting.md#merging)).
+- **Every query that lists live prospects filters `merged_into IS NULL`.** That is the admin list and
+  its count, the agent's sync pull, and the duplicate sweep. The import instead *follows* the
+  pointer: a key landing on an absorbed row updates the survivor.
 
 ## Indexes
 
@@ -82,6 +90,7 @@ erDiagram
 | `prospects(status)` | admin list filtered by status |
 | `prospects(source)` | admin list filtered by source |
 | `prospects(updated_at)` | admin list default order |
+| `prospects(merged_into)` | live-prospect filter, and finding what a survivor absorbed |
 
 SQLite uses one index per table reference, so a filtered *and* sorted admin list
 (`status=X` ordered by `updated_at`) filters on the index and then sorts the

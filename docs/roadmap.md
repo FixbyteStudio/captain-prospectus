@@ -60,7 +60,9 @@ vendored component ships with the French one from `src/client/copy.ts`.
 - [ ] Orphan visits: report ids the server could not store in a `rejected` field so a phone stops resending for ever (see [field-operations](domains/field-operations.md#rules))
 - [ ] Data retention decided and written down (visit notes, agent positions)
 - [ ] CSV export of prospects and visits
-- [ ] Manual prospect merge (dedupe misses)
+- [ ] Manual prospect merge (dedupe misses) — API and detection done
+      (`/api/admin/prospects/duplicates`, `merge`, `unmerge`); the admin screen
+      is still to build, see [prospecting](domains/prospecting.md#merging)
 
 ## M6 — Go live
 Everything here is account setup, done once, by hand. Runbook:

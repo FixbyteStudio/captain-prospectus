@@ -7,7 +7,7 @@
  */
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   CLIENT_VERSION,
   MIN_CLIENT_VERSION,
@@ -113,12 +113,20 @@ agentRoutes.post(
 
       // Dedupe collisions: the place already existed, so the existing row wins and
       // the client is told which id to use instead.
+      //
+      // mergedInto is followed here: if the row the key lands on has since been
+      // merged away, the phone must be pointed at the survivor, or its visits
+      // would pile up on a prospect the admin has already retired.
       const keys = rows.map((r) => r.dedupeKey);
       const existing = await db
-        .select({ id: prospects.id, dedupeKey: prospects.dedupeKey })
+        .select({
+          id: prospects.id,
+          dedupeKey: prospects.dedupeKey,
+          mergedInto: prospects.mergedInto,
+        })
         .from(prospects)
         .where(inArray(prospects.dedupeKey, keys));
-      const byKey = new Map(existing.map((r) => [r.dedupeKey, r.id]));
+      const byKey = new Map(existing.map((r) => [r.dedupeKey, r.mergedInto ?? r.id]));
 
       for (const row of rows) {
         const serverId = byKey.get(row.dedupeKey);
@@ -211,11 +219,19 @@ agentRoutes.post(
         .where(eq(prospects.id, prospectId));
     }
 
-    // ---- 4. Pull: the agent's open prospects and the active script.
+    // ---- 4. Pull: the agent's open, live prospects and the active script.
+    // A merged prospect is gone as far as the round is concerned — that is the
+    // whole point of merging, so the agent stops walking to the same door twice.
     const todayList = await db
       .select()
       .from(prospects)
-      .where(and(eq(prospects.assignedTo, email), inArray(prospects.status, [...OPEN_STATUSES])));
+      .where(
+        and(
+          eq(prospects.assignedTo, email),
+          inArray(prospects.status, [...OPEN_STATUSES]),
+          isNull(prospects.mergedInto),
+        ),
+      );
 
     const [activeScript] = await db
       .select()

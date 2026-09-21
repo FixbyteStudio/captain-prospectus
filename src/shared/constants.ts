@@ -96,6 +96,18 @@ export const PROSPECTS_PAGE_SIZE = 200;
  */
 export const PROSPECTS_MAX_OFFSET = PROSPECTS_PAGE_SIZE * 100;
 
+/** Candidate duplicate pairs returned in one sweep. */
+export const DUPLICATES_PAGE_SIZE = 100;
+
+/**
+ * Prospects the duplicate sweep will compare in one request.
+ *
+ * Comparing pairs is CPU, and Workers Free allows 10 ms of it; waiting on D1 is
+ * what is free. Bucketing by location keeps the comparisons near-linear, but the
+ * scan itself still has to be bounded.
+ */
+export const DUPLICATES_SCAN_LIMIT = 5_000;
+
 /** D1 allows at most 100 bound parameters per statement. See chunk(). */
 export const D1_MAX_BOUND_PARAMS = 100;
 

@@ -15,6 +15,13 @@
       "when": 1790008764658,
       "tag": "0001_prospect_list_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790016466705,
+      "tag": "0002_prospect_merge",
+      "breakpoints": true
     }
   ]
 }

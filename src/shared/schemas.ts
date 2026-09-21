@@ -190,6 +190,50 @@ export type AssignResult = z.infer<typeof assignResultSchema>;
 /** Route params are strings; an id that is not a UUID must 400, not 404. */
 export const prospectIdParamSchema = z.object({ id: uuidSchema });
 
+/* ---------------------------------------------------------------- merging */
+
+/**
+ * Two prospects that are probably one place, for the admin to judge.
+ * `distanceM` is null when either side has no coordinates.
+ */
+export const duplicatePairSchema = z.object({
+  a: prospectSchema,
+  b: prospectSchema,
+  distanceM: z.number().nonnegative().nullable(),
+  aVisits: z.int().nonnegative(),
+  bVisits: z.int().nonnegative(),
+});
+export type DuplicatePair = z.infer<typeof duplicatePairSchema>;
+
+export const duplicatesResponseSchema = z.object({
+  pairs: z.array(duplicatePairSchema),
+  /** True when the scan hit its cap and more pairs may exist. */
+  truncated: z.boolean(),
+});
+export type DuplicatesResponse = z.infer<typeof duplicatesResponseSchema>;
+
+export const mergeSchema = z
+  .object({
+    survivorId: uuidSchema,
+    mergedId: uuidSchema,
+  })
+  .refine((v) => v.survivorId !== v.mergedId, {
+    message: "a prospect cannot be merged into itself",
+    path: ["mergedId"],
+  });
+
+export const mergeResultSchema = z.object({
+  survivorId: uuidSchema,
+  mergedId: uuidSchema,
+  /**
+   * Whether the survivor's dedupe key was recomputed. False when the new key
+   * is already taken by another live prospect — itself a merge the admin still
+   * has to do, so it is reported rather than hidden.
+   */
+  dedupeKeyUpdated: z.boolean(),
+});
+export type MergeResult = z.infer<typeof mergeResultSchema>;
+
 /**
  * Everyone a prospect can be assigned to. There is no users table (ADR-0006),
  * so this is the ADMIN_EMAILS and AGENT_EMAILS vars, not a query.

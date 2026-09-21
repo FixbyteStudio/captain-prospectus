@@ -7,7 +7,9 @@ import { prospects, visits } from "./db/schema";
 import type {
   AgentsResponse,
   AssignResult,
+  DuplicatesResponse,
   ImportResult,
+  MergeResult,
   Prospect,
   ProspectsResponse,
 } from "../shared/schemas";
@@ -411,6 +413,268 @@ describe("POST /api/admin/prospects/assign", () => {
     const ids = Array.from({ length: 501 }, () => crypto.randomUUID());
     const response = await post("/api/admin/prospects/assign", { ids, assignedTo: AGENT });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("merging duplicates", () => {
+  /** The rename case: same door, two rows, because the key carries the name. */
+  async function renamedPair(): Promise<{ original: string; renamed: string }> {
+    await importRows([{ name: "Chez Léa", lat: 45.7578, lng: 4.832 }]);
+    await importRows([{ name: "Chez Léa et Paul", lat: 45.7578, lng: 4.832 }]);
+
+    const rows = await getDb(env.DB).select().from(prospects);
+    expect(rows).toHaveLength(2);
+    const original = rows.find((r) => r.name === "Chez Léa");
+    const renamed = rows.find((r) => r.name === "Chez Léa et Paul");
+    if (!original || !renamed) throw new Error("expected both spellings");
+    return { original: original.id, renamed: renamed.id };
+  }
+
+  it("proposes the renamed pair and nothing else", async () => {
+    const { original, renamed } = await renamedPair();
+    await importRows([{ name: "Burger King", lat: 45.7578, lng: 4.832 }]);
+
+    const body = (await (
+      await call("/api/admin/prospects/duplicates")
+    ).json()) as DuplicatesResponse;
+
+    expect(body.truncated).toBe(false);
+    expect(body.pairs).toHaveLength(1);
+    const ids = [body.pairs[0]?.a.id, body.pairs[0]?.b.id].sort();
+    expect(ids).toEqual([original, renamed].sort());
+    // Same coordinates, so they are zero metres apart — but still a number.
+    expect(body.pairs[0]?.distanceM).toBe(0);
+  });
+
+  it("reports how many visits each side carries", async () => {
+    const { original, renamed } = await renamedPair();
+    const db = getDb(env.DB);
+    await db.insert(visits).values({
+      id: crypto.randomUUID(),
+      prospectId: original,
+      agentEmail: AGENT,
+      visitedAt: Date.now(),
+      clientVisitedAt: Date.now(),
+      receivedAt: Date.now(),
+      flyerGiven: true,
+      outcome: "interested",
+      answers: {},
+      clientVersion: 1,
+    });
+
+    const body = (await (
+      await call("/api/admin/prospects/duplicates")
+    ).json()) as DuplicatesResponse;
+    const pair = body.pairs[0];
+    if (!pair) throw new Error("expected a pair");
+
+    const originalSide = pair.a.id === original ? pair.aVisits : pair.bVisits;
+    const renamedSide = pair.a.id === renamed ? pair.aVisits : pair.bVisits;
+    expect(originalSide).toBe(1);
+    expect(renamedSide).toBe(0);
+  });
+
+  it("merges, hides the absorbed prospect, and keeps every visit", async () => {
+    const { original, renamed } = await renamedPair();
+    const db = getDb(env.DB);
+    const visitId = crypto.randomUUID();
+    await db.insert(visits).values({
+      id: visitId,
+      prospectId: original,
+      agentEmail: AGENT,
+      visitedAt: Date.now(),
+      clientVisitedAt: Date.now(),
+      receivedAt: Date.now(),
+      flyerGiven: true,
+      outcome: "interested",
+      answers: {},
+      clientVersion: 1,
+    });
+
+    const response = await post("/api/admin/prospects/merge", {
+      survivorId: renamed,
+      mergedId: original,
+    });
+    expect(response.status).toBe(200);
+    expect((await response.json()) as MergeResult).toEqual({
+      survivorId: renamed,
+      mergedId: original,
+      dedupeKeyUpdated: false, // the survivor's own key already matches its name
+    });
+
+    const listed = (await (await call("/api/admin/prospects")).json()) as ProspectsResponse;
+    expect(listed.prospects.map((p) => p.id)).toEqual([renamed]);
+    expect(listed.total).toBe(1);
+
+    // Nothing was deleted and no visit was repointed: visits are append-only.
+    expect(await db.select().from(visits)).toHaveLength(1);
+    const [stillThere] = await db.select().from(visits).where(eq(visits.id, visitId));
+    expect(stillThere?.prospectId).toBe(original);
+  });
+
+  it("drops the absorbed prospect from the agent's round", async () => {
+    const { original, renamed } = await renamedPair();
+    await post("/api/admin/prospects/assign", {
+      ids: [original, renamed],
+      assignedTo: ADMIN,
+    });
+    await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
+
+    const sync = await post("/api/agent/sync", { clientVersion: 1, prospects: [], visits: [] });
+    const body = (await sync.json()) as { prospects: Prospect[] };
+    expect(body.prospects.map((p) => p.id)).toEqual([renamed]);
+  });
+
+  it("sends a re-import of the old spelling to the survivor", async () => {
+    // The path most likely to be got wrong: the absorbed row keeps its dedupe
+    // key, so without redirection the import would update a retired prospect
+    // and the live one would never see the new data.
+    const { original, renamed } = await renamedPair();
+    await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
+
+    const again = await importRows([
+      { name: "Chez Léa", lat: 45.7578, lng: 4.832, phone: "0478111111" },
+    ]);
+    expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
+
+    const db = getDb(env.DB);
+    expect(await db.select().from(prospects)).toHaveLength(2); // no third row
+    const [survivor] = await db.select().from(prospects).where(eq(prospects.id, renamed));
+    expect(survivor?.phone).toBe("0478111111");
+    // And it keeps the name the admin chose. Writing the old spelling back
+    // would restore the stale dedupe key and duplicate again on the next import.
+    expect(survivor?.name).toBe("Chez Léa et Paul");
+  });
+
+  it("does not duplicate again when the old spreadsheet is imported twice more", async () => {
+    // The loop the previous test guards against: revert the name, revert the
+    // key, and every later import creates a fresh row.
+    const { original, renamed } = await renamedPair();
+    await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
+
+    const old = [{ name: "Chez Léa", lat: 45.7578, lng: 4.832 }];
+    await importRows(old);
+    await importRows(old);
+
+    expect(await getDb(env.DB).select().from(prospects)).toHaveLength(2);
+    const listed = (await (await call("/api/admin/prospects")).json()) as ProspectsResponse;
+    expect(listed.prospects.map((p) => p.name)).toEqual(["Chez Léa et Paul"]);
+  });
+
+  it("recomputes the survivor's dedupe key when its name has drifted", async () => {
+    // PATCH deliberately leaves the key alone, so an edited prospect is still
+    // filed under its old spelling. The merge is where that gets fixed, so the
+    // next import of the current name matches instead of duplicating again.
+    const { original, renamed } = await renamedPair();
+    await patch(`/api/admin/prospects/${original}`, { name: "Bistrot Léa" });
+
+    const db = getDb(env.DB);
+    const [before] = await db.select().from(prospects).where(eq(prospects.id, original));
+    expect(before?.dedupeKey).toContain("chez-lea");
+
+    const response = await post("/api/admin/prospects/merge", {
+      survivorId: original,
+      mergedId: renamed,
+    });
+    expect(((await response.json()) as MergeResult).dedupeKeyUpdated).toBe(true);
+
+    const [after] = await db.select().from(prospects).where(eq(prospects.id, original));
+    expect(after?.dedupeKey).toContain("bistrot-lea");
+
+    // And now the current name imports as an update rather than a third row.
+    const again = await importRows([{ name: "Bistrot Léa", lat: 45.7578, lng: 4.832 }]);
+    expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
+    expect(await db.select().from(prospects)).toHaveLength(2);
+  });
+
+  it("keeps the old key when the recomputed one is already taken", async () => {
+    // The absorbed row still holds that key. Nothing breaks: a later import of
+    // the survivor's name lands on the absorbed row and is redirected there.
+    const { original, renamed } = await renamedPair();
+    await patch(`/api/admin/prospects/${original}`, { name: "Chez Léa et Paul" });
+
+    const response = await post("/api/admin/prospects/merge", {
+      survivorId: original,
+      mergedId: renamed,
+    });
+    expect(((await response.json()) as MergeResult).dedupeKeyUpdated).toBe(false);
+
+    const again = await importRows([{ name: "Chez Léa et Paul", lat: 45.7578, lng: 4.832 }]);
+    expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
+    expect(await getDb(env.DB).select().from(prospects)).toHaveLength(2);
+  });
+
+  it("is idempotent", async () => {
+    const { original, renamed } = await renamedPair();
+    const body = { survivorId: renamed, mergedId: original };
+
+    expect((await post("/api/admin/prospects/merge", body)).status).toBe(200);
+    const second = await post("/api/admin/prospects/merge", body);
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as MergeResult).mergedId).toBe(original);
+  });
+
+  it("refuses to merge a prospect into itself", async () => {
+    const { renamed } = await renamedPair();
+    const response = await post("/api/admin/prospects/merge", {
+      survivorId: renamed,
+      mergedId: renamed,
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("refuses to merge a prospect that is already absorbed", async () => {
+    const { original, renamed } = await renamedPair();
+    await importRows([{ name: "Chez Léa et Paul et Marie", lat: 45.7578, lng: 4.832 }]);
+    await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
+
+    const third = (await getDb(env.DB).select().from(prospects)).find(
+      (r) => r.name === "Chez Léa et Paul et Marie",
+    );
+    if (!third) throw new Error("expected the third spelling");
+
+    const response = await post("/api/admin/prospects/merge", {
+      survivorId: third.id,
+      mergedId: original,
+    });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: string }).error).toBe("already_merged");
+  });
+
+  it("answers 404 for an id that does not exist", async () => {
+    const { renamed } = await renamedPair();
+    const response = await post("/api/admin/prospects/merge", {
+      survivorId: renamed,
+      mergedId: crypto.randomUUID(),
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it("unmerges, returning the prospect to the list with its visits", async () => {
+    const { original, renamed } = await renamedPair();
+    await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
+
+    const response = await post(`/api/admin/prospects/${original}/unmerge`, {});
+    expect(response.status).toBe(200);
+
+    const listed = (await (await call("/api/admin/prospects")).json()) as ProspectsResponse;
+    expect(listed.prospects.map((p) => p.id).sort()).toEqual([original, renamed].sort());
+  });
+
+  it("finds nothing to merge in a clean base", async () => {
+    // A detector that cries wolf is worse than none.
+    await importRows([
+      { name: "Le Bouchon des Halles", lat: 45.7578, lng: 4.832 },
+      { name: "Café de la Gare", lat: 45.749, lng: 4.826 },
+      { name: "Pizza Roma", lat: 45.762, lng: 4.84 },
+      { name: "Le Zinc", lat: 45.7601, lng: 4.8355 },
+      { name: "Burger Truck 69", lat: 45.7543, lng: 4.8291 },
+    ]);
+
+    const body = (await (
+      await call("/api/admin/prospects/duplicates")
+    ).json()) as DuplicatesResponse;
+    expect(body.pairs).toEqual([]);
   });
 });
 
