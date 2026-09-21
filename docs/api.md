@@ -10,7 +10,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Local development only
 | Route | Purpose |
 |---|---|
-| `POST /api/dev/seed` | Fills the local database with sample prospects and a script. Answers 404 unless the request host is localhost. Run through `npm run db:seed:local` |
+| `POST /api/dev/seed` | Fills the local database with sample prospects and a script. Answers 404 unless the request host is localhost. Run through `pnpm db:seed:local` |
 
 ## Agent
 | Route | Purpose |

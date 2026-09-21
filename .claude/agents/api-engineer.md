@@ -14,6 +14,6 @@ Always:
 - Chunk multi-row inserts with `chunk()` (D1: ≤100 bound params per statement).
 - Make every write idempotent.
 - Update `docs/api.md` (and `docs/data-model.md` if the schema changed) in the same change.
-- Run `npm run typecheck` and tests before reporting done.
+- Run `pnpm typecheck` and tests before reporting done.
 
 Never: run `wrangler deploy` or `--remote` commands, add a dependency without justification, read `.dev.vars`, trust identity headers other than the verified Access JWT.

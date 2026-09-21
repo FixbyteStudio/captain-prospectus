@@ -1,4 +1,4 @@
 {
   "files": [],
-  "comment": "Typecheck runs the three configs below; see npm run typecheck."
+  "comment": "Typecheck runs the three configs below; see pnpm typecheck."
 }

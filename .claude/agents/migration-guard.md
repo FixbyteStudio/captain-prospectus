@@ -12,7 +12,7 @@ Check:
 2. **SQLite limits**: ALTER TABLE restrictions (Drizzle may generate a table rebuild — check it preserves data and foreign keys).
 3. **Indexes** for every new query filter (rows read are billed against the free quota).
 4. **Append-only tables** (`visits`) must stay append-only.
-5. Migration was generated (`npm run db:generate`), not hand-written; no edits to migrations already on `main`.
+5. Migration was generated (`pnpm db:generate`), not hand-written; no edits to migrations already on `main`.
 6. `docs/data-model.md` updated.
 
 Output: safe / unsafe, each issue with the fix, and the release sequence if multi-step.

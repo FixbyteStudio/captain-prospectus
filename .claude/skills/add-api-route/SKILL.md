@@ -13,4 +13,4 @@ description: Add or change an endpoint in the Hono Worker API. Use for any new /
 6. **Tests**: happy path, validation failure, wrong role, idempotent retry.
 7. **Docs**: add the row to `docs/api.md`; update the domain doc if behaviour is new.
 8. If the route is part of `/api/agent/sync`, also follow `sync-contract-change`.
-9. `npm run typecheck` and tests green.
+9. `pnpm typecheck` and tests green.

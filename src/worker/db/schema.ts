@@ -2,7 +2,7 @@
  * The system of record. docs/data-model.md explains it; this file defines it.
  *
  * Timestamps are epoch-millisecond integers. Ids created on a phone are client
- * UUIDv4. Change this file, then `npm run db:generate` — never hand-edit a
+ * UUIDv4. Change this file, then `pnpm db:generate` — never hand-edit a
  * migration that is already on main.
  */
 import { sql } from "drizzle-orm";

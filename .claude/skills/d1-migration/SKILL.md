@@ -9,8 +9,8 @@ Migrations run in CI **before** the new Worker deploys. The old Worker must surv
 
 ## Steps
 1. Edit `src/worker/db/schema.ts`.
-2. `npm run db:generate` → new file in `drizzle/`. Read the SQL.
-3. `npm run db:migrate:local`, run the app and tests.
+2. `pnpm db:generate` → new file in `drizzle/`. Read the SQL.
+3. `pnpm db:migrate:local`, run the app and tests.
 4. Update `docs/data-model.md` (ERD + rules + indexes).
 5. Ask the `migration-guard` subagent to review.
 
