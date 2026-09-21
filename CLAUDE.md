@@ -12,6 +12,14 @@ Do not introduce Next.js, another database, another host, an auth library, a sec
 2. Business rules → read the domain doc in `docs/domains/`. Code must match the doc; if they disagree, ask.
 3. Use the glossary's words in code, UI and commits.
 
+## Stay in scope
+One concern per change. When you find a bug, inconsistency or code/doc drift that your task did not cause and that does not block it:
+1. **Do not fix it here.** An unrelated fix in the same diff is harder to review and impossible to revert on its own.
+2. **Open an issue** — `gh issue list --search "<keywords>"` first, then `gh issue create --label found-in-passing` with the "Found during work" template. One issue per finding.
+3. **Report it in your final summary**: one line per finding, with `file:line` and the issue number.
+
+Fix it in the current change only when the task cannot be finished or verified without it, and say so in the PR description. If you are unsure whether it blocks you, ask.
+
 ## Non-negotiable invariants
 1. **Zero cost.** No paid service, no dependency needing a paid plan.
 2. **Agents only insert** visits and field prospects. Never add an agent-side update of shared data.

@@ -11,3 +11,8 @@ Closes #
 - [ ] Sync contract unchanged, or change is backward compatible (`sync-contract-change` skill)
 - [ ] No paid service or new dependency — or justified in the description (ADR-0002)
 - [ ] Glossary terms used in code and UI
+- [ ] One concern only — unrelated findings filed as issues, not fixed here (listed below)
+
+## Found in passing
+<!-- Issues opened for anything unrelated spotted while working. "None" is a fine answer. -->
+None
