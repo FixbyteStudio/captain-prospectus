@@ -31,6 +31,14 @@ const buttonVariants = cva(
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        /**
+         * Field screens. 48px is the minimum target ADR-0014 decision 5
+         * asks for, and text-base keeps it legible at arm's length in
+         * sunlight. It lives here rather than being re-declared per
+         * screen, which is the point of that decision.
+         */
+        touch: "h-touch rounded-md px-5 text-base has-[>svg]:px-4",
+        "icon-touch": "size-touch [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

@@ -121,6 +121,11 @@
   /* ADR-0013/0014: an agent taps this with one thumb, outdoors, in a hurry. */
   --spacing-touch: 3rem;
 
+  /* The one decision a field screen exists to capture — the visit outcome.
+     Bigger than the minimum on purpose: it has to be hittable without the
+     agent looking carefully (design.md, "One decision per screen"). */
+  --spacing-decision: 3.5rem;
+
   /* The ledger row. Dense enough to scan, tall enough to hit. */
   --spacing-row: 2.75rem;
 }
