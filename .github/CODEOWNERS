@@ -1,0 +1,6 @@
+# Replace @OWNER with your GitHub username.
+*                       @OWNER
+/docs/adr/              @OWNER
+/src/worker/db/         @OWNER
+/drizzle/               @OWNER
+/.github/workflows/     @OWNER

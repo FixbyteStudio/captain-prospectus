@@ -1,0 +1,75 @@
+# Data model
+
+Source of truth: `src/worker/db/schema.ts`. This page explains it. Timestamps are epoch milliseconds (integer). IDs of rows created on a phone are client UUIDv4.
+
+```mermaid
+erDiagram
+  PROSPECTS ||--o{ VISITS : "visited in"
+  SCRIPTS ||--o{ VISITS : "answered with"
+  PROSPECTS {
+    text id PK "UUID"
+    text name
+    text type "restaurant|fast_food|cafe|bar|food_truck|other"
+    real lat
+    real lng
+    text address
+    text phone
+    text website
+    text cuisine
+    text source "csv|osm|field"
+    text source_ref "e.g. osm node/123"
+    text dedupe_key UK
+    text status "new|assigned|follow_up|converted|rejected"
+    text assigned_to "agent email"
+    int last_visit_at
+    int next_visit_at
+    text created_by
+    int created_at
+    int updated_at
+  }
+  VISITS {
+    text id PK "client UUID"
+    text prospect_id FK
+    text agent_email
+    int visited_at "client clock"
+    real lat
+    real lng
+    int flyer_given
+    text outcome
+    int follow_up_at
+    text notes
+    int script_id FK
+    text answers "JSON"
+    int received_at "server clock"
+  }
+  SCRIPTS {
+    int id PK
+    text name
+    int version
+    text questions "JSON"
+    int is_active
+    int created_at
+  }
+  OVERPASS_CACHE {
+    text hash PK
+    text body
+    int created_at
+  }
+```
+
+## Rules
+
+- **Visits are append-only.** Never updated, never deleted by the app. A revisit is a new row.
+- **Answers live on the visit** as JSON, keyed by question `key`. The visit references the exact `script_id` (a specific version), so answers stay interpretable after the script changes.
+- **Scripts are immutable per version.** Editing a script creates version N+1 and makes it active.
+- **Two clocks on a visit.** `visited_at` is when it happened (phone clock), `received_at` is when the server got it. The live feed uses `received_at`; history uses `visited_at`.
+- **No users table.** Identity is the email asserted by Cloudflare Access ([ADR-0006](adr/0006-cloudflare-access-auth.md)). Role comes from the `ADMIN_EMAILS` variable.
+
+## Indexes
+
+| Index | Serves |
+|---|---|
+| `prospects(dedupe_key)` unique | import upsert, field-prospect dedupe |
+| `prospects(assigned_to, status)` | sync pull |
+| `visits(prospect_id, visited_at)` | visit history on a prospect |
+| `visits(received_at)` | live feed |
