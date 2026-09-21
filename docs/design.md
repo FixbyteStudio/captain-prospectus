@@ -212,6 +212,192 @@ Two things to get right in the artwork:
 
 An installable PWA needs at least the 192 and the 512; a manifest with no icons
 gets no install prompt, and "agents install the PWA from the phone browser"
-(roadmap M6) fails silently. `index.html` and the manifest in `vite.config.ts`
-are wired once the files exist — until then they deliberately reference nothing,
-because a manifest pointing at a missing icon is worse than one with none.
+(roadmap M6) fails silently. All six files exist, and `index.html` and the
+manifest in `vite.config.ts` reference them — verified by having a browser parse
+the built manifest rather than by reading it.
+
+`favicon.svg` is deliberately **not** in `public/`. It lives in `docs/brand/`
+because it is a 246 kB PNG wrapped in an SVG, and the service worker precaches
+every svg it finds under `public/` — one file larger than the whole field JS
+chunk, for a tab icon the `.ico` already serves.
+
+## The field side
+
+The admin side is a ledger. The field side is **the tear-off** — the ticket
+pulled out of the *carnet de tournée* and held in one hand.
+
+Everything below is designed for one situation: an agent standing on a pavement
+in Lyon, phone in one hand and a stack of flyers in the other, sun on the
+screen, often with no signal, wanting to be done with this door and on to the
+next. That situation, not the admin's, decides every trade-off here.
+
+The palette and the typeface are not re-decided for this side. Tokens are shared
+(`app.css`), the mark is shared, the band is shared. What changes is **density,
+target size, and how much the screen commits to one thing at a time.**
+
+### The next stop is the screen
+
+Nearest-next ordering means the first item in the list is not a row — it is an
+instruction. So it is given the width, the space and the actions, and the rest
+of the round is a quiet ledger beneath it.
+
+```
+┌──────────────────────────────────┐
+│ ▮ Captain Prospectus        ● 3  │  band: mark, wordmark, sync state
+├──────────────────────────────────┤
+│ Hors ligne. Vos visites sont…    │  strip: only when there is something to say
+├──────────────────────────────────┤
+│                                  │
+│ ▎1  Le Bouchon des Filles        │
+│     Restaurant                   │
+│     12 rue Sainte-Catherine      │
+│                           120 m  │
+│     ┌─────────┐  ┌────────────┐  │
+│     │ Y aller │  │  Visiter   │  │  48 px; « Visiter » is the gold one
+│     └─────────┘  └────────────┘  │
+│                                  │
+├──────────────────────────────────┤
+│ ▎2  Café de la Poste      340 m  │
+│ ▎3  Chez Marcel           410 m  │  the rest of the round: compact rows
+│ ▎4  Pizzeria Vesuvio      820 m  │
+│                                  │
+│  Plus tard                       │
+│ ▎  Le Comptoir          18 sept. │  future follow-ups, subordinate
+└──────────────────────────────────┘
+```
+
+**The stops are numbered, and here that is earned.** Numbered markers are
+usually decoration pretending to be structure — but `orderByNearestNext`
+produces a walking order, so this list genuinely *is* a sequence, and "I am on
+my fourth of eleven" is something an agent wants to know. The number sits in the
+left gutter beside the status edge, tabular and muted.
+
+**No card around the next stop.** It is set apart by space and by being the only
+thing carrying actions — not by a box, a shadow or a different radius. The
+"Not this" list above still applies on this side.
+
+### One decision per screen
+
+The today list asks *which door*. The visit form asks *what happened*. Nothing
+else is allowed to compete.
+
+```
+┌──────────────────────────────────┐
+│ ←  Le Bouchon des Filles         │
+├──────────────────────────────────┤
+│  Flyer remis               [ ●]  │
+├──────────────────────────────────┤
+│  Résultat                        │
+│  ┌────────────────────────────┐  │
+│  │ Personne sur place         │  │
+│  ├────────────────────────────┤  │
+│  │ Intéressé                  │  │  five targets, 56 px, full width
+│  ├────────────────────────────┤  │
+│  │ Pas intéressé              │  │
+│  ├────────────────────────────┤  │
+│  │ À relancer                 │  │
+│  ├────────────────────────────┤  │
+│  │ Converti                   │  │
+│  └────────────────────────────┘  │
+│                                  │
+│  Relancer le   [ 29/09/2026 ]    │  only when the outcome is « À relancer »
+│                                  │
+│  Notes                           │
+│  ┌────────────────────────────┐  │
+│  └────────────────────────────┘  │
+│                                  │
+│  Visites précédentes             │
+│  12 sept.            Intéressé   │
+├──────────────────────────────────┤
+│  [   Enregistrer la visite   ]   │  sticky above the safe-area inset
+└──────────────────────────────────┘
+```
+
+The outcome list takes an unreasonable share of the screen on purpose. It is the
+one thing the whole app exists to capture, and it has to be hittable by a thumb
+without the agent looking carefully. Five stacked full-width targets, not a
+select and not a grid of chips.
+
+**The form never shows what the outcome will do to the prospect's status.** That
+mapping is the server's (INVARIANT 3, `OUTCOME_TO_STATUS`), and a client that
+previews it is a client that can disagree with it. The new status arrives on the
+next sync, in the list.
+
+### Adding a place
+
+```
+│  Nom      [                    ] │
+│                                  │
+│  Type                            │
+│  [ Restaurant ] [ Restauration ] │  six targets, wrapping
+│  [ Café ] [ Bar ] [ Food truck ] │
+│  [ Autre ]                       │
+│                                  │
+│  Position                        │
+│  45,7578  4,8320     Actualiser  │  or « Utiliser ma position »
+│                                  │
+│  [          Ajouter          ]   │
+```
+
+### Sync is ambient, never a toast
+
+An agent's sync state is a **condition, not an event**. "Three visits waiting to
+send" stays true for as long as there is no signal — sometimes hours. A toast
+shows it for four seconds and then lies by omission.
+
+So sync lives in two permanent places:
+
+- **A dot and a count in the band**, always visible, on every field screen.
+- **A strip under the band** that appears only when there is something to say —
+  the pending count, or one of `copy.sync.offline` / `authExpired` / `upgrade` /
+  `failed`. When nothing is pending and the last sync succeeded, there is no
+  strip at all.
+
+This is a deliberate departure from the roadmap's "a shadcn `sonner` toast on
+failure". A toast is the wrong medium for a persistent condition, and it costs
+~5 kB gzipped the field route does not have (ADR-0015). `sonner` stays on the
+admin side, where the events it reports really are events.
+
+### Field principles
+
+These extend the five above; they do not replace them.
+
+6. **One decision per screen.** If a screen asks two questions, it is two
+   screens.
+7. **The next stop is the screen.** The round is context; the next door is the
+   content.
+8. **Ambient over transient.** A condition that lasts is shown as a standing
+   fact. Toasts are for things that happened and are over.
+9. **Thumb, not cursor.** 48 px minimum, 56 px for the outcome. Set in the
+   vendored component's variant (ADR-0014 decision 5), never per screen.
+10. **Legible in sun, at arm's length.** Field body text is `text-base`, one
+    step up from the admin's `text-sm`. Inputs are `text-base` too, which also
+    stops iOS zooming the form.
+
+### Not this, on the field side
+
+Further to the list above, and for the same reason — so they do not creep back:
+
+- A bottom tab bar. Three screens, one of which is reached from a row, do not
+  earn permanent chrome at the bottom of a phone.
+- A map on the today list. That is M4, and even then it is not the default view:
+  an agent standing in the street can already see the street.
+- A progress ring, a streak, or "7 visites aujourd'hui". This is a job, not a
+  fitness app, and the count that matters is the one still unsent.
+- Swipe-to-action on a row. Invisible, undiscoverable, and wrong when one hand
+  is holding flyers.
+- A confirmation dialog on saving a visit. Visits are append-only and a mistake
+  is corrected by a second visit (ADR-0007); a dialog would buy nothing and cost
+  a tap in the rain.
+
+### Native controls here
+
+`<input type="date">` for the follow-up date, and controlled inputs validated by
+the shared zod schemas rather than a form library. Both are
+[ADR-0015](adr/0015-native-controls-on-the-field-route.md), and both are
+measurements before they are preferences.
+
+The consequence to expect: **the date field looks like the operating system, not
+like the admin's controls.** That is not an inconsistency to fix later. On a
+phone the OS picker is one thumb, correctly localised and correctly sized at any
+text scale, and it costs nothing to download.
