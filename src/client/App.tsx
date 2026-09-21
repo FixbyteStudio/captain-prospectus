@@ -7,7 +7,7 @@ import { cn } from "./lib/utils";
 import type { MeResponse } from "../shared/schemas";
 import { TodayScreen } from "./field/TodayScreen";
 import { ProspectsScreen } from "./admin/ProspectsScreen";
-import { ImportScreen } from "./admin/ImportScreen";
+import { ImportScreen } from "./admin/import/ImportScreen";
 import { VisitsScreen } from "./admin/VisitsScreen";
 import { Toaster } from "./ui/sonner";
 

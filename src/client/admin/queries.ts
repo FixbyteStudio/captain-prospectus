@@ -3,11 +3,17 @@
  * field client's source of truth is Dexie, and a second cache over the outbox
  * is how visits get lost.
  */
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "../api";
+import { ApiError, apiFetch } from "../api";
+import { copy } from "../copy";
+import { IMPORT_ROWS_PER_REQUEST } from "../../shared/constants";
+import { batched } from "./import/csv";
 import type {
   AgentsResponse,
   AssignResult,
+  ImportResult,
+  ImportRow,
   Prospect,
   ProspectsResponse,
 } from "../../shared/schemas";
@@ -67,6 +73,60 @@ export function useAssign() {
       }),
     onSuccess: invalidate,
   });
+}
+
+/**
+ * Send an import one request at a time.
+ *
+ * Not a plain mutation: a file is many requests (250 rows each, the Worker's
+ * cap), they have to go in order, and the admin needs to see how far it got if
+ * one fails. Resending the whole file afterwards is safe — the upsert is keyed
+ * on the dedupe key — which is what the failure copy tells them.
+ */
+export function useImportBatches() {
+  const invalidate = useInvalidateProspects();
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+
+  async function start(rows: ImportRow[]) {
+    setIsRunning(true);
+    setError(null);
+    setResult(null);
+
+    const batches = batched(rows, IMPORT_ROWS_PER_REQUEST);
+    const totals = { created: 0, updated: 0 };
+    let done = 0;
+    setProgress({ done: 0, total: rows.length });
+
+    try {
+      for (const batch of batches) {
+        const outcome = await apiFetch<ImportResult>("/api/admin/prospects/batch", {
+          method: "POST",
+          body: JSON.stringify({ source: "csv", rows: batch }),
+        });
+        totals.created += outcome.created;
+        totals.updated += outcome.updated;
+        done += batch.length;
+        setProgress({ done, total: rows.length });
+      }
+      setResult(totals);
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : copy.import.failed);
+    } finally {
+      setIsRunning(false);
+      await invalidate();
+    }
+  }
+
+  function reset() {
+    setProgress({ done: 0, total: 0 });
+    setResult(null);
+    setError(null);
+  }
+
+  return { start, reset, progress, result, error, isRunning };
 }
 
 export function usePatchProspect() {

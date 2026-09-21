@@ -13,6 +13,9 @@ import type { Outcome, ProspectType, Source, Status } from "../shared/constants"
 export const copy = {
   appName: "Captain Prospectus",
 
+  /** Used by vendored components that ship an English string (INVARIANT 15). */
+  close: "Fermer",
+
   nav: {
     today: "Tournée du jour",
     prospects: "Prospects",
@@ -75,6 +78,79 @@ export const copy = {
     assignFailed: "L'assignation a échoué. Réessayez.",
     updateFailed: "La modification a échoué. Réessayez.",
     unknownAssignee: "Cette adresse ne figure pas parmi les agents.",
+  },
+
+  import: {
+    title: "Importer un CSV",
+    steps: { file: "Fichier", columns: "Colonnes", preview: "Aperçu" },
+
+    file: {
+      choose: "Choisir un fichier CSV",
+      hint: "Le fichier est lu dans votre navigateur. Il n'est jamais envoyé ni conservé.",
+      chosen: (name: string, rows: number) =>
+        rows === 1 ? `${name} — 1 ligne` : `${name} — ${rows} lignes`,
+      unreadable: "Ce fichier ne se lit pas comme un CSV. Vérifiez le format et réessayez.",
+      emptyFile: "Ce fichier ne contient aucune ligne.",
+      noHeaders: "Ce fichier n'a pas d'en-têtes de colonnes.",
+    },
+
+    columns: {
+      lede: "Indiquez quelle colonne correspond à quel champ. La valeur de la première ligne s'affiche sous chaque choix.",
+      skip: "Ne pas importer",
+      noSample: "Vide sur la première ligne",
+      required: "Le nom est obligatoire : choisissez la colonne qui le contient.",
+      unmappedNote: "Une colonne non associée laisse le champ inchangé lors d'un réimport.",
+      fields: {
+        name: "Nom",
+        type: "Type",
+        lat: "Latitude",
+        lng: "Longitude",
+        address: "Adresse",
+        phone: "Téléphone",
+        website: "Site web",
+        cuisine: "Cuisine",
+        sourceRef: "Identifiant source",
+      },
+      sourceRefHint:
+        "Si votre fichier a un identifiant stable, un nom corrigé mettra à jour au lieu de créer un doublon.",
+    },
+
+    preview: {
+      ready: (n: number) => (n === 1 ? "1 ligne à importer" : `${n} lignes à importer`),
+      rejected: (n: number) => (n === 1 ? "1 ligne rejetée" : `${n} lignes rejetées`),
+      coordinates: "Coordonnées",
+      // Anything the admin should know about a line; blank when all is well.
+      note: "Remarque",
+      noCoordinates: "Sans coordonnées",
+      line: (n: number) => `Ligne ${n}`,
+      nothingToImport: "Aucune ligne valide à importer. Revenez aux colonnes.",
+      showingFirst: (n: number) => `Les ${n} premières lignes sont affichées.`,
+    },
+
+    reasons: {
+      missingName: "Nom manquant",
+      invalid: "Valeur invalide",
+    },
+
+    actions: {
+      back: "Retour",
+      toColumns: "Associer les colonnes",
+      toPreview: "Voir l'aperçu",
+      start: (n: number) => (n === 1 ? "Importer 1 ligne" : `Importer ${n} lignes`),
+      done: "Terminer",
+      retry: "Réessayer",
+    },
+
+    running: (done: number, total: number) => `Import en cours : ${done} / ${total}`,
+    result: {
+      title: "Import terminé",
+      created: (n: number) => (n === 1 ? "1 prospect créé" : `${n} prospects créés`),
+      updated: (n: number) => (n === 1 ? "1 prospect mis à jour" : `${n} prospects mis à jour`),
+      skipped: (n: number) => (n === 1 ? "1 ligne rejetée" : `${n} lignes rejetées`),
+      seeProspects: "Voir les prospects",
+    },
+    failed:
+      "L'import s'est interrompu. Les lignes déjà envoyées sont enregistrées ; réimporter le même fichier est sans risque.",
   },
 
   today: {

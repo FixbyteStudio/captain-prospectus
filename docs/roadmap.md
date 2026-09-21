@@ -28,7 +28,8 @@ vendored component ships with the French one from `src/client/copy.ts`.
 - [x] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
 - [x] `GET /api/admin/prospects` — list with status / assignedTo / source filters
 - [x] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`, `GET /api/admin/agents`
-- [ ] Admin: CSV import with column mapping and preview (parsed in the browser) — shadcn `table`, `select`, `dialog`
+- [x] Admin: CSV import with column mapping and preview (parsed in the browser) — shadcn
+      `table`, `select`, `dialog`, `progress`, `alert`
 - [x] Admin: prospect list, assign (single + bulk) — composed over shadcn `table`,
       `checkbox`, `dropdown-menu`, `select`. Not the `data-table` recipe: that needs
       @tanstack/react-table, and this screen filters and sorts server-side
