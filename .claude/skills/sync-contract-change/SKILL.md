@@ -12,7 +12,9 @@ Phones can run an old build for days and hold unsynced visits. Assume both old a
    - **Additive** (new optional field in request, new field in response): ship directly. Server must accept requests without the field.
    - **Breaking** (remove/rename/retype a field, change semantics): 
      1. Release N: server accepts old *and* new shape; client sends new shape; bump `CLIENT_VERSION` in `src/shared/constants.ts`.
-     2. Wait until every agent has synced with the new version (check `clientVersion` in logs).
+     2. Wait until every agent has synced with the new version. Check with SQL, not logs:
+        `select agent_email, max(client_version) from visits group by agent_email;`
+        Every agent must report the new version before step 3.
      3. Release N+1: raise `MIN_CLIENT_VERSION`; server may drop the old shape.
 3. **Dexie schema changes**: bump the Dexie version with an upgrade function that **migrates** outbox rows, never clears them.
 4. Tests: old-shape payload accepted, retry is a no-op, `idMap` rewrite for dedupe collisions, 426 path keeps the outbox.

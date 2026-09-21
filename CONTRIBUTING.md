@@ -6,7 +6,7 @@ Trunk-based. `main` is protected and always deployable.
 1. Open or pick an issue. Anything architectural starts as an ADR PR.
 2. Branch: `feat/<scope>-<short>`, `fix/…`, `docs/…`, `chore/…`, `refactor/…`.
 3. Small PRs (aim < 400 changed lines excluding generated migrations).
-4. CI must be green; one review; **squash-merge**.
+4. CI must be green (lint, typecheck, test, build); one review; **squash-merge**.
 
 ## Commits
 [Conventional Commits](https://www.conventionalcommits.org/). Scopes = domains or layers:
@@ -21,13 +21,15 @@ docs(adr): 0013 add CSV export
 ## Pull request checklist
 The PR template enforces it: tests, docs, ADR, migration safety, zero-cost check, sync compatibility.
 
-## Tests (strategy)
-| Layer | What | Tool (decided at scaffold) |
+## Tests
+| Layer | What | Tool |
 |---|---|---|
-| Shared | dedupe key, status mapping, schemas | unit tests |
-| Worker | routes against a local D1 | Workers test runtime |
-| Client | sync engine against a mocked API | unit tests |
-| E2E | one happy-path visit offline → online | added in M2 |
+| Shared | dedupe key, status mapping, schemas, `chunk()` | Vitest |
+| Worker | routes against a real local D1 in workerd | Vitest + `@cloudflare/vitest-pool-workers` |
+| Client | sync engine against a mocked API | Vitest + `fake-indexeddb` |
+| E2E | one happy-path visit offline → online | Playwright, added in M2 |
+
+Run everything with `npm test`. `npm run lint` (ESLint + Prettier) runs in CI too.
 
 Sync and dedupe logic must have tests before merge; they are where data gets lost.
 

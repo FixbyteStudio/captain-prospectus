@@ -13,7 +13,10 @@ The admin always sees a preview before anything is written.
 - Admin maps columns → fields: `name` (required), `type`, `lat`, `lng`, `address`, `phone`, `website`, `cuisine`.
 - Rows without `name` are rejected in the preview with a reason.
 - Rows without coordinates are allowed. They appear on the agent's list without distance ordering. Geocoding is out of scope for v1.
-- Sent in batches of up to 2000 rows per request; the Worker chunks inserts for D1's parameter limit.
+- Sent in batches of up to **250 rows per request**; the Worker chunks inserts further for D1's
+  100-bound-parameter limit. The cap is set by the Workers Free **10 ms CPU** budget per invocation,
+  not by payload size: validating and normalising a row costs CPU. A 2000-row import is ~8 requests,
+  negligible against 100,000/day ([free-tier-budget](../free-tier-budget.md)).
 
 ## Map import (OpenStreetMap via Overpass)
 See [ADR-0008](../adr/0008-map-import-via-overpass.md).

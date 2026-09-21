@@ -12,6 +12,9 @@ description: Pre-merge and post-deploy checklist for a Captain Prospectus releas
 - [ ] Security-relevant? Reviewed by `security-reviewer`.
 - [ ] Docs and ADRs updated; roadmap ticked.
 - [ ] No new paid service or dependency (ADR-0002).
+- [ ] `wrangler.jsonc`: `assets.run_worker_first` is still `["/api/*"]`, never `true` — `true` bills
+      every app-shell request against the 100,000/day Worker quota (`free-tier-budget.md`).
+- [ ] Service worker still excludes `/api/*` from caching.
 
 ## After deploy (CI does migrate → deploy)
 - [ ] App loads on the workers.dev URL through Access.

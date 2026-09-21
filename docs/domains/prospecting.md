@@ -27,6 +27,10 @@ stateDiagram-v2
 
 - Status transitions caused by visits are **computed by the server** when a visit is received ([ADR-0011](../adr/0011-server-derived-prospect-status.md)).
 - Only the **latest visit by `visited_at`** moves the status. A late-syncing older visit is stored but does not overwrite a newer outcome.
+- **`visited_at` is clamped on insert** to `min(visited_at, received_at)`. It comes from the phone's
+  clock, which can be wrong. Without the clamp, one phone set days ahead writes a future-dated visit
+  that wins every subsequent comparison and freezes that prospect's status permanently. The raw
+  client value is kept in `visits.client_visited_at` so the skew stays visible.
 - `next_visit_at` = `follow_up_at` of the latest visit, if any.
 - Admin can override status manually (reopen, close). Last write wins; this is acceptable because admin edits are rare and deliberate.
 

@@ -3,8 +3,9 @@
 Captain Prospectus: B2B field-canvassing app. Admin imports restaurants/food trucks (CSV or OSM map area) and assigns them; 2 field agents visit them from an offline-first PWA. Read `docs/vision.md` once, `docs/glossary.md` always.
 
 ## Stack (decided — see docs/adr)
-Vite + React SPA/PWA · Hono on one Cloudflare Worker · D1 + Drizzle · Dexie · Leaflet + Overpass · Cloudflare Access · TypeScript strict · zod.
-Do not introduce Next.js, another database, another host, an auth library, or any paid API.
+Vite + React SPA/PWA · React Router · Hono on one Cloudflare Worker · D1 + Drizzle · Dexie · Leaflet + Overpass · Cloudflare Access · TypeScript strict · zod · Vitest.
+Styling is plain CSS + custom properties; the UI is in French while code, DB values and docs stay English; TanStack Query is admin-side only (ADR-0013).
+Do not introduce Next.js, another database, another host, an auth library, a CSS framework, an i18n library, or any paid API.
 
 ## Before you change anything
 1. Architecture, data model, sync, auth, dependencies → read the relevant ADR in `docs/adr/`. If your change contradicts one, stop and propose a new ADR instead.
@@ -23,6 +24,10 @@ Do not introduce Next.js, another database, another host, an auth library, or an
 9. **Sync contract changes are additive.** Breaking changes bump `clientVersion` and follow the api.md process.
 10. **Identity comes from the verified Access JWT only.** Never read `Cf-Access-Authenticated-User-Email` as proof.
 11. **OSM attribution** on every map and export. Overpass is called only from the Worker, through the cache.
+12. **`visited_at` is clamped server-side** to `min(visited_at, received_at)`. Phone clocks lie, and a future-dated visit would freeze a prospect's status forever.
+13. **Workers Free gives 10 ms CPU per request.** Keep per-request work small: batch imports are 250 rows, the Access JWKS is cached in module scope. Waiting on D1 is free; parsing and validating is not.
+14. **`assets.run_worker_first` stays `["/api/*"]`, never `true`.** Static asset requests are free only while they do not invoke the Worker.
+15. **French UI, English everything else.** All French strings live in `src/client/copy.ts`; enum values stay English in the database (ADR-0013).
 
 ## Code conventions
 - TypeScript `strict`, no `any`, no non-null `!` without a comment explaining why.
@@ -32,6 +37,8 @@ Do not introduce Next.js, another database, another host, an auth library, or an
 - Timestamps are epoch ms numbers. JSON camelCase, SQL snake_case.
 - User-facing copy: sentence case, active verbs, errors say what happened and what to do.
 - No new dependency without stating in the PR: size, maintenance, workerd compatibility, and why the platform can't do it.
+- User-facing strings are French and live only in `src/client/copy.ts`. Components import from it; they never inline a French literal.
+- Styling: variables from `src/client/styles/tokens.css`, one CSS file per component. No hardcoded colours or spacing.
 
 ## Database
 - Change `src/worker/db/schema.ts`, then `npm run db:generate`. Never hand-edit a migration that is already on `main`.
@@ -45,6 +52,8 @@ Do not introduce Next.js, another database, another host, an auth library, or an
 | Tests | `npm test` |
 | Generate migration | `npm run db:generate` |
 | Apply migrations locally | `npm run db:migrate:local` |
+| Seed the local database | `npm run db:seed:local` |
+| Lint + format check | `npm run lint` |
 
 **Never run** `wrangler deploy`, anything with `--remote`, or `wrangler secret`. Deploys go through CI only.
 

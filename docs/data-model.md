@@ -40,6 +40,8 @@ erDiagram
     text notes
     int script_id FK
     text answers "JSON"
+    int client_visited_at "raw phone clock, unclamped"
+    int client_version "sync contract version of the sending build"
     int received_at "server clock"
   }
   SCRIPTS {
@@ -63,6 +65,12 @@ erDiagram
 - **Answers live on the visit** as JSON, keyed by question `key`. The visit references the exact `script_id` (a specific version), so answers stay interpretable after the script changes.
 - **Scripts are immutable per version.** Editing a script creates version N+1 and makes it active.
 - **Two clocks on a visit.** `visited_at` is when it happened (phone clock), `received_at` is when the server got it. The live feed uses `received_at`; history uses `visited_at`.
+- **`visited_at` is clamped** to `min(visited_at, received_at)` on insert, because a phone's clock can
+  be wrong and a future-dated visit would freeze a prospect's status forever
+  ([prospecting](domains/prospecting.md)). The unclamped value stays in `client_visited_at`.
+- **`client_version` records the sync contract version of the build that sent the visit.** It makes
+  "have all phones upgraded?" a SQL query instead of a log search, which is the gate for raising
+  `MIN_CLIENT_VERSION` (`sync-contract-change` skill).
 - **No users table.** Identity is the email asserted by Cloudflare Access ([ADR-0006](adr/0006-cloudflare-access-auth.md)). Role comes from the `ADMIN_EMAILS` variable.
 
 ## Indexes
@@ -73,3 +81,4 @@ erDiagram
 | `prospects(assigned_to, status)` | sync pull |
 | `visits(prospect_id, visited_at)` | visit history on a prospect |
 | `visits(received_at)` | live feed |
+| `visits(agent_email, visited_at)` | an agent's own history |

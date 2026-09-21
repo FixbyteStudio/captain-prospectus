@@ -13,15 +13,21 @@ A staging environment is not planned for v1 (two agents, low risk). If added: a 
 1. **Cloudflare account** (free). `npx wrangler login`.
 2. **Database**: `npx wrangler d1 create captain-prospectus`, paste the returned `database_id` into `wrangler.jsonc`.
 3. **First deploy**: `npm run deploy` to create the Worker.
-4. **Access** (Zero Trust dashboard, free plan):
-   - Choose a team name → team domain `<team>.cloudflareaccess.com`.
-   - Enable the One-time PIN login method.
-   - Create a *self-hosted* application for the Worker's workers.dev hostname.
-   - Policy: *Allow* → emails of the admins and agents.
-   - Copy the application's **AUD tag**.
+4. **Access** — protect the Worker (one click, no zone or custom domain needed):
+   - Cloudflare dashboard → **Workers & Pages** → `captain-prospectus` → **Settings** → **Domains & Routes**.
+   - Next to `workers.dev`, select **Enable Cloudflare Access**, scope **All traffic**.
+     This creates a reusable policy named `captain-prospectus - Production`.
+   - **Manage Cloudflare Access** → set the policy to *Allow* → the emails of the admins and agents,
+     and enable the **One-time PIN** login method. First use also creates the team domain
+     `<team>.cloudflareaccess.com`.
+   - In **Zero Trust** → **Access** → **Applications**, open the application and copy its **AUD tag**.
+     The Worker needs it to verify the JWT — the identity still comes from the verified token, never
+     from `ctx.access`, which Static Assets do not forward ([ADR-0006](adr/0006-cloudflare-access-auth.md)).
 5. **Worker variables** in `wrangler.jsonc`: `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ADMIN_EMAILS`. Redeploy.
 6. **Verify**: open the URL in a private window → Access login → app loads → `GET /api/me` shows the right role. Call `/api/me` with `curl` and no cookie → must be 401/redirect.
-7. **Disable anything that bypasses Access** (preview URLs, other routes) or protect them too.
+7. **Check nothing bypasses Access.** Preview URLs have their own toggle in the same
+   **Domains & Routes** panel (they share one account-wide "Cloudflare Workers Preview URLs"
+   policy); enable it, or disable preview URLs. Verify no other route reaches the Worker unprotected.
 8. **GitHub secrets** for CI deploys: `CLOUDFLARE_API_TOKEN` (scoped: Workers Scripts Edit, D1 Edit, on this account only) and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Release process
