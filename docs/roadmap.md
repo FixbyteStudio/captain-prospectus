@@ -1,9 +1,15 @@
 # Roadmap
 
-Each milestone ends **verified in local dev**: `npm run dev` against a seeded
+Each milestone ends **verified in local dev**: `pnpm dev` against a seeded
 local D1, with lint, typecheck, tests and build green. Cloudflare setup and the
 first deploy are deliberately last (M6) — the app is built and reviewed the way
 any app is, and only meets production once it is worth deploying.
+
+**Every UI item below follows the same rule** ([ADR-0014](adr/0014-tailwind-and-shadcn-ui.md)):
+run the `frontend-design` skill to decide the screen's design *before* building
+it, and compose it from **shadcn/ui** elements vendored into `src/client/ui/`.
+Do not hand-roll an element shadcn provides, and replace every English string a
+vendored component ships with the French one from `src/client/copy.ts`.
 
 ## M0 — Foundations ✅
 - [x] Docs, ADRs, rules, agents, skills
@@ -14,27 +20,39 @@ any app is, and only meets production once it is worth deploying.
 ## M1 — Prospects & CSV import
 - [x] Schema + first migration
 - [x] Auth middleware (Access JWT), `/api/me`
+- [ ] **UI foundation**: Tailwind v4 via `@tailwindcss/vite`, `shadcn init`, design
+      tokens moved from `tokens.css` into `@theme`, `app.css` migrated (ADR-0014)
+- [ ] **Design pass** with the `frontend-design` skill: app shell, the prospect
+      table and the import flow, decided before any of them is built
 - [ ] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
 - [ ] `GET /api/admin/prospects` — list with status / assignedTo / source filters
 - [ ] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`
-- [ ] Admin: CSV import with column mapping and preview (parsed in the browser)
-- [ ] Admin: prospect list, assign (single + bulk)
+- [ ] Admin: CSV import with column mapping and preview (parsed in the browser) — shadcn `table`, `select`, `dialog`
+- [ ] Admin: prospect list, assign (single + bulk) — shadcn `data-table`, `checkbox`, `dropdown-menu`
 
 ## M2 — Field PWA
 - [x] Offline outbox + sync engine and endpoint
+- [ ] **Design pass** with the `frontend-design` skill: the field screens are a
+      separate problem from the admin ones — one thumb, outdoors, in a hurry.
+      Keep the 48px minimum touch target in the shadcn variants, not per screen
 - [ ] Installable PWA, app shell offline
 - [ ] Today list ordered by distance (`orderByNearestNext`)
-- [ ] Visit form (flyer, outcome, follow-up, notes) writing to the outbox
-- [ ] Add field prospect
-- [ ] Sync triggers wired: app start, `online`, after each visit, every 60 s
+- [ ] Visit form (flyer, outcome, follow-up, notes) writing to the outbox — shadcn `form`, `radio-group`, `calendar`, `textarea`
+- [ ] Add field prospect — shadcn `form`, `select`
+- [ ] Sync triggers wired: app start, `online`, after each visit, every 60 s, with a shadcn `sonner` toast on failure
+- [ ] Measure the field route's JS bundle against the ADR-0014 budget note
 
 ## M3 — Scripts
-- [ ] Script editor (admin), versioning
-- [ ] Script questions in the visit form, validation
+- [ ] **Design pass** with the `frontend-design` skill: the question editor is the
+      most complex screen in the app
+- [ ] Script editor (admin), versioning — shadcn `form`, `accordion`, `select`, drag to reorder
+- [ ] Script questions in the visit form, validation — one shadcn control per question type
 
 ## M4 — Map import & live feed
-- [ ] Leaflet polygon drawing, Overpass proxy + cache
-- [ ] Live visits feed for admin
+- [ ] **Design pass** with the `frontend-design` skill: map + results side by side,
+      and the live feed
+- [ ] Leaflet polygon drawing, Overpass proxy + cache — Leaflet owns the map canvas; every control around it is shadcn
+- [ ] Live visits feed for admin — shadcn `card`, `badge`, `scroll-area`
 
 ## M5 — Hardening
 - [ ] Security review against [security.md](security.md)

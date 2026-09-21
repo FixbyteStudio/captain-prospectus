@@ -1,6 +1,6 @@
 # ADR-0013: Frontend conventions — plain CSS, French UI, client state
 
-- Status: accepted
+- Status: partially superseded by [ADR-0014](0014-tailwind-and-shadcn-ui.md) — decision 1 (plain CSS) only. Decisions 2 (French UI) and 3 (TanStack Query, admin only) stand.
 - Date: 2026-09-21
 
 ## Context

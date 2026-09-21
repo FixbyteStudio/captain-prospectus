@@ -4,8 +4,8 @@ Captain Prospectus: B2B field-canvassing app. Admin imports restaurants/food tru
 
 ## Stack (decided — see docs/adr)
 Vite + React SPA/PWA · React Router · Hono on one Cloudflare Worker · D1 + Drizzle · Dexie · Leaflet + Overpass · Cloudflare Access · TypeScript strict · zod · Vitest.
-Styling is plain CSS + custom properties; the UI is in French while code, DB values and docs stay English; TanStack Query is admin-side only (ADR-0013).
-Do not introduce Next.js, another database, another host, an auth library, a CSS framework, an i18n library, or any paid API.
+Styling is Tailwind CSS v4 with shadcn/ui elements vendored into `src/client/ui/` (ADR-0014); the UI is in French while code, DB values and docs stay English; TanStack Query is admin-side only (ADR-0013).
+Do not introduce Next.js, another database, another host, an auth library, a second CSS or component framework beside Tailwind + shadcn, an i18n library, or any paid API.
 
 ## Before you change anything
 1. Architecture, data model, sync, auth, dependencies → read the relevant ADR in `docs/adr/`. If your change contradicts one, stop and propose a new ADR instead.
@@ -38,7 +38,8 @@ Do not introduce Next.js, another database, another host, an auth library, a CSS
 - User-facing copy: sentence case, active verbs, errors say what happened and what to do.
 - No new dependency without stating in the PR: size, maintenance, workerd compatibility, and why the platform can't do it.
 - User-facing strings are French and live only in `src/client/copy.ts`. Components import from it; they never inline a French literal.
-- Styling: variables from `src/client/styles/tokens.css`, one CSS file per component. No hardcoded colours or spacing.
+- Styling: Tailwind utilities only, with tokens from the `@theme` block in `src/client/styles/app.css`. No hardcoded colours or spacing, no per-component CSS file.
+- UI: run the `frontend-design` skill to decide a screen before building it, and compose it from shadcn/ui elements vendored into `src/client/ui/`. Never hand-roll an element shadcn provides; translate the English strings a vendored component ships with into `copy.ts` French (ADR-0014).
 
 ## Database
 - Change `src/worker/db/schema.ts`, then `pnpm db:generate`. Never hand-edit a migration that is already on `main`.

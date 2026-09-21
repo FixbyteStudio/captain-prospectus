@@ -16,6 +16,7 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0010](0010-live-feed-by-polling.md) | Live admin feed by polling | accepted |
 | [0011](0011-server-derived-prospect-status.md) | Prospect status derived by the server | accepted |
 | [0012](0012-workers-dev-hostname.md) | Use the workers.dev hostname | accepted |
-| [0013](0013-frontend-conventions.md) | Frontend conventions — plain CSS, French UI, client state | accepted |
+| [0013](0013-frontend-conventions.md) | Frontend conventions — plain CSS, French UI, client state | partially superseded by 0014 |
+| [0014](0014-tailwind-and-shadcn-ui.md) | Tailwind CSS and shadcn/ui for the interface | accepted |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.
