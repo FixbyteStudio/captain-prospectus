@@ -26,7 +26,19 @@ export default defineConfig({
         display: "standalone",
         background_color: "#ffffff",
         theme_color: "#1f6f4a",
-        icons: [],
+        icons: [
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          // Android crops this one to a circle or squircle of its choosing.
+          // Without a maskable entry it crops a normal icon instead and clips
+          // the wheel's handles.
+          {
+            src: "/icon-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
