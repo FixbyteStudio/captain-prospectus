@@ -44,7 +44,9 @@ vendored component ships with the French one from `src/client/copy.ts`.
 - [ ] Visit form (flyer, outcome, follow-up, notes) writing to the outbox — shadcn `form`, `radio-group`, `calendar`, `textarea`
 - [ ] Add field prospect — shadcn `form`, `select`
 - [ ] Sync triggers wired: app start, `online`, after each visit, every 60 s, with a shadcn `sonner` toast on failure
-- [ ] Measure the field route's JS bundle against the ADR-0014 budget note
+- [x] Measure the field route's JS bundle against the ADR-0014 budget note — the admin
+      side is a lazy chunk, the budget is in [vision.md](vision.md); re-measure once the
+      real field screens exist
 
 ## M3 — Scripts
 - [ ] **Design pass** with the `frontend-design` skill: the question editor is the

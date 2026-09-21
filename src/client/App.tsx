@@ -1,21 +1,25 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { apiFetch } from "./api";
 import { copy } from "./copy";
 import { cn } from "./lib/utils";
 import type { MeResponse } from "../shared/schemas";
 import { TodayScreen } from "./field/TodayScreen";
-import { ProspectsScreen } from "./admin/ProspectsScreen";
-import { ImportScreen } from "./admin/import/ImportScreen";
-import { VisitsScreen } from "./admin/VisitsScreen";
-import { Toaster } from "./ui/sonner";
 
-/** ADR-0013: TanStack Query is for the admin side only. The field client's
- *  source of truth is Dexie, and a second cache over the outbox loses visits. */
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
-});
+/**
+ * The admin side is a separate chunk, fetched only when an admin opens one of
+ * its routes.
+ *
+ * An agent's phone is the constraint: it loads this app outdoors on a bad
+ * connection to log a visit, and it has no business downloading TanStack Query,
+ * Radix, sonner and PapaParse to do it (vision.md; the bundle note in
+ * ADR-0014). The field screens stay in the entry chunk for that reason.
+ *
+ * `lazy` wants a default export and this repo uses named ones, hence the remap.
+ */
+const AdminApp = lazy(() =>
+  import("./admin/AdminApp").then((module) => ({ default: module.AdminApp })),
+);
 
 function BandLink({ to, children }: { to: string; children: string }) {
   return (
@@ -78,15 +82,9 @@ export function App() {
             path="/admin/*"
             element={
               me.role === "admin" ? (
-                <QueryClientProvider client={queryClient}>
-                  <Routes>
-                    <Route path="prospects" element={<ProspectsScreen />} />
-                    <Route path="import" element={<ImportScreen />} />
-                    <Route path="visites" element={<VisitsScreen />} />
-                  </Routes>
-                  {/* Admin-side only: the field client reports sync state inline. */}
-                  <Toaster position="bottom-right" />
-                </QueryClientProvider>
+                <Suspense fallback={<p className="text-muted-foreground" aria-busy="true" />}>
+                  <AdminApp />
+                </Suspense>
               ) : (
                 <p className="text-muted-foreground">{copy.errors.forbidden}</p>
               )
