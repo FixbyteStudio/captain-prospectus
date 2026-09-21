@@ -3,7 +3,7 @@
 ## Environments
 | Env | Where | Database | Auth |
 |---|---|---|---|
-| Local | `npm run dev` (Vite + workerd via `@cloudflare/vite-plugin`) | Local D1 (in `.wrangler/`) | `DEV_USER_EMAIL` in `.dev.vars` |
+| Local | `pnpm dev` (Vite + workerd via `@cloudflare/vite-plugin`) | Local D1 (in `.wrangler/`) | `DEV_USER_EMAIL` in `.dev.vars` |
 | Production | `captain-prospectus.<account>.workers.dev` | D1 `captain-prospectus` | Cloudflare Access |
 
 A staging environment is not planned for v1 (two agents, low risk). If added: a wrangler `env.staging` with its own Worker name and D1 database, and its own Access application.
@@ -12,7 +12,7 @@ A staging environment is not planned for v1 (two agents, low risk). If added: a 
 
 1. **Cloudflare account** (free). `npx wrangler login`.
 2. **Database**: `npx wrangler d1 create captain-prospectus`, paste the returned `database_id` into `wrangler.jsonc`.
-3. **First deploy**: `npm run deploy` to create the Worker.
+3. **First deploy**: `pnpm build && npx wrangler deploy` to create the Worker. There is deliberately no `deploy` npm script: routine deploys go through CI (see the release process below).
 4. **Access** — protect the Worker (one click, no zone or custom domain needed):
    - Cloudflare dashboard → **Workers & Pages** → `captain-prospectus` → **Settings** → **Domains & Routes**.
    - Next to `workers.dev`, select **Enable Cloudflare Access**, scope **All traffic**.

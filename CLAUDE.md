@@ -41,19 +41,19 @@ Do not introduce Next.js, another database, another host, an auth library, a CSS
 - Styling: variables from `src/client/styles/tokens.css`, one CSS file per component. No hardcoded colours or spacing.
 
 ## Database
-- Change `src/worker/db/schema.ts`, then `npm run db:generate`. Never hand-edit a migration that is already on `main`.
+- Change `src/worker/db/schema.ts`, then `pnpm db:generate`. Never hand-edit a migration that is already on `main`.
 - Migrations must work with the currently deployed Worker (expand/contract). Use the `d1-migration` skill.
 
 ## Commands
 | Task | Command |
 |---|---|
-| Dev server | `npm run dev` |
-| Typecheck | `npm run typecheck` |
-| Tests | `npm test` |
-| Generate migration | `npm run db:generate` |
-| Apply migrations locally | `npm run db:migrate:local` |
-| Seed the local database | `npm run db:seed:local` |
-| Lint + format check | `npm run lint` |
+| Dev server | `pnpm dev` |
+| Typecheck | `pnpm typecheck` |
+| Tests | `pnpm test` |
+| Generate migration | `pnpm db:generate` |
+| Apply migrations locally | `pnpm db:migrate:local` |
+| Seed the local database | `pnpm db:seed:local` |
+| Lint + format check | `pnpm lint` |
 
 **Never run** `wrangler deploy`, anything with `--remote`, or `wrangler secret`. Deploys go through CI only.
 

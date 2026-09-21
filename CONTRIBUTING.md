@@ -29,7 +29,10 @@ The PR template enforces it: tests, docs, ADR, migration safety, zero-cost check
 | Client | sync engine against a mocked API | Vitest + `fake-indexeddb` |
 | E2E | one happy-path visit offline → online | Playwright, added in M2 |
 
-Run everything with `npm test`. `npm run lint` (ESLint + Prettier) runs in CI too.
+Run everything with `pnpm test`. `pnpm lint` (ESLint + Prettier) runs in CI too.
+
+The package manager is **pnpm** (`packageManager` in `package.json`). CI installs with
+`pnpm install --frozen-lockfile`, so commit `pnpm-lock.yaml` with any dependency change.
 
 Sync and dedupe logic must have tests before merge; they are where data gets lost.
 

@@ -15,11 +15,11 @@ See the [roadmap](docs/roadmap.md).
 ## Develop
 
 ```sh
-npm install
+pnpm install
 cp .dev.vars.example .dev.vars
-npm run db:migrate:local
-npm run dev              # then, in another terminal:
-npm run db:seed:local
+pnpm db:migrate:local
+pnpm dev                 # then, in another terminal:
+pnpm db:seed:local
 ```
 
 ## Where to start

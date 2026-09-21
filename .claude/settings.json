@@ -15,7 +15,18 @@
       "Bash(npm run db:seed:local)",
       "Bash(npm run cf-typegen)",
       "Bash(npm ci)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm build)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm format)",
+      "Bash(pnpm db:generate)",
+      "Bash(pnpm db:migrate:local)",
+      "Bash(pnpm db:seed:local)",
+      "Bash(pnpm install)",
+      "Bash(pnpm install --frozen-lockfile)"
     ],
     "deny": [
       "Bash(npx wrangler deploy:*)",
@@ -26,7 +37,9 @@
       "Bash(npx wrangler d1 execute:*)",
       "Read(./.dev.vars)",
       "Bash(npx wrangler d1 export:*)",
-      "Bash(npx wrangler d1 time-travel:*)"
+      "Bash(npx wrangler d1 time-travel:*)",
+      "Bash(pnpm deploy:*)",
+      "Bash(pnpm db:migrate:remote:*)"
     ]
   },
   "enabledPlugins": {

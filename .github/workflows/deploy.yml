@@ -23,14 +23,15 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # The Cloudflare Vite plugin writes the deploy configuration into
       # dist/captain_prospectus/wrangler.json; `wrangler deploy` picks it up.
-      - run: npm run build
+      - run: pnpm run build
       # Migrations run BEFORE the new code, so every migration must work with
       # the currently deployed Worker (expand -> deploy -> contract).
       - name: Apply D1 migrations, then deploy

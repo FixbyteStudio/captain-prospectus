@@ -1,0 +1,16 @@
+# esbuild and workerd fetch a platform binary in their install script. Without
+# these, Vite, Vitest and Wrangler are installed but non-functional.
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+# Your pnpm config sets a minimumReleaseAge, which refuses packages published
+# very recently — a supply-chain guard against a compromised fresh release.
+# These four were the current versions when the project was scaffolded and were
+# published the same day, so they are accepted explicitly rather than silently.
+# Drop an entry once the version is older than the cutoff.
+minimumReleaseAgeExclude:
+  - "@tanstack/query-core@5.103.2"
+  - "@tanstack/react-query@5.103.2"
+  - drizzle-kit@0.31.11
+  - drizzle-orm@0.45.3
