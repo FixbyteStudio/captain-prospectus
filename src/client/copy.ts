@@ -22,6 +22,7 @@ export const copy = {
     visits: "Visites",
     scripts: "Scripts",
     import: "Import",
+    duplicates: "Doublons",
   },
 
   prospects: {
@@ -151,6 +152,32 @@ export const copy = {
     },
     failed:
       "L'import s'est interrompu. Les lignes déjà envoyées sont enregistrées ; réimporter le même fichier est sans risque.",
+  },
+
+  duplicates: {
+    title: "Doublons",
+    lede: "Ces prospects semblent désigner le même endroit. Un nom corrigé dans le fichier crée une nouvelle fiche : c'est ici qu'on les réunit.",
+    empty: "Aucun doublon détecté.",
+    loading: "Recherche des doublons…",
+    loadFailed: "Impossible de chercher les doublons. Réessayez.",
+    truncated:
+      "Seules les premières paires sont affichées. Fusionnez-les et relancez la recherche.",
+    count: (n: number) => (n === 1 ? "1 paire" : `${n} paires`),
+
+    columns: {
+      name: "Nom",
+      status: "Statut",
+      agent: "Agent",
+      visits: "Visites",
+      distance: "Distance",
+    },
+
+    distanceUnknown: "Position inconnue",
+    keep: "Garder",
+    keepAria: (name: string) => `Garder « ${name} » et fusionner l'autre`,
+    /** Says which one survived, because that is the thing the admin chose. */
+    merged: (name: string) => `Fusionné dans « ${name} »`,
+    mergeFailed: "La fusion a échoué. Réessayez.",
   },
 
   today: {

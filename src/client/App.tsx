@@ -65,6 +65,7 @@ export function App() {
           <BandLink to="/tournee">{copy.nav.today}</BandLink>
           {me.role === "admin" && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
           {me.role === "admin" && <BandLink to="/admin/import">{copy.nav.import}</BandLink>}
+          {me.role === "admin" && <BandLink to="/admin/doublons">{copy.nav.duplicates}</BandLink>}
           {me.role === "admin" && <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>}
         </nav>
       </header>

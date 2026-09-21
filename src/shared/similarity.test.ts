@@ -10,7 +10,8 @@ const DOWN_THE_STREET = { lat: 45.7596, lng: 4.832 };
 
 describe("significantTokens", () => {
   it("drops the words every French restaurant shares", () => {
-    expect(significantTokens("Le Bistrot des Halles")).toEqual(["bistrot", "halles"]);
+    // "bistrot" goes too: it says what kind of place it is, not which one.
+    expect(significantTokens("Le Bistrot des Halles")).toEqual(["halles"]);
     expect(significantTokens("Chez Léa")).toEqual(["lea"]);
   });
 
@@ -45,6 +46,16 @@ describe("namesLookAlike", () => {
     // The whole reason STOPWORDS exists: these share "le", and nothing else.
     expect(namesLookAlike("Le Bistrot", "Le Bar")).toBe(false);
     expect(namesLookAlike("Café de la Gare", "Bar de la Gare")).toBe(true);
+  });
+
+  it("does not match two businesses that share only what they sell", () => {
+    // Found by running the sweep against real data: these were proposed as the
+    // same place 33 m apart because both are called "Pizza something".
+    expect(namesLookAlike("Pizza Roma", "Pizza Vecchia")).toBe(false);
+    expect(namesLookAlike("Sushi Bellecour", "Sushi Croix-Rousse")).toBe(false);
+    expect(namesLookAlike("Burger Truck 69", "Burger Fourvière")).toBe(false);
+    // But the same pizzeria under a corrected name still matches.
+    expect(namesLookAlike("Pizza Roma", "Pizza Roma Bellecour")).toBe(true);
   });
 });
 

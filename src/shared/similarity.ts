@@ -39,15 +39,35 @@ const STOPWORDS = new Set([
   "a",
   "et",
   "chez",
+  // Venue types.
   "restaurant",
   "resto",
   "cafe",
   "bar",
   "brasserie",
-  "pizzeria",
+  "bistro",
+  "bistrot",
+  "taverne",
+  "auberge",
   "snack",
   "food",
   "truck",
+  "cantine",
+  // What they sell. As generic as the venue type: two unrelated pizzerias forty
+  // metres apart are not the same place, and "pizza" is all they have in common.
+  "pizza",
+  "pizzeria",
+  "sushi",
+  "burger",
+  "kebab",
+  "tacos",
+  "creperie",
+  "crepes",
+  "boulangerie",
+  "patisserie",
+  "glacier",
+  "traiteur",
+  "grill",
 ]);
 
 export type SamePlaceInput = {

@@ -12,8 +12,10 @@ import { batched } from "./import/csv";
 import type {
   AgentsResponse,
   AssignResult,
+  DuplicatesResponse,
   ImportResult,
   ImportRow,
+  MergeResult,
   Prospect,
   ProspectsResponse,
 } from "../../shared/schemas";
@@ -30,6 +32,7 @@ export type ProspectFilters = {
 export const adminKeys = {
   prospects: (filters: ProspectFilters) => ["admin", "prospects", filters] as const,
   agents: () => ["admin", "agents"] as const,
+  duplicates: () => ["admin", "duplicates"] as const,
 };
 
 function toQueryString(filters: ProspectFilters): string {
@@ -61,6 +64,31 @@ export function useAgents() {
 function useInvalidateProspects() {
   const client = useQueryClient();
   return () => client.invalidateQueries({ queryKey: ["admin", "prospects"] });
+}
+
+export function useDuplicates() {
+  return useQuery({
+    queryKey: adminKeys.duplicates(),
+    queryFn: () => apiFetch<DuplicatesResponse>("/api/admin/prospects/duplicates"),
+    // A sweep compares thousands of rows; it is not something to redo on a whim.
+    staleTime: 60_000,
+  });
+}
+
+export function useMerge() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { survivorId: string; mergedId: string }) =>
+      apiFetch<MergeResult>("/api/admin/prospects/merge", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: async () => {
+      // Both: one prospect left the list, and this pair left the sweep.
+      await client.invalidateQueries({ queryKey: ["admin", "prospects"] });
+      await client.invalidateQueries({ queryKey: adminKeys.duplicates() });
+    },
+  });
 }
 
 export function useAssign() {

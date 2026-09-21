@@ -69,7 +69,7 @@ Known limits, accepted for v1; the admin can merge manually later (roadmap M5):
 
 A rename slips past the dedupe key, so the same place ends up as two prospects and an agent walks to the same door twice. The admin resolves it by hand, because a rename and a takeover — a restaurant closing and a new one opening at the same address — are indistinguishable in the data, and a wrong guess would hand a brand-new business the previous tenant's visit history.
 
-**Finding candidates.** Two live prospects are proposed as the same place when they are **within 50 m** *and* their names are alike: they share a meaningful word, or their edit distance is within a quarter of the longer name. Filler words every French restaurant shares (`le`, `chez`, `restaurant`, `bar`…) do not count as a shared word. If either side has no coordinates, only an exact normalised name match counts. The rule lives in `src/shared/similarity.ts`.
+**Finding candidates.** Two live prospects are proposed as the same place when they are **within 50 m** *and* their names are alike: they share a meaningful word, or their edit distance is within a quarter of the longer name. Words that say what kind of place it is rather than which one — `le`, `chez`, `restaurant`, `bar`, `bistrot`, and what it sells, `pizza`, `sushi`, `burger`… — do not count as a shared word. Without that, the first sweep against real data proposed two unrelated pizzerias thirty metres apart. If either side has no coordinates, only an exact normalised name match counts. The rule lives in `src/shared/similarity.ts`.
 
 **What a merge does.** It sets `merged_into` on the absorbed prospect and nothing else:
 
