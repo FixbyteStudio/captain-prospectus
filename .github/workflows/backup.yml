@@ -3,9 +3,11 @@ name: Backup
 # D1 holds the only copy of the data, and the project's loudest invariant is
 # "never lose a visit". Time Travel covers accidents inside its retention
 # window; this covers everything outside it.
+# Manual only until M6: there is no database to export yet, and a weekly
+# scheduled failure is noise nobody reads. Uncomment the schedule at M6.
 on:
-  schedule:
-    - cron: "17 3 * * 1" # Mondays, 03:17 UTC
+  # schedule:
+  #   - cron: "17 3 * * 1" # Mondays, 03:17 UTC
   workflow_dispatch:
 
 jobs:

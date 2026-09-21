@@ -6,6 +6,16 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # typescript-eslint peers on `typescript >=4.8.4 <6.1.0`, so TS 6 and 7
+      # break linting. Revisit when typescript-eslint supports them.
+      - dependency-name: typescript
+        versions: [">=6"]
+      # @cloudflare/vitest-plugin peers on vitest ^4.1.0, and npm 10 crashes
+      # resolving its peer graph unless vitest is pinned exactly (see the
+      # `overrides` entry in package.json). Vitest 5 breaks both.
+      - dependency-name: vitest
+        versions: [">=5"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }

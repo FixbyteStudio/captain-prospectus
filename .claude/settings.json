@@ -28,5 +28,8 @@
       "Bash(npx wrangler d1 export:*)",
       "Bash(npx wrangler d1 time-travel:*)"
     ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true
   }
 }

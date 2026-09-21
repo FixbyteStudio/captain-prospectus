@@ -6,3 +6,7 @@ package-lock.json
 
 # Docs are hand-formatted prose and tables; Prettier reflows them into noise.
 *.md
+
+# Lockfiles and package-manager config are managed by the tool, not by us.
+pnpm-lock.yaml
+pnpm-workspace.yaml
