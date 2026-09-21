@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
 import { getDb } from "./db/client";
 import { prospects, visits } from "./db/schema";
+import { visitHistoryResponseSchema } from "../shared/schemas";
 import type { SyncRequest, SyncResponse } from "../shared/schemas";
 
 /**
@@ -368,5 +369,77 @@ describe("POST /api/agent/sync", () => {
 
     const body = (await (await sync({})).json()) as SyncResponse;
     expect(body.prospects.map((p) => p.id)).toEqual([mine]);
+  });
+});
+
+describe("GET /api/agent/prospects/:id/visits", () => {
+  const PROSPECT = "33333333-3333-4333-8333-333333333333";
+
+  it("rejects an id that is not a UUID with 400, not 404", async () => {
+    // A malformed id is a client bug; a well-formed unknown one is a 404.
+    const response = await call("/api/agent/prospects/not-a-uuid/visits");
+    expect(response.status).toBe(400);
+  });
+
+  it("404s a prospect that does not exist", async () => {
+    const response = await call(`/api/agent/prospects/${PROSPECT}/visits`);
+    expect(response.status).toBe(404);
+  });
+
+  it("returns the history newest first, matching the shared contract", async () => {
+    await seedProspect(PROSPECT);
+    await sync({
+      visits: [
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          prospectId: PROSPECT,
+          visitedAt: 1_600_000_000_000,
+          flyerGiven: true,
+          outcome: "interested",
+          notes: "ferme le lundi",
+          answers: {},
+        },
+        {
+          id: "55555555-5555-4555-8555-555555555555",
+          prospectId: PROSPECT,
+          visitedAt: 1_600_000_100_000,
+          flyerGiven: false,
+          outcome: "not_interested",
+          answers: {},
+        },
+      ],
+    });
+
+    const response = await call(`/api/agent/prospects/${PROSPECT}/visits`);
+    expect(response.status).toBe(200);
+
+    const body = visitHistoryResponseSchema.parse(await response.json());
+    expect(body.visits.map((v) => v.outcome)).toEqual(["not_interested", "interested"]);
+    expect(body.visits[1]?.notes).toBe("ferme le lundi");
+  });
+
+  it("leaks no clock-skew or upgrade diagnostics", async () => {
+    await seedProspect(PROSPECT);
+    await sync({
+      visits: [
+        {
+          id: "66666666-6666-4666-8666-666666666666",
+          prospectId: PROSPECT,
+          visitedAt: 1_600_000_000_000,
+          flyerGiven: true,
+          outcome: "interested",
+          answers: {},
+        },
+      ],
+    });
+
+    const body = (await (await call(`/api/agent/prospects/${PROSPECT}/visits`)).json()) as {
+      visits: Record<string, unknown>[];
+    };
+
+    const entry = body.visits[0] ?? {};
+    expect(entry).not.toHaveProperty("clientVisitedAt");
+    expect(entry).not.toHaveProperty("receivedAt");
+    expect(entry).not.toHaveProperty("clientVersion");
   });
 });

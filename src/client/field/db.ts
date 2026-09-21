@@ -6,7 +6,13 @@
  * upgrade must MIGRATE outbox rows and never clear them.
  */
 import Dexie, { type Table } from "dexie";
-import type { FieldProspect, Prospect, Script, Visit } from "../../shared/schemas";
+import type {
+  FieldProspect,
+  Prospect,
+  Script,
+  Visit,
+  VisitHistoryEntry,
+} from "../../shared/schemas";
 
 export type MetaValues = {
   script: Script | null;
@@ -21,6 +27,13 @@ export class FieldDb extends Dexie {
   outboxProspects!: Table<FieldProspect, string>;
   outboxVisits!: Table<Visit, string>;
   meta!: Table<MetaRow, string>;
+  /**
+   * Past visits pulled from the server, so the visit form can still show
+   * « Visites précédentes » with no signal (field-operations.md: "offline it
+   * shows what is cached"). A cache, never a source of truth — unlike the
+   * outbox, losing this loses nothing.
+   */
+  visitHistory!: Table<VisitHistoryEntry, string>;
 
   constructor(name = "captain-prospectus") {
     super(name);
@@ -29,6 +42,16 @@ export class FieldDb extends Dexie {
       outboxProspects: "id",
       outboxVisits: "id, prospectId",
       meta: "key",
+    });
+    /**
+     * v2 ADDS a table and changes no existing one, so Dexie carries every row
+     * across untouched and no upgrade function is needed. That is the only
+     * shape of migration allowed to run near the outbox: the sync-contract-change
+     * skill's step 3 says a version bump must migrate outbox rows, never clear
+     * them, and the safest way to honour that is not to touch them.
+     */
+    this.version(2).stores({
+      visitHistory: "id, prospectId",
     });
   }
 }
@@ -58,4 +81,21 @@ export async function pendingCount(db: FieldDb): Promise<number> {
     db.outboxVisits.count(),
   ]);
   return prospects + visits;
+}
+
+/**
+ * Replace a prospect's cached history with what the server just returned.
+ *
+ * Scoped to one prospect: another prospect's cache is still valid, and an
+ * agent offline for the rest of the round should keep it.
+ */
+export async function cacheVisitHistory(
+  db: FieldDb,
+  prospectId: string,
+  entries: readonly VisitHistoryEntry[],
+): Promise<void> {
+  await db.transaction("rw", db.visitHistory, async () => {
+    await db.visitHistory.where("prospectId").equals(prospectId).delete();
+    if (entries.length > 0) await db.visitHistory.bulkPut([...entries]);
+  });
 }

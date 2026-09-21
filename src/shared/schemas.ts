@@ -305,6 +305,34 @@ export const syncResponseSchema = z.object({
 });
 export type SyncResponse = z.infer<typeof syncResponseSchema>;
 
+/* ----------------------------------------------------- visit history (agent) */
+
+/**
+ * One past visit, as the visit form shows it.
+ *
+ * Deliberately narrower than the row: `clientVisitedAt`, `receivedAt` and
+ * `clientVersion` are clock-skew and upgrade diagnostics, and an agent standing
+ * at a door has no use for them. `visitedAt` is the clamped value, which is the
+ * one that means "when this happened".
+ */
+export const visitHistoryEntrySchema = z.object({
+  id: uuidSchema,
+  prospectId: uuidSchema,
+  /** Two agents share a round; whose visit this was is worth showing. */
+  agentEmail: emailSchema,
+  visitedAt: epochMsSchema,
+  flyerGiven: z.boolean(),
+  outcome: outcomeSchema,
+  followUpAt: epochMsSchema.nullable(),
+  notes: longText.nullable(),
+});
+export type VisitHistoryEntry = z.infer<typeof visitHistoryEntrySchema>;
+
+export const visitHistoryResponseSchema = z.object({
+  visits: z.array(visitHistoryEntrySchema),
+});
+export type VisitHistoryResponse = z.infer<typeof visitHistoryResponseSchema>;
+
 /* --------------------------------------------------------------------- admin */
 
 export const visitsSinceQuerySchema = z.object({
