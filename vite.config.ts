@@ -1,11 +1,19 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  // shadcn generates imports as "@/ui/button". The alias is mirrored in
+  // tsconfig.client.json; both are needed, Vite resolves and tsc typechecks.
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src/client", import.meta.url)) },
+  },
   plugins: [
     react(),
+    tailwindcss(),
     cloudflare(),
     VitePWA({
       registerType: "prompt",

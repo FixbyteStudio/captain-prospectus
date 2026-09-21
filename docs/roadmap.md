@@ -20,10 +20,11 @@ vendored component ships with the French one from `src/client/copy.ts`.
 ## M1 — Prospects & CSV import
 - [x] Schema + first migration
 - [x] Auth middleware (Access JWT), `/api/me`
-- [ ] **UI foundation**: Tailwind v4 via `@tailwindcss/vite`, `shadcn init`, design
+- [x] **UI foundation**: Tailwind v4 via `@tailwindcss/vite`, `shadcn init`, design
       tokens moved from `tokens.css` into `@theme`, `app.css` migrated (ADR-0014)
-- [ ] **Design pass** with the `frontend-design` skill: app shell, the prospect
-      table and the import flow, decided before any of them is built
+- [x] **Design pass** with the `frontend-design` skill: app shell, the prospect
+      table and the import flow, decided before any of them is built —
+      written up in [design.md](design.md)
 - [ ] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
 - [ ] `GET /api/admin/prospects` — list with status / assignedTo / source filters
 - [ ] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`
