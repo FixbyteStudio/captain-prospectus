@@ -143,3 +143,23 @@ verbs, French in `src/client/copy.ts` only. Two habits worth naming here:
   « Assigner » produces a result that says « Assigné ».
 - An empty screen is an invitation, not a shrug: « Aucun prospect. Importez un
   CSV pour commencer. », with the button right there.
+
+## Working with shadcn in this repo
+
+Two things the CLI gets wrong here, both worth knowing before the next
+`pnpm dlx shadcn@latest add`:
+
+- It resolves the `@` alias from the **root `tsconfig.json`**, which is an empty
+  stub that compiles nothing. The `paths` entry there exists only for the CLI;
+  without it, components are written to a literal `./@/ui/` directory.
+- Recent versions import `cn` from an npm package of that name rather than from
+  the `utils` alias. Repoint them at `@/lib/utils` and do not keep the package —
+  we already have that function.
+
+Vendored components are our code (ADR-0014): they are linted and formatted like
+everything else, their `"use client"` directives are stripped because nothing
+here is Next.js, and `sonner.tsx` reads the theme from `data-theme` rather than
+carrying `next-themes` for it.
+
+They also arrive roomier than this design wants. The ledger sets its own row
+height from `--spacing-row` and zeroes the cell padding shadcn ships.

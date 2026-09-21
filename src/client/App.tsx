@@ -7,7 +7,9 @@ import { cn } from "./lib/utils";
 import type { MeResponse } from "../shared/schemas";
 import { TodayScreen } from "./field/TodayScreen";
 import { ProspectsScreen } from "./admin/ProspectsScreen";
+import { ImportScreen } from "./admin/ImportScreen";
 import { VisitsScreen } from "./admin/VisitsScreen";
+import { Toaster } from "./ui/sonner";
 
 /** ADR-0013: TanStack Query is for the admin side only. The field client's
  *  source of truth is Dexie, and a second cache over the outbox loses visits. */
@@ -21,7 +23,7 @@ function BandLink({ to, children }: { to: string; children: string }) {
       to={to}
       className={({ isActive }) =>
         cn(
-          "inline-flex h-8 items-center rounded-md px-2.5 font-medium transition-colors",
+          "inline-flex h-8 shrink-0 items-center rounded-md px-2.5 font-medium transition-colors",
           isActive
             ? "bg-white/10 text-band-foreground"
             : "text-band-muted hover:text-band-foreground",
@@ -48,13 +50,17 @@ export function App() {
 
   return (
     <>
-      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-8 px-4">
-        <span className="text-[0.9375rem] font-semibold tracking-[0.01em] whitespace-nowrap">
+      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
+        <span className="shrink-0 text-[0.9375rem] font-semibold tracking-[0.01em] whitespace-nowrap">
           {copy.appName}
         </span>
-        <nav className="ml-auto flex gap-1">
+        {/* An admin on a phone has four links and the band is only so wide, so
+            the nav scrolls rather than pushing the page sideways. The field
+            shell gets its own design pass in M2. */}
+        <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
           <BandLink to="/tournee">{copy.nav.today}</BandLink>
           {me.role === "admin" && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
+          {me.role === "admin" && <BandLink to="/admin/import">{copy.nav.import}</BandLink>}
           {me.role === "admin" && <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>}
         </nav>
       </header>
@@ -75,8 +81,11 @@ export function App() {
                 <QueryClientProvider client={queryClient}>
                   <Routes>
                     <Route path="prospects" element={<ProspectsScreen />} />
+                    <Route path="import" element={<ImportScreen />} />
                     <Route path="visites" element={<VisitsScreen />} />
                   </Routes>
+                  {/* Admin-side only: the field client reports sync state inline. */}
+                  <Toaster position="bottom-right" />
                 </QueryClientProvider>
               ) : (
                 <p className="text-muted-foreground">{copy.errors.forbidden}</p>

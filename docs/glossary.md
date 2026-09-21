@@ -52,3 +52,9 @@ Stored in English, rendered in French. These are the only labels the UI may show
 | `bar` | Bar |
 | `food_truck` | Food truck |
 | `other` | Autre |
+
+| `source` | French |
+|---|---|
+| `csv` | CSV |
+| `osm` | Carte |
+| `field` | Terrain |

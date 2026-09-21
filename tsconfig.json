@@ -1,4 +1,10 @@
 {
   "files": [],
-  "comment": "Typecheck runs the three configs below; see pnpm typecheck."
+  "comment": "Typecheck runs the three configs below; see pnpm typecheck.",
+  "compilerOptions": {
+    "comment": "Compiles nothing. The paths are here only so the shadcn CLI can resolve the @ alias — it reads this file, not tsconfig.client.json, and without them it writes components to a literal ./@/ directory.",
+    "paths": {
+      "@/*": ["./src/client/*"]
+    }
+  }
 }

@@ -29,7 +29,9 @@ vendored component ships with the French one from `src/client/copy.ts`.
 - [x] `GET /api/admin/prospects` — list with status / assignedTo / source filters
 - [x] `PATCH /api/admin/prospects/:id`, `POST /api/admin/prospects/assign`, `GET /api/admin/agents`
 - [ ] Admin: CSV import with column mapping and preview (parsed in the browser) — shadcn `table`, `select`, `dialog`
-- [ ] Admin: prospect list, assign (single + bulk) — shadcn `data-table`, `checkbox`, `dropdown-menu`
+- [x] Admin: prospect list, assign (single + bulk) — composed over shadcn `table`,
+      `checkbox`, `dropdown-menu`, `select`. Not the `data-table` recipe: that needs
+      @tanstack/react-table, and this screen filters and sorts server-side
 
 ## M2 — Field PWA
 - [x] Offline outbox + sync engine and endpoint

@@ -8,7 +8,7 @@
  * Enum labels must match the tables in docs/glossary.md. Copy style follows
  * CLAUDE.md: sentence case, active verbs, errors say what happened and what to do.
  */
-import type { Outcome, ProspectType, Status } from "../shared/constants";
+import type { Outcome, ProspectType, Source, Status } from "../shared/constants";
 
 export const copy = {
   appName: "Captain Prospectus",
@@ -19,6 +19,62 @@ export const copy = {
     visits: "Visites",
     scripts: "Scripts",
     import: "Import",
+  },
+
+  prospects: {
+    title: "Prospects",
+    count: (n: number) => (n === 1 ? "1 prospect" : `${n} prospects`),
+    importCta: "Importer un CSV",
+    empty: "Aucun prospect. Importez un CSV pour commencer.",
+    noMatch: "Aucun prospect ne correspond à ces filtres.",
+    clearFilters: "Effacer les filtres",
+    loading: "Chargement des prospects…",
+    loadFailed: "Impossible de charger les prospects. Réessayez.",
+
+    filters: {
+      status: "Statut",
+      agent: "Agent",
+      source: "Source",
+      anyStatus: "Tous les statuts",
+      anyAgent: "Tous les agents",
+      anySource: "Toutes les sources",
+    },
+
+    columns: {
+      name: "Nom",
+      type: "Type",
+      address: "Adresse",
+      status: "Statut",
+      agent: "Agent",
+      lastVisit: "Dernière visite",
+    },
+
+    selection: {
+      // The toolbar replaces the filters in place, so this states the count.
+      count: (n: number) => (n === 1 ? "1 sélectionné" : `${n} sélectionnés`),
+      selectAll: "Tout sélectionner",
+      selectOne: (name: string) => `Sélectionner ${name}`,
+      assignTo: "Assigner à",
+      chooseAgent: "Choisir un agent",
+      assign: "Assigner",
+      unassign: "Désassigner",
+      cancel: "Annuler",
+    },
+
+    row: {
+      menu: (name: string) => `Actions pour ${name}`,
+      assignTo: "Assigner à",
+      changeStatus: "Changer le statut",
+      unassign: "Retirer l'assignation",
+    },
+
+    /** An action keeps its name through the flow: Assigner → Assigné. */
+    assigned: (n: number) => (n === 1 ? "1 prospect assigné" : `${n} prospects assignés`),
+    unassigned: (n: number) => (n === 1 ? "1 prospect désassigné" : `${n} prospects désassignés`),
+    statusChanged: "Statut modifié",
+    assignFailed: "L'assignation a échoué. Réessayez.",
+    updateFailed: "La modification a échoué. Réessayez.",
+    unknownAssignee: "Cette adresse ne figure pas parmi les agents.",
   },
 
   today: {
@@ -85,6 +141,12 @@ export const STATUS_LABELS: Readonly<Record<Status, string>> = {
   follow_up: "À relancer",
   converted: "Converti",
   rejected: "Refusé",
+};
+
+export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
+  csv: "CSV",
+  osm: "Carte",
+  field: "Terrain",
 };
 
 export const TYPE_LABELS: Readonly<Record<ProspectType, string>> = {
