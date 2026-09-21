@@ -4,7 +4,13 @@ import { apiFetch } from "./api";
 import { copy } from "./copy";
 import { cn } from "./lib/utils";
 import type { MeResponse } from "../shared/schemas";
+import { buttonVariants } from "@/ui/button-variants";
+import { usePwa } from "./pwa";
 import { TodayScreen } from "./field/TodayScreen";
+import { VisitScreen } from "./field/VisitScreen";
+import { AddProspectScreen } from "./field/AddProspectScreen";
+import { SyncDot, SyncStrip } from "./field/SyncIndicator";
+import { SyncProvider } from "./field/useSync";
 
 /**
  * The admin side is a separate chunk, fetched only when an admin opens one of
@@ -29,13 +35,56 @@ function BandLink({ to, children }: { to: string; children: string }) {
         cn(
           "inline-flex h-8 shrink-0 items-center rounded-md px-2.5 font-medium transition-colors",
           isActive
-            ? "bg-band-foreground/12 text-band-foreground"
+            ? "bg-band-foreground/10 text-band-foreground"
             : "text-band-muted hover:text-band-foreground",
         )
       }
     >
       {children}
     </NavLink>
+  );
+}
+
+/**
+ * A new build is waiting. `registerType` is "prompt" (vite.config.ts), so the
+ * agent decides when to take it rather than being reloaded mid-round.
+ */
+function UpdatePrompt() {
+  const { needRefresh, update, dismiss } = usePwa();
+  if (!needRefresh) return null;
+
+  return (
+    <div
+      role="status"
+      className="bg-secondary border-border flex items-center justify-between gap-3 border-b px-4 py-2"
+    >
+      <span className="text-sm">{copy.update.available}</span>
+      <span className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          className={buttonVariants({ size: "sm", variant: "ghost" })}
+          onClick={dismiss}
+        >
+          {copy.update.dismiss}
+        </button>
+        <button type="button" className={buttonVariants({ size: "sm" })} onClick={update}>
+          {copy.update.apply}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** The field routes, which every role can reach. */
+function FieldRoutes() {
+  return (
+    <Routes>
+      {/* Relative to the parent's /tournee/*. "nouveau" comes before ":id" so
+          it is never read as a prospect id. */}
+      <Route index element={<TodayScreen />} />
+      <Route path="nouveau" element={<AddProspectScreen />} />
+      <Route path=":id" element={<VisitScreen />} />
+    </Routes>
   );
 }
 
@@ -53,23 +102,15 @@ export function App() {
   if (!me) return <main className="safe-top px-4 py-6" aria-busy="true" />;
 
   return (
-    <>
+    <SyncProvider agentEmail={me.email}>
       <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
-        {/*
-          An <img> rather than an inline SVG: the mark is ~5 kB of path data and
-          this shell is in the entry chunk a field phone downloads. The file is
-          precached by the service worker, so it still shows offline.
-
-          mark.svg is the logo with its navy swapped for the band's foreground —
-          the navy wheel on the navy band would be 1:1, literally invisible.
-        */}
-        <img src="/mark.svg" alt="" aria-hidden="true" className="h-7 w-auto shrink-0" />
+        <img src="/mark.svg" alt="" className="h-7 w-auto shrink-0" />
         <span className="shrink-0 text-[0.9375rem] font-semibold tracking-[0.01em] whitespace-nowrap">
           {copy.appName}
         </span>
-        {/* An admin on a phone has four links and the band is only so wide, so
-            the nav scrolls rather than pushing the page sideways. The field
-            shell gets its own design pass in M2. */}
+        {/* An admin on a phone has five links and the band is only so wide, so
+            the nav scrolls rather than pushing the page sideways. An agent has
+            one, and the space goes to the sync state instead. */}
         <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
           <BandLink to="/tournee">{copy.nav.today}</BandLink>
           {me.role === "admin" && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
@@ -77,7 +118,11 @@ export function App() {
           {me.role === "admin" && <BandLink to="/admin/doublons">{copy.nav.duplicates}</BandLink>}
           {me.role === "admin" && <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>}
         </nav>
+        <SyncDot />
       </header>
+
+      <UpdatePrompt />
+      <SyncStrip />
 
       <main className="safe-bottom px-4 py-6">
         <Routes>
@@ -87,7 +132,7 @@ export function App() {
               <Navigate to={me.role === "admin" ? "/admin/prospects" : "/tournee"} replace />
             }
           />
-          <Route path="/tournee" element={<TodayScreen />} />
+          <Route path="/tournee/*" element={<FieldRoutes />} />
           <Route
             path="/admin/*"
             element={
@@ -106,6 +151,6 @@ export function App() {
           />
         </Routes>
       </main>
-    </>
+    </SyncProvider>
   );
 }
