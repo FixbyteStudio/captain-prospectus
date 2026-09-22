@@ -291,6 +291,18 @@ export const copy = {
      */
     saveFailed:
       "Impossible d'enregistrer la visite sur cet appareil. Libérez de l'espace de stockage, puis réessayez.",
+
+    /* --- the script's questions, step 2 (design.md) --- */
+    continue: "Continuer",
+    /** The back link on step 2 names where it goes: step 1, draft intact. */
+    backToOutcome: "Résultat",
+    questions: "Questions",
+    /** Shown when the outcome is `no_contact`: nobody was there to ask. */
+    questionsOptional: "Personne sur place : répondez seulement si vous savez.",
+    answerRequired: "Répondez à cette question.",
+    answerInvalid: "Cette réponse n'est pas valide. Vérifiez-la.",
+    yes: "Oui",
+    no: "Non",
   },
 
   fieldProspect: {

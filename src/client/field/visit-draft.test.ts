@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Script } from "../../shared/schemas";
 import {
   dateInputToEpochMs,
   emptyDraft,
@@ -146,7 +147,7 @@ describe("toVisit", () => {
     if (!result.ok) expect(result.errors.notes).toBe("tooLong");
   });
 
-  it("claims no script, because script questions arrive in M3", () => {
+  it("claims no script when none was cached", () => {
     const result = toVisit(draft({ outcome: "interested" }), CONTEXT);
 
     expect(result.ok).toBe(true);
@@ -200,5 +201,112 @@ describe("withOutcome", () => {
 
     expect(next.flyerGiven).toBe(true);
     expect(next.notes).toBe("ferme le lundi");
+  });
+});
+
+/**
+ * docs/domains/scripts.md and docs/domains/field-operations.md. The script the
+ * caller passes is the one pinned when the form opened, not whichever is active
+ * now — a visit records the version it was answered with.
+ */
+describe("toVisit — the script's answers", () => {
+  const script: Script = {
+    id: 7,
+    name: "Questionnaire",
+    version: 3,
+    isActive: true,
+    createdAt: 1_700_000_000_000,
+    questions: [
+      { key: "has_delivery", label: "Livraison ?", type: "yes_no", required: true },
+      { key: "note_pos", label: "Caisse ?", type: "text" },
+    ],
+  };
+
+  const withScript = { ...CONTEXT, script };
+
+  it("stamps the version that was answered, and the answers with it", () => {
+    const result = toVisit(
+      draft({ outcome: "interested", answers: { has_delivery: true, note_pos: "Papier" } }),
+      withScript,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.visit.scriptId).toBe(7);
+      expect(result.visit.answers).toEqual({ has_delivery: true, note_pos: "Papier" });
+    }
+  });
+
+  it("refuses to save while a required question is unanswered", () => {
+    const result = toVisit(draft({ outcome: "interested", answers: {} }), withScript);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.answers).toEqual({ has_delivery: "required" });
+  });
+
+  it("marks an answer that is present but wrong as invalid, not missing", () => {
+    const result = toVisit(
+      draft({ outcome: "interested", answers: { has_delivery: "oui" as unknown as boolean } }),
+      withScript,
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.answers).toEqual({ has_delivery: "invalid" });
+  });
+
+  /** field-operations.md: nobody was there to ask. */
+  it("waives required questions when the outcome is no_contact", () => {
+    const result = toVisit(draft({ outcome: "no_contact", answers: {} }), withScript);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.visit.scriptId).toBe(7);
+  });
+
+  it("still refuses a wrong answer when the outcome is no_contact", () => {
+    const result = toVisit(
+      draft({ outcome: "no_contact", answers: { has_delivery: 3 as unknown as boolean } }),
+      withScript,
+    );
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("does not send answers it has no script to interpret them against", () => {
+    const result = toVisit(draft({ outcome: "interested", answers: { stale: true } }), {
+      ...CONTEXT,
+      script: null,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.visit.scriptId).toBeNull();
+      expect(result.visit.answers).toEqual({});
+    }
+  });
+
+  /**
+   * A script is data, not contract shape (src/shared/answers.ts). A question
+   * this build cannot render must not be able to block the save.
+   */
+  it("saves against a script whose questions this build cannot ask", () => {
+    const alien: Script = {
+      ...script,
+      questions: [
+        {
+          key: "signature",
+          label: "Signature",
+          type: "signature" as Script["questions"][number]["type"],
+          required: true,
+        },
+      ],
+    };
+
+    const result = toVisit(draft({ outcome: "interested", answers: {} }), {
+      ...CONTEXT,
+      script: alien,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.visit.scriptId).toBe(7);
   });
 });

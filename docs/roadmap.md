@@ -77,7 +77,9 @@ the bundle budget, cited against a measurement each time.
       reorder over a bordered ledger list rather than `accordion` (design.md: no cards, dense
       rows), a confirmation dialog before a save that activates a new version, and a lock on a
       question's `key` once it has been saved
-- [ ] Script questions in the visit form, validation — one shadcn control per question type
+- [x] Script questions in the visit form, validation — a second step after the outcome
+      (design.md), one control per question type from `field-controls.tsx` rather than shadcn,
+      since ADR-0015's native-controls rule still governs this route
 
 ## M4 — Map import & live feed
 - [ ] **Design pass** with the `frontend-design` skill: map + results side by side,

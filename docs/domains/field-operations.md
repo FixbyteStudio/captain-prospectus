@@ -13,6 +13,32 @@ Captured fields: check-in position (one reading, if permitted), `flyer_given`, s
 - Required questions of the active script must be answered unless the outcome is `no_contact`.
 - `follow_up_at` is required when the outcome is `follow_up`.
 
+### The script is a second step
+
+The form is two screens, not one (`docs/design.md`, "The script is the second
+screen"): flyer and outcome first, then the questions and the notes. Principle 6
+decides it — a screen that asks two questions is two screens — and choosing the
+outcome first is also what says whether the questions are obligatory at all.
+
+- **The script is pinned when the form opens**, read once from `meta.script`. A
+  sync landing a newer version mid-visit does not swap the questions under the
+  agent's thumb, and the visit records the version it was actually answered with
+  (`scripts.md`).
+- **Step 2 exists only when there is something to ask.** No cached script, or a
+  script whose questions this build cannot render, and the form is one screen
+  with the notes inline. A missing questionnaire never stands between an agent
+  and a saved visit.
+- **`no_contact` still gets step 2, with nothing required.** The notes live
+  there, and what an agent reads off a sign in the window is the most useful
+  thing they can record about a door nobody answered.
+- **A question this build cannot ask is skipped, never fatal.** A script is data,
+  not contract shape: `clientVersion` governs the sync payload, not the
+  questionnaire inside it, so an admin on a newer build can save a question type
+  an older phone has never heard of. That phone renders the rest, saves the
+  visit, and sends the answers it does have (`src/shared/answers.ts`). Throwing
+  instead would take down the visit form, and an agent who cannot open it loses
+  the visit — INVARIANT 5 by another route.
+
 ## Field prospects
 Agents add places not in the base: name and type required, position defaults to current location.
 

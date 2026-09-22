@@ -394,6 +394,70 @@ mapping is the server's (INVARIANT 3, `OUTCOME_TO_STATUS`), and a client that
 previews it is a client that can disagree with it. The new status arrives on the
 next sync, in the list.
 
+### The script is the second screen
+
+M3 puts the active script's questions in the visit form. Principle 6 decides the
+shape before anything else does: *if a screen asks two questions, it is two
+screens.* The outcome is what the app exists to capture and nothing may compete
+with it, so the questions do not join it — they follow it.
+
+```
+     step 1                             step 2
+┌──────────────────────────────────┐ ┌──────────────────────────────────┐
+│ ←  Le Bouchon des Filles         │ │ ←  Résultat                      │
+├──────────────────────────────────┤ ├──────────────────────────────────┤
+│  Flyer remis               [ ●]  │ │  Questions                       │
+├──────────────────────────────────┤ │                                  │
+│  Résultat                        │ │  Proposez-vous la livraison ?    │
+│  ┌────────────────────────────┐  │ │  ┌───────────┐ ┌──────────────┐  │
+│  │ Personne sur place         │  │ │  │    Oui    │ │     Non      │  │
+│  ├────────────────────────────┤  │ │  └───────────┘ └──────────────┘  │
+│  │ Intéressé                  │  │ │                                  │
+│  ├────────────────────────────┤  │ │  Quelle caisse utilisez-vous ?   │
+│  │ Pas intéressé              │  │ │  ┌────────────────────────────┐  │
+│  ├────────────────────────────┤  │ │  │ Aucune                     │  │
+│  │ À relancer                 │  │ │  ├────────────────────────────┤  │
+│  ├────────────────────────────┤  │ │  │ Papier                     │  │
+│  │ Converti                   │  │ │  └────────────────────────────┘  │
+│  └────────────────────────────┘  │ │                                  │
+│                                  │ │  Notes                           │
+│  Relancer le   [ 29/09/2026 ]    │ │  ┌────────────────────────────┐  │
+│                                  │ │  └────────────────────────────┘  │
+├──────────────────────────────────┤ ├──────────────────────────────────┤
+│  [        Continuer          ]   │ │  [   Enregistrer la visite   ]   │
+└──────────────────────────────────┘ └──────────────────────────────────┘
+```
+
+**The button names where you are going, and that is the whole step indicator.**
+No "1 sur 2", no dots, no progress bar. An action keeps its name through the
+flow, so « Enregistrer la visite » appears exactly once — on the screen that
+actually saves. Step 1 offers « Continuer », which is a promise of one more
+screen and nothing else.
+
+**The back link names its destination rather than pointing vaguely backwards.**
+On step 2 it reads « Résultat », not « Retour à la tournée »: it returns to step
+1 with the draft intact. Leaving the visit entirely is still possible from there,
+one step further out. Nothing an agent has typed is ever one stray tap from
+being lost.
+
+**Step 2 exists only when there is something to ask.** No cached script, or a
+script whose questions this build cannot render, and the form is exactly what it
+was in M2 — one screen, notes inline, « Enregistrer la visite ». A missing
+questionnaire must never stand between an agent and a saved visit, and it must
+not cost a tap either.
+
+**`no_contact` still gets step 2, with nothing required.** Nobody was there to
+ask, so `field-operations.md` waives the required questions — but the notes live
+on this screen, and "ferme le lundi" written off a sign in the window is the most
+valuable thing an agent can record about a door nobody answered. Hiding the step
+would hide the notes with it. So the step stays and the obligation goes.
+
+**A blocked save moves the screen to the problem.** With a variable number of
+questions, the first invalid one can easily sit below the fold, and a button that
+appears to do nothing is how a form gets abandoned on a pavement. Saving with an
+invalid answer scrolls that question into view and focuses it, as well as marking
+it. This is the same trap `withOutcome` exists to dodge, one screen along.
+
 ### Adding a place
 
 ```

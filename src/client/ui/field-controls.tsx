@@ -43,7 +43,10 @@ export function FieldCheckbox({
   children,
   className,
   ...props
-}: Omit<React.ComponentProps<"input">, "type" | "checked" | "onChange" | "children"> & {
+}: Omit<
+  React.ComponentProps<"input">,
+  "type" | "checked" | "onChange" | "children" | "onSelect"
+> & {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   children: React.ReactNode;
@@ -91,7 +94,10 @@ export function FieldRadioOption({
   children,
   className,
   ...props
-}: Omit<React.ComponentProps<"input">, "type" | "checked" | "onChange" | "children"> & {
+}: Omit<
+  React.ComponentProps<"input">,
+  "type" | "checked" | "onChange" | "children" | "onSelect"
+> & {
   name: string;
   value: string;
   checked: boolean;
