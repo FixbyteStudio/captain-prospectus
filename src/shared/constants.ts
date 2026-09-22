@@ -124,3 +124,23 @@ export const D1_MAX_BOUND_PARAMS = 100;
 /** Overpass polygon bounds (docs/domains/ingestion.md). */
 export const POLYGON_MIN_VERTICES = 3;
 export const POLYGON_MAX_VERTICES = 200;
+
+/**
+ * How long an Overpass answer stays good (ADR-0008).
+ *
+ * Overpass is a shared public service run on donated hardware, and OSM does not
+ * change much in a week. The cache is what makes a redraw-and-search-again loop
+ * polite rather than abusive.
+ */
+export const OVERPASS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Candidates returned from one map import.
+ *
+ * Like DUPLICATES_SCAN_LIMIT, this is a CPU cap, not a payload one. Workers Free
+ * allows 10 ms per request; waiting on Overpass is free, but `JSON.parse` of its
+ * answer and mapping every element's tags are not. A polygon big enough to
+ * return more than this is a polygon the admin should split anyway, so the
+ * response says `truncated` rather than silently costing more.
+ */
+export const OVERPASS_CANDIDATES_LIMIT = 1_000;

@@ -11,6 +11,7 @@ import { chunk } from "../../shared/chunk";
 import {
   DUPLICATES_PAGE_SIZE,
   DUPLICATES_SCAN_LIMIT,
+  OVERPASS_CACHE_TTL_MS,
   SCRIPTS_PAGE_SIZE,
 } from "../../shared/constants";
 import { dedupeKey, normalize } from "../../shared/dedupe";
@@ -32,6 +33,7 @@ import type {
   DuplicatesResponse,
   ImportResult,
   MergeResult,
+  OverpassImportResponse,
   Prospect,
   ProspectsResponse,
   Script,
@@ -40,7 +42,14 @@ import type {
 import { parseEmails, roleFor } from "../auth";
 import { validate } from "../validate";
 import { boundParamsPerRow, getDb } from "../db/client";
-import { prospects, scripts, visits } from "../db/schema";
+import { overpassCache, prospects, scripts, visits } from "../db/schema";
+import {
+  OVERPASS_ENDPOINT,
+  OVERPASS_USER_AGENT,
+  buildOverpassQuery,
+  polygonHash,
+  toCandidates,
+} from "../overpass";
 import type { NewProspectRow, ProspectRow } from "../db/schema";
 import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
@@ -49,6 +58,16 @@ export const adminRoutes = new Hono<AppEnv>();
 
 const notYet = (milestone: string) =>
   ({ error: "not_implemented", message: `Arrive en ${milestone}.` }) as const;
+
+/**
+ * Overpass is a public service that is sometimes slow, rate-limited or down
+ * (ADR-0008). The message says what happened and what to do, because "502" on
+ * its own reads as "the app is broken" rather than "someone else's server is".
+ */
+const OVERPASS_UNAVAILABLE = {
+  error: "overpass_failed",
+  message: "OpenStreetMap n'a pas répondu. Réessayez dans quelques instants.",
+} as const;
 
 function toWireProspect(row: ProspectRow): Prospect {
   return {
@@ -626,10 +645,77 @@ adminRoutes.post("/scripts", validate("json", scriptCreateSchema), async (c) => 
   return c.json<Script>(toWireScript(row), 201);
 });
 
-/* ------------------------------------------------------------ not yet built */
+/* ------------------------------------------------------------- map import */
 
-adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), (c) =>
-  c.json(notYet("M4"), 501),
-);
+/**
+ * Find places inside a polygon — ADR-0008, docs/domains/ingestion.md.
+ *
+ * Nothing is written to `prospects` here: this returns candidates, the admin
+ * previews them, and the existing `POST /prospects/batch` does the importing.
+ * One pipeline, two sources.
+ *
+ * The browser never calls Overpass itself (INVARIANT 11). Routing it through
+ * the Worker is what makes the cache — and therefore the etiquette owed to a
+ * donated public service — possible at all.
+ */
+adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), async (c) => {
+  const { polygon } = c.req.valid("json");
+  const db = getDb(c.env.DB);
+
+  const hash = await polygonHash(polygon);
+  const [hit] = await db.select().from(overpassCache).where(eq(overpassCache.hash, hash)).limit(1);
+
+  const fresh = hit && Date.now() - hit.createdAt < OVERPASS_CACHE_TTL_MS;
+  if (fresh) {
+    const mapped = toCandidates(hit.body);
+    // A cached body that no longer parses is a bug in what we stored, not
+    // something to hand the admin. Fall through and ask Overpass again.
+    if (mapped) {
+      return c.json<OverpassImportResponse>({ ...mapped, cached: true });
+    }
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(OVERPASS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": OVERPASS_USER_AGENT,
+      },
+      body: `data=${encodeURIComponent(buildOverpassQuery(polygon))}`,
+    });
+  } catch {
+    // No retry loop, here or on the client: Overpass is shared infrastructure
+    // and a Worker hammering it is exactly what gets an IP blocked. The screen
+    // offers the admin a retry button instead (ADR-0008).
+    return c.json(OVERPASS_UNAVAILABLE, 502);
+  }
+
+  if (!response.ok) return c.json(OVERPASS_UNAVAILABLE, 502);
+
+  const body = await response.text();
+  const mapped = toCandidates(body);
+  // Overpass answers a rate limit or an outage with HTML and a 200.
+  if (!mapped) return c.json(OVERPASS_UNAVAILABLE, 502);
+
+  /**
+   * Upsert, not `onConflictDoNothing` (the INVARIANT 4 default): two admins
+   * drawing the same area a week apart must refresh the entry, not keep serving
+   * the older one until it expires. Replaying this request is still a no-op in
+   * every way the admin can observe.
+   */
+  await db
+    .insert(overpassCache)
+    .values({ hash, body, createdAt: Date.now() })
+    .onConflictDoUpdate({
+      target: overpassCache.hash,
+      set: { body, createdAt: Date.now() },
+    });
+
+  return c.json<OverpassImportResponse>({ ...mapped, cached: false });
+});
+
+/* ------------------------------------------------------------ not yet built */
 
 adminRoutes.get("/visits", (c) => c.json(notYet("M4"), 501));
