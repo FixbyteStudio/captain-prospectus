@@ -186,6 +186,17 @@ export const copy = {
     later: "Plus tard",
     distanceUnknown: "Position inconnue",
     navigate: "Y aller",
+    visit: "Visiter",
+    /** The stops are a walking order, so the round states its own length. */
+    remaining: (n: number) => (n === 1 ? "1 arrêt" : `${n} arrêts`),
+    nextStop: "Prochain arrêt",
+    /** A field prospect the server has not accepted yet. */
+    notSynced: "Pas encore envoyé",
+    dueOn: (when: string) => `À relancer le ${when}`,
+    addProspect: "Ajouter un prospect",
+    locating: "Recherche de votre position…",
+    positionDenied: "Sans votre position, la tournée n'est pas triée par distance.",
+    retryPosition: "Réessayer",
   },
 
   visit: {
@@ -198,14 +209,45 @@ export const copy = {
     saved: "Visite enregistrée. Elle partira à la prochaine synchronisation.",
     followUpRequired: "Indiquez une date de relance pour ce résultat.",
     previousVisits: "Visites précédentes",
+    back: "Retour à la tournée",
+    outcomeRequired: "Choisissez un résultat.",
+    followUpInvalid: "Cette date n'existe pas. Vérifiez le jour et le mois.",
+    notesTooLong: "Ces notes sont trop longues. Raccourcissez-les.",
+    noPreviousVisits: "Première visite à cet endroit.",
+    historyOffline: "Les visites précédentes s'afficheront au retour du réseau.",
+    flyerHint: "Cochez si vous avez laissé un flyer sur place.",
+    saving: "Enregistrement…",
+    /**
+     * The outbox write itself failed, so nothing is queued and nothing will be
+     * sent. Says the storage is full because that is the realistic cause on a
+     * phone, and it is the one thing the agent can act on.
+     */
+    saveFailed:
+      "Impossible d'enregistrer la visite sur cet appareil. Libérez de l'espace de stockage, puis réessayez.",
   },
 
   fieldProspect: {
     title: "Ajouter un prospect",
     name: "Nom",
+    namePlaceholder: "Le nom sur la devanture",
+    nameRequired: "Indiquez le nom de l'établissement.",
     type: "Type",
+    address: "Adresse",
+    phone: "Téléphone",
+    optional: "facultatif",
+    position: "Position",
     useMyPosition: "Utiliser ma position",
+    positionSet: (lat: string, lng: string) => `${lat}  ${lng}`,
+    positionNone: "Aucune position enregistrée",
+    positionRefresh: "Actualiser",
     save: "Ajouter",
+    saving: "Ajout…",
+    saved: "Prospect ajouté. Il partira à la prochaine synchronisation.",
+    cancel: "Annuler",
+    addressTooLong: "Cette adresse est trop longue. Raccourcissez-la.",
+    phoneTooLong: "Ce numéro est trop long. Vérifiez-le.",
+    saveFailed:
+      "Impossible d'enregistrer ce prospect sur cet appareil. Libérez de l'espace de stockage, puis réessayez.",
   },
 
   sync: {
@@ -220,8 +262,18 @@ export const copy = {
     failed: "La synchronisation a échoué. Nouvel essai automatique.",
   },
 
+  /** The service worker has a new build waiting (registerType: "prompt"). */
+  update: {
+    available: "Une nouvelle version est disponible.",
+    apply: "Mettre à jour",
+    dismiss: "Plus tard",
+  },
+
   errors: {
     generic: "Une erreur est survenue. Réessayez.",
+    /** First run with no network: there is no cached identity to fall back on. */
+    offlineFirstRun:
+      "Impossible de vous identifier hors ligne. Connectez-vous une fois avec du réseau.",
     forbidden: "Vous n'avez pas accès à cette page.",
     notFound: "Page introuvable.",
   },

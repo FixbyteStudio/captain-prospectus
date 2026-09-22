@@ -17,6 +17,8 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0011](0011-server-derived-prospect-status.md) | Prospect status derived by the server | accepted |
 | [0012](0012-workers-dev-hostname.md) | Use the workers.dev hostname | accepted |
 | [0013](0013-frontend-conventions.md) | Frontend conventions — plain CSS, French UI, client state | partially superseded by 0014 |
-| [0014](0014-tailwind-and-shadcn-ui.md) | Tailwind CSS and shadcn/ui for the interface | accepted |
+| [0014](0014-tailwind-and-shadcn-ui.md) | Tailwind CSS and shadcn/ui for the interface | accepted — decision 2 amended by 0015 |
+| [0015](0015-native-controls-on-the-field-route.md) | Native form controls on the field route where shadcn's cost breaches the bundle budget | proposed |
+| [0016](0016-autonomous-overnight-agent-runs.md) | Autonomous overnight agent runs, bounded by the repo | proposed |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.
