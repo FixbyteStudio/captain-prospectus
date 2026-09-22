@@ -5,13 +5,13 @@ One decision per file, numbered, never edited after acceptance except to change 
 | # | Decision | Status |
 |---|---|---|
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | accepted |
-| [0002](0002-zero-cost-constraint.md) | Zero cost is a hard constraint | accepted |
+| [0002](0002-zero-cost-constraint.md) | Zero cost is a hard constraint | accepted — amended by 0020 |
 | [0003](0003-single-cloudflare-worker.md) | Host everything on one Cloudflare Worker | accepted |
 | [0004](0004-vite-react-pwa-not-nextjs.md) | Vite + React PWA, not Next.js | accepted |
 | [0005](0005-d1-with-drizzle.md) | D1 with Drizzle ORM | accepted |
 | [0006](0006-cloudflare-access-auth.md) | Cloudflare Access for authentication | accepted |
 | [0007](0007-offline-first-insert-only-sync.md) | Offline-first, insert-only sync | accepted |
-| [0008](0008-map-import-via-overpass.md) | Map import via OpenStreetMap Overpass | accepted |
+| [0008](0008-map-import-via-overpass.md) | Map import via OpenStreetMap Overpass | accepted — amended by 0020 |
 | [0009](0009-no-pdf-import.md) | No PDF import in v1 | accepted |
 | [0010](0010-live-feed-by-polling.md) | Live admin feed by polling | accepted |
 | [0011](0011-server-derived-prospect-status.md) | Prospect status derived by the server | accepted |
@@ -23,5 +23,6 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0017](0017-zod-mini-for-the-shared-wire-contract.md) | Write the shared wire contract in `zod/mini` | proposed |
 | [0018](0018-one-form-stack.md) | One form stack — react-hook-form everywhere, the field route included | proposed |
 | [0019](0019-admin-chunk-out-of-the-precache.md) | Keep the admin chunk out of the service worker precache | proposed |
+| [0020](0020-google-places-as-a-second-map-provider.md) | Google Places as a second map-import provider | proposed |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.
