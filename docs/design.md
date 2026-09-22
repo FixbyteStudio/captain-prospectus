@@ -237,10 +237,10 @@ question asked twice:
 │ Gratuit et sans limite. Couver…    │                             │
 │                                    │ 6 sans nom                  │
 │         [ Leaflet canvas ]         ├─────────────────────────────┤
-│                                    │ Le Bouchon        Restaurant│
-│          ·———·———·                 │ 12 rue des Capucins         │
+│                                    │ L'Estaminet       Restaurant│
+│          ·———·———·                 │ 12 rue des Bouchers         │
 │         /         \                │ Chez Marcel       Café      │
-│        ·           ·               │ 3 place Sathonay            │
+│        ·           ·               │ 3 place Saint-Géry          │
 │         \____·____/                │ ⌁ Sans nom        Bar       │
 │                                    │   4 rue Neuve               │
 │  © les contributeurs OpenStreetMap │ …                           │
@@ -259,10 +259,10 @@ And on the Google provider, the same screen with a circle:
 │ Chaque recherche Google compte…    │ ⚠ Google renvoie 20 lieux   │
 │                                    │   au maximum…               │
 │         [ Leaflet canvas ]         ├─────────────────────────────┤
-│                                    │ Le Bouchon        Restaurant│
-│              ╭───────╮             │ 12 rue des Capucins, Lyon   │
-│             │    ·    ●            │ Café des Voraces      Café  │
-│              ╰───────╯             │ 9 montée Saint-Sébastien    │
+│                                    │ L'Estaminet       Restaurant│
+│              ╭───────╮             │ Rue des Bouchers 12, 1000   │
+│             │    ·    ●            │ Café du Sablon        Café  │
+│              ╰───────╯             │ Rue de Rollebeek 9, 1000    │
 │                                    │ …                           │
 │  © les contributeurs OpenStreetMap │ Résultats fournis par Google│
 ├────────────────────────────────────┼─────────────────────────────┤
@@ -485,7 +485,7 @@ The admin side is a ledger. The field side is **the tear-off** — the ticket
 pulled out of the *carnet de tournée* and held in one hand.
 
 Everything below is designed for one situation: an agent standing on a pavement
-in Lyon, phone in one hand and a stack of flyers in the other, sun on the
+in Brussels, phone in one hand and a stack of flyers in the other, sun on the
 screen, often with no signal, wanting to be done with this door and on to the
 next. That situation, not the admin's, decides every trade-off here.
 
@@ -656,7 +656,7 @@ it. This is the same trap `withOutcome` exists to dodge, one screen along.
 │  [ Autre ]                       │
 │                                  │
 │  Position                        │
-│  45,7578  4,8320     Actualiser  │  or « Utiliser ma position »
+│  50,8467  4,3525     Actualiser  │  or « Utiliser ma position »
 │                                  │
 │  [          Ajouter          ]   │
 ```

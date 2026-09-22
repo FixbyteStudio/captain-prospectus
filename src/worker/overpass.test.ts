@@ -20,11 +20,11 @@ import type { AreaSearchResponse } from "../shared/schemas";
 
 const ADMIN = "admin@example.com";
 const AGENT = "agent@example.com";
-/** A small triangle over Lyon. Three vertices is POLYGON_MIN_VERTICES. */
+/** A small triangle over the Grand-Place. Three vertices is POLYGON_MIN_VERTICES. */
 const POLYGON: [number, number][] = [
-  [45.764, 4.8357],
-  [45.765, 4.84],
-  [45.762, 4.839],
+  [50.847, 4.351],
+  [50.848, 4.354],
+  [50.8455, 4.3535],
 ];
 
 async function call(path: string, init?: RequestInit): Promise<Response> {
@@ -48,30 +48,30 @@ const FIXTURE = {
     {
       type: "node",
       id: 123,
-      lat: 45.7638,
-      lon: 4.8355,
+      lat: 50.8479,
+      lon: 4.3538,
       tags: {
         name: "Le Bouchon",
         amenity: "restaurant",
         cuisine: "french",
-        phone: "+33 4 78 00 00 00",
+        phone: "+32 2 511 00 00",
         "addr:housenumber": "12",
-        "addr:street": "rue des Capucins",
-        "addr:city": "Lyon",
+        "addr:street": "rue des Bouchers",
+        "addr:city": "Bruxelles",
       },
     },
-    { type: "node", id: 456, lat: 45.7641, lon: 4.8361, tags: { amenity: "bar" } },
+    { type: "node", id: 456, lat: 50.8472, lon: 4.3529, tags: { amenity: "bar" } },
     {
       type: "way",
       id: 789,
-      center: { lat: 45.7629, lon: 4.8388 },
-      tags: { name: "Pizza Vera", amenity: "fast_food", "contact:website": "https://vera.fr" },
+      center: { lat: 50.8464, lon: 4.3541 },
+      tags: { name: "Pizza Vera", amenity: "fast_food", "contact:website": "https://vera.be" },
     },
     {
       type: "node",
       id: 999,
-      lat: 45.7635,
-      lon: 4.8372,
+      lat: 50.8468,
+      lon: 4.3519,
       tags: { name: "Crêpes Momo", amenity: "fast_food", street_vendor: "yes" },
     },
   ],
@@ -104,7 +104,7 @@ describe("buildOverpassQuery", () => {
     const query = buildOverpassQuery(POLYGON);
     // Reversing these returns an empty set rather than an error, so it is
     // pinned explicitly.
-    expect(query).toContain('(poly:"45.76400 4.83570 45.76500 4.84000 45.76200 4.83900")');
+    expect(query).toContain('(poly:"50.84700 4.35100 50.84800 4.35400 50.84550 4.35350")');
   });
 
   it("matches the query recorded in docs/domains/ingestion.md", () => {
@@ -124,7 +124,7 @@ describe("polygonHash", () => {
   });
 
   it("changes when the polygon moves more than that", async () => {
-    const moved: [number, number][] = [[45.9, 4.8357], ...POLYGON.slice(1)];
+    const moved: [number, number][] = [[50.95, 4.3525], ...POLYGON.slice(1)];
     expect(await polygonHash(moved)).not.toBe(await polygonHash(POLYGON));
   });
 
@@ -145,10 +145,10 @@ describe("toCandidates", () => {
       name: "Le Bouchon",
       named: true,
       type: "restaurant",
-      lat: 45.7638,
-      lng: 4.8355,
-      address: "12 rue des Capucins, Lyon",
-      phone: "+33 4 78 00 00 00",
+      lat: 50.8479,
+      lng: 4.3538,
+      address: "12 rue des Bouchers, Bruxelles",
+      phone: "+32 2 511 00 00",
       website: null,
       cuisine: "french",
       sourceRef: "node/123",
@@ -162,8 +162,8 @@ describe("toCandidates", () => {
 
   it("reads a way's coordinates from `center`", () => {
     const pizza = toCandidates(JSON.stringify(FIXTURE))?.candidates[2];
-    expect(pizza).toMatchObject({ lat: 45.7629, lng: 4.8388, sourceRef: "way/789" });
-    expect(pizza?.website).toBe("https://vera.fr");
+    expect(pizza).toMatchObject({ lat: 50.8464, lng: 4.3541, sourceRef: "way/789" });
+    expect(pizza?.website).toBe("https://vera.be");
   });
 
   it("lets street_vendor win over amenity, so a crêpe van is a food truck", () => {
@@ -284,7 +284,7 @@ describe("POST /api/admin/import/overpass", () => {
 
   it("rejects a polygon with fewer than three vertices", async () => {
     stubOverpass(ok(FIXTURE));
-    const response = await search([[45.76, 4.83]]);
+    const response = await search([[50.8467, 4.3525]]);
     expect(response.status).toBe(400);
     expect(fetchCalls).toHaveLength(0);
   });

@@ -21,10 +21,13 @@ import { distanceMeters } from "../../../shared/geo";
 export type Vertex = [number, number];
 
 /**
- * Lyon, where this is first used. Only a starting view — the admin pans away
- * immediately, and nothing downstream depends on it.
+ * The Grand-Place, Brussels — the area this canvasses (docs/vision.md).
+ *
+ * Only a starting view: the admin pans away immediately and nothing downstream
+ * depends on it. Zoom 14 is chosen so the Pentagone is on screen, which means a
+ * first polygon or circle can be drawn without panning at all.
  */
-export const DEFAULT_CENTER: Vertex = [45.764, 4.8357];
+export const DEFAULT_CENTER: Vertex = [50.8467, 4.3525];
 export const DEFAULT_ZOOM = 14;
 
 export function addVertex(polygon: readonly Vertex[], vertex: Vertex): Vertex[] {

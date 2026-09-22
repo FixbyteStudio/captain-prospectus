@@ -93,8 +93,8 @@ describe("GET /api/admin/prospects", () => {
   });
 
   it("filters by status, assignee and source", async () => {
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83 }]);
-    await importRows([{ name: "Le Zinc", lat: 45.76, lng: 4.84 }], "osm");
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35 }]);
+    await importRows([{ name: "Le Zinc", lat: 50.85, lng: 4.36 }], "osm");
 
     const db = getDb(env.DB);
     const [first] = await db.select().from(prospects).limit(1);
@@ -121,7 +121,7 @@ describe("GET /api/admin/prospects", () => {
     await importRows(
       Array.from({ length: 12 }, (_, i) => ({
         name: `Bistrot ${i}`,
-        lat: 45.7 + i / 100,
+        lat: 50.8 + i / 100,
         lng: 4.8,
       })),
     );
@@ -154,8 +154,8 @@ describe("POST /api/admin/prospects/batch", () => {
 
   it("imports rows and reports what it created", async () => {
     const response = await importRows([
-      { name: "Chez Léa", lat: 45.75, lng: 4.83, type: "restaurant" },
-      { name: "Le Zinc", lat: 45.76, lng: 4.84, type: "bar" },
+      { name: "Chez Léa", lat: 50.84, lng: 4.35, type: "restaurant" },
+      { name: "Le Zinc", lat: 50.85, lng: 4.36, type: "bar" },
     ]);
 
     expect(response.status).toBe(200);
@@ -174,8 +174,8 @@ describe("POST /api/admin/prospects/batch", () => {
     // SQLite refuses an ON CONFLICT DO UPDATE that touches a row twice in one
     // statement, so a spreadsheet listing a place twice must not reach D1 twice.
     const response = await importRows([
-      { name: "Chez Léa", lat: 45.75, lng: 4.83 },
-      { name: "chez lea", lat: 45.7501, lng: 4.8301 },
+      { name: "Chez Léa", lat: 50.84, lng: 4.35 },
+      { name: "chez lea", lat: 50.8401, lng: 4.3501 },
     ]);
 
     expect(response.status).toBe(200);
@@ -185,7 +185,7 @@ describe("POST /api/admin/prospects/batch", () => {
 
   it("updates descriptive fields on re-import and never the status or assignment", async () => {
     // The test that matters: this is what the spreadsheet workflow cannot do.
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83 }]);
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35 }]);
 
     const db = getDb(env.DB);
     const [before] = await db.select().from(prospects);
@@ -198,12 +198,12 @@ describe("POST /api/admin/prospects/batch", () => {
       .where(eqId(before.id));
 
     const again = await importRows([
-      { name: "Chez Léa", lat: 45.75, lng: 4.83, address: "4 place Bellecour" },
+      { name: "Chez Léa", lat: 50.84, lng: 4.35, address: "4 place Saint-Géry" },
     ]);
     expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
 
     const [after] = await db.select().from(prospects);
-    expect(after?.address).toBe("4 place Bellecour");
+    expect(after?.address).toBe("4 place Saint-Géry");
     // Untouched, all of it.
     expect(after?.id).toBe(before.id);
     expect(after?.status).toBe("converted");
@@ -214,15 +214,15 @@ describe("POST /api/admin/prospects/batch", () => {
   it("leaves a field alone when the import carries no value for it", async () => {
     // The column-mapping step makes "forgot to map the phone column" a
     // one-click mistake. It must not erase every phone number we hold.
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83, phone: "0478111111" }]);
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35, phone: "0478111111" }]);
 
     const again = await importRows([
-      { name: "Chez Léa", lat: 45.75, lng: 4.83, address: "4 place Bellecour" },
+      { name: "Chez Léa", lat: 50.84, lng: 4.35, address: "4 place Saint-Géry" },
     ]);
     expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
 
     const [after] = await getDb(env.DB).select().from(prospects);
-    expect(after?.address).toBe("4 place Bellecour");
+    expect(after?.address).toBe("4 place Saint-Géry");
     expect(after?.phone).toBe("0478111111");
   });
 
@@ -234,17 +234,17 @@ describe("POST /api/admin/prospects/batch", () => {
     // second prospect rather than updating the first. Only the ref: tier — a
     // source that supplies a stable id, such as OSM — survives a rename.
     // Manual merge is the escape hatch, on the roadmap for M5.
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83 }]);
-    const renamed = await importRows([{ name: "Chez Léa et Paul", lat: 45.75, lng: 4.83 }]);
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35 }]);
+    const renamed = await importRows([{ name: "Chez Léa et Paul", lat: 50.84, lng: 4.35 }]);
 
     expect(await renamed.json()).toEqual<ImportResult>({ created: 1, updated: 0 });
     expect(await getDb(env.DB).select().from(prospects)).toHaveLength(2);
   });
 
   it("updates through a rename when the source supplies a stable id", async () => {
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83, sourceRef: "node/123" }], "osm");
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35, sourceRef: "node/123" }], "osm");
     const renamed = await importRows(
-      [{ name: "Chez Léa et Paul", lat: 45.75, lng: 4.83, sourceRef: "node/123" }],
+      [{ name: "Chez Léa et Paul", lat: 50.84, lng: 4.35, sourceRef: "node/123" }],
       "osm",
     );
 
@@ -258,7 +258,7 @@ describe("POST /api/admin/prospects/batch", () => {
     // statement and 120 needs a couple of dozen of them.
     const rows = Array.from({ length: 120 }, (_, i) => ({
       name: `Bistrot ${i}`,
-      lat: 45.7 + i / 1000,
+      lat: 50.8 + i / 1000,
       lng: 4.8,
     }));
 
@@ -271,7 +271,7 @@ describe("POST /api/admin/prospects/batch", () => {
 
 describe("PATCH /api/admin/prospects/:id", () => {
   it("edits a prospect and leaves its dedupe key alone", async () => {
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83 }]);
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35 }]);
     const db = getDb(env.DB);
     const [row] = await db.select().from(prospects);
     if (!row) throw new Error("the import wrote nothing");
@@ -292,7 +292,7 @@ describe("PATCH /api/admin/prospects/:id", () => {
   it("lets an admin reopen a prospect by hand", async () => {
     // prospecting.md: rare and deliberate, and the only way a status is sent
     // by a client. INVARIANT 3 is about statuses *derived from a visit*.
-    await importRows([{ name: "Le Zinc", lat: 45.76, lng: 4.84 }]);
+    await importRows([{ name: "Le Zinc", lat: 50.85, lng: 4.36 }]);
     const db = getDb(env.DB);
     const [row] = await db.select().from(prospects);
     if (!row) throw new Error("the import wrote nothing");
@@ -323,8 +323,8 @@ describe("PATCH /api/admin/prospects/:id", () => {
 describe("POST /api/admin/prospects/assign", () => {
   it("assigns in bulk and moves only new prospects to assigned", async () => {
     await importRows([
-      { name: "Chez Léa", lat: 45.75, lng: 4.83 },
-      { name: "Le Zinc", lat: 45.76, lng: 4.84 },
+      { name: "Chez Léa", lat: 50.84, lng: 4.35 },
+      { name: "Le Zinc", lat: 50.85, lng: 4.36 },
     ]);
 
     const db = getDb(env.DB);
@@ -348,7 +348,7 @@ describe("POST /api/admin/prospects/assign", () => {
   });
 
   it("unassigns with a null assignee and returns assigned prospects to new", async () => {
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83 }]);
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35 }]);
     const db = getDb(env.DB);
     const [row] = await db.select().from(prospects);
     if (!row) throw new Error("the import wrote nothing");
@@ -367,7 +367,7 @@ describe("POST /api/admin/prospects/assign", () => {
     await importRows(
       Array.from({ length: 150 }, (_, i) => ({
         name: `Bistrot ${i}`,
-        lat: 45.7 + i / 1000,
+        lat: 50.8 + i / 1000,
         lng: 4.8,
       })),
     );
@@ -388,7 +388,7 @@ describe("POST /api/admin/prospects/assign", () => {
     // A typo here is silent data loss in slow motion: the sync pull matches on
     // the exact email, so the prospect vanishes from every agent's list while
     // the admin list still shows it as assigned and handled.
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83 }]);
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35 }]);
     const db = getDb(env.DB);
     const [row] = await db.select().from(prospects);
     if (!row) throw new Error("the import wrote nothing");
@@ -405,7 +405,7 @@ describe("POST /api/admin/prospects/assign", () => {
   });
 
   it("refuses an unknown assignee through PATCH too", async () => {
-    await importRows([{ name: "Chez Léa", lat: 45.75, lng: 4.83 }]);
+    await importRows([{ name: "Chez Léa", lat: 50.84, lng: 4.35 }]);
     const [row] = await getDb(env.DB).select().from(prospects);
     if (!row) throw new Error("the import wrote nothing");
 
@@ -425,8 +425,8 @@ describe("POST /api/admin/prospects/assign", () => {
 describe("merging duplicates", () => {
   /** The rename case: same door, two rows, because the key carries the name. */
   async function renamedPair(): Promise<{ original: string; renamed: string }> {
-    await importRows([{ name: "Chez Léa", lat: 45.7578, lng: 4.832 }]);
-    await importRows([{ name: "Chez Léa et Paul", lat: 45.7578, lng: 4.832 }]);
+    await importRows([{ name: "Chez Léa", lat: 50.8478, lng: 4.352 }]);
+    await importRows([{ name: "Chez Léa et Paul", lat: 50.8478, lng: 4.352 }]);
 
     const rows = await getDb(env.DB).select().from(prospects);
     expect(rows).toHaveLength(2);
@@ -438,7 +438,7 @@ describe("merging duplicates", () => {
 
   it("proposes the renamed pair and nothing else", async () => {
     const { original, renamed } = await renamedPair();
-    await importRows([{ name: "Burger King", lat: 45.7578, lng: 4.832 }]);
+    await importRows([{ name: "Burger King", lat: 50.8478, lng: 4.352 }]);
 
     const body = (await (
       await call("/api/admin/prospects/duplicates")
@@ -539,7 +539,7 @@ describe("merging duplicates", () => {
     await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
 
     const again = await importRows([
-      { name: "Chez Léa", lat: 45.7578, lng: 4.832, phone: "0478111111" },
+      { name: "Chez Léa", lat: 50.8478, lng: 4.352, phone: "0478111111" },
     ]);
     expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
 
@@ -558,7 +558,7 @@ describe("merging duplicates", () => {
     const { original, renamed } = await renamedPair();
     await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
 
-    const old = [{ name: "Chez Léa", lat: 45.7578, lng: 4.832 }];
+    const old = [{ name: "Chez Léa", lat: 50.8478, lng: 4.352 }];
     await importRows(old);
     await importRows(old);
 
@@ -588,7 +588,7 @@ describe("merging duplicates", () => {
     expect(after?.dedupeKey).toContain("bistrot-lea");
 
     // And now the current name imports as an update rather than a third row.
-    const again = await importRows([{ name: "Bistrot Léa", lat: 45.7578, lng: 4.832 }]);
+    const again = await importRows([{ name: "Bistrot Léa", lat: 50.8478, lng: 4.352 }]);
     expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
     expect(await db.select().from(prospects)).toHaveLength(2);
   });
@@ -605,7 +605,7 @@ describe("merging duplicates", () => {
     });
     expect(((await response.json()) as MergeResult).dedupeKeyUpdated).toBe(false);
 
-    const again = await importRows([{ name: "Chez Léa et Paul", lat: 45.7578, lng: 4.832 }]);
+    const again = await importRows([{ name: "Chez Léa et Paul", lat: 50.8478, lng: 4.352 }]);
     expect(await again.json()).toEqual<ImportResult>({ created: 0, updated: 1 });
     expect(await getDb(env.DB).select().from(prospects)).toHaveLength(2);
   });
@@ -631,7 +631,7 @@ describe("merging duplicates", () => {
 
   it("refuses to merge a prospect that is already absorbed", async () => {
     const { original, renamed } = await renamedPair();
-    await importRows([{ name: "Chez Léa et Paul et Marie", lat: 45.7578, lng: 4.832 }]);
+    await importRows([{ name: "Chez Léa et Paul et Marie", lat: 50.8478, lng: 4.352 }]);
     await post("/api/admin/prospects/merge", { survivorId: renamed, mergedId: original });
 
     const third = (await getDb(env.DB).select().from(prospects)).find(
@@ -670,11 +670,11 @@ describe("merging duplicates", () => {
   it("finds nothing to merge in a clean base", async () => {
     // A detector that cries wolf is worse than none.
     await importRows([
-      { name: "Le Bouchon des Halles", lat: 45.7578, lng: 4.832 },
+      { name: "Le Bouchon des Halles", lat: 50.8478, lng: 4.352 },
       { name: "Café de la Gare", lat: 45.749, lng: 4.826 },
-      { name: "Pizza Roma", lat: 45.762, lng: 4.84 },
-      { name: "Le Zinc", lat: 45.7601, lng: 4.8355 },
-      { name: "Burger Truck 69", lat: 45.7543, lng: 4.8291 },
+      { name: "Pizza Roma", lat: 50.852, lng: 4.36 },
+      { name: "Le Zinc", lat: 50.8501, lng: 4.3555 },
+      { name: "Burger Truck 69", lat: 50.8443, lng: 4.8291 },
     ]);
 
     const body = (await (

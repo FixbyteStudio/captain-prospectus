@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { editDistance, isProbablySamePlace, namesLookAlike, significantTokens } from "./similarity";
 
-/** Around Place Bellecour, Lyon — the same coordinates the local seed uses. */
-const HERE = { lat: 45.7578, lng: 4.832 };
+/** Around the Grand-Place, Brussels — the same coordinates the local seed uses. */
+const HERE = { lat: 50.8467, lng: 4.3525 };
 /** Roughly 20 m north: inside the radius. */
-const NEXT_DOOR = { lat: 45.75798, lng: 4.832 };
+const NEXT_DOOR = { lat: 50.84688, lng: 4.3525 };
 /** Roughly 200 m north: a different door. */
-const DOWN_THE_STREET = { lat: 45.7596, lng: 4.832 };
+const DOWN_THE_STREET = { lat: 50.8485, lng: 4.3525 };
 
 describe("significantTokens", () => {
   it("drops the words every French restaurant shares", () => {
@@ -35,7 +35,7 @@ describe("namesLookAlike", () => {
 
   it("matches a corrected accent or spelling", () => {
     expect(namesLookAlike("Chez Léa", "Chez Lea")).toBe(true);
-    expect(namesLookAlike("Brasserie du Rhône", "Brasserie du Rhone")).toBe(true);
+    expect(namesLookAlike("Brasserie Saint-Géry", "Brasserie Saint-Gery")).toBe(true);
   });
 
   it("does not match two different businesses", () => {
@@ -52,10 +52,10 @@ describe("namesLookAlike", () => {
     // Found by running the sweep against real data: these were proposed as the
     // same place 33 m apart because both are called "Pizza something".
     expect(namesLookAlike("Pizza Roma", "Pizza Vecchia")).toBe(false);
-    expect(namesLookAlike("Sushi Bellecour", "Sushi Croix-Rousse")).toBe(false);
-    expect(namesLookAlike("Burger Truck 69", "Burger Fourvière")).toBe(false);
+    expect(namesLookAlike("Sushi Sablon", "Sushi Marolles")).toBe(false);
+    expect(namesLookAlike("Burger Truck 1000", "Burger Schaerbeek")).toBe(false);
     // But the same pizzeria under a corrected name still matches.
-    expect(namesLookAlike("Pizza Roma", "Pizza Roma Bellecour")).toBe(true);
+    expect(namesLookAlike("Pizza Roma", "Pizza Roma Sablon")).toBe(true);
   });
 });
 

@@ -29,8 +29,8 @@ const ADMIN = "admin@example.com";
 const AGENT = "agent@example.com";
 const KEY = "test-key-not-a-real-one";
 
-/** A circle over Lyon, the same ground the Overpass fixture covers. */
-const CENTER: [number, number] = [45.764, 4.8357];
+/** A circle over the Grand-Place, the same ground the Overpass fixture covers. */
+const CENTER: [number, number] = [50.8467, 4.3525];
 const RADIUS = 300;
 
 async function call(path: string, init?: RequestInit): Promise<Response> {
@@ -55,34 +55,34 @@ function search(body: unknown = { center: CENTER, radius: RADIUS }): Promise<Res
 const FIXTURE = {
   places: [
     {
-      id: "ChIJbouchon",
-      displayName: { text: "Le Bouchon", languageCode: "fr" },
-      formattedAddress: "12 rue des Capucins, 69001 Lyon, France",
-      location: { latitude: 45.7638, longitude: 4.8355 },
+      id: "ChIJestaminet",
+      displayName: { text: "L'Estaminet", languageCode: "fr" },
+      formattedAddress: "Rue des Bouchers 12, 1000 Bruxelles, Belgique",
+      location: { latitude: 50.8479, longitude: 4.3538 },
       primaryType: "restaurant",
       types: ["restaurant", "food", "point_of_interest"],
     },
     {
       id: "ChIJvera",
       displayName: { text: "Pizza Vera", languageCode: "fr" },
-      formattedAddress: "3 rue Royale, 69001 Lyon, France",
-      location: { latitude: 45.7629, longitude: 4.8388 },
+      formattedAddress: "Rue du Marché aux Herbes 3, 1000 Bruxelles, Belgique",
+      location: { latitude: 50.8471, longitude: 4.3549 },
       primaryType: "pizza_restaurant",
       types: ["pizza_restaurant", "restaurant", "food"],
     },
     {
       id: "ChIJcafe",
-      displayName: { text: "Café des Voraces", languageCode: "fr" },
-      formattedAddress: "9 montée Saint-Sébastien, 69001 Lyon, France",
-      location: { latitude: 45.7702, longitude: 4.8329 },
+      displayName: { text: "Café du Sablon", languageCode: "fr" },
+      formattedAddress: "Rue de Rollebeek 9, 1000 Bruxelles, Belgique",
+      location: { latitude: 50.841, longitude: 4.3546 },
       primaryType: "coffee_shop",
       types: ["coffee_shop", "cafe", "food"],
     },
     {
       id: "ChIJmystery",
       displayName: { text: "Chez Personne", languageCode: "fr" },
-      formattedAddress: "1 place Sathonay, 69001 Lyon, France",
-      location: { latitude: 45.7681, longitude: 4.8332 },
+      formattedAddress: "Place Saint-Géry 1, 1000 Bruxelles, Belgique",
+      location: { latitude: 50.8484, longitude: 4.3479 },
       types: ["point_of_interest", "establishment"],
     },
   ],
@@ -117,7 +117,7 @@ describe("buildPlacesBody", () => {
       locationRestriction: { circle: { center: { latitude: number; longitude: number } } };
     };
     expect(body.locationRestriction.circle).toEqual({
-      center: { latitude: 45.764, longitude: 4.8357 },
+      center: { latitude: 50.8467, longitude: 4.3525 },
       radius: 300,
     });
   });
@@ -138,6 +138,15 @@ describe("buildPlacesBody", () => {
     expect(body.includedTypes).toContain("bar");
     // Table A has no food_truck type. Asking for one is a 400 from Google.
     expect(body.includedTypes).not.toContain("food_truck");
+  });
+
+  it("tells Google the search is in Belgium, in French", () => {
+    const body = JSON.parse(buildPlacesBody(CENTER, RADIUS)) as Record<string, unknown>;
+    // Not cosmetic: regionCode biases results and formats addresses, so "FR"
+    // over Brussels skews every search and the response never says so.
+    expect(body.regionCode).toBe("BE");
+    // Brussels is bilingual; the UI, the copy and the agents are not.
+    expect(body.languageCode).toBe("fr");
   });
 
   it("rounds the radius to whole metres", () => {
@@ -179,26 +188,26 @@ describe("circleHash", () => {
     // Both providers share `overpass_cache`. The version prefix is the only
     // thing keeping a Google answer out of an Overpass lookup.
     expect(PLACES_QUERY_VERSION).toBe("gv1");
-    const triangle: [number, number][] = [CENTER, [45.765, 4.84], [45.762, 4.839]];
+    const triangle: [number, number][] = [CENTER, [50.8479, 4.3538], [50.8455, 4.3549]];
     expect(await circleHash(CENTER, RADIUS)).not.toBe(await polygonHash(triangle));
   });
 });
 
 describe("toCandidates", () => {
   it("maps every field in the ingestion.md table", () => {
-    const bouchon = toCandidates(JSON.stringify(FIXTURE))?.candidates[0];
-    expect(bouchon).toEqual({
-      name: "Le Bouchon",
+    const estaminet = toCandidates(JSON.stringify(FIXTURE))?.candidates[0];
+    expect(estaminet).toEqual({
+      name: "L'Estaminet",
       named: true,
       type: "restaurant",
-      lat: 45.7638,
-      lng: 4.8355,
-      address: "12 rue des Capucins, 69001 Lyon, France",
+      lat: 50.8479,
+      lng: 4.3538,
+      address: "Rue des Bouchers 12, 1000 Bruxelles, Belgique",
       // Enterprise-tier fields we deliberately do not buy (ADR-0020).
       phone: null,
       website: null,
       cuisine: null,
-      sourceRef: "google/ChIJbouchon",
+      sourceRef: "google/ChIJestaminet",
     });
   });
 
@@ -230,7 +239,7 @@ describe("toCandidates", () => {
       places: Array.from({ length: PLACES_MAX_RESULTS }, (_, i) => ({
         id: `ChIJ${i}`,
         displayName: { text: `Place ${i}` },
-        location: { latitude: 45.76, longitude: 4.83 },
+        location: { latitude: 50.8467, longitude: 4.3525 },
         primaryType: "restaurant",
       })),
     };

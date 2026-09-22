@@ -15,7 +15,7 @@ The admin always sees a preview before anything is written.
 - **The first row's value is shown under every field.** That is what makes a mapping checkable in one pass instead of matching two lists of words and hoping.
 - A column left unmapped **sends nothing**, and a re-import leaves that field as it was. Mapping nothing to `phone` does not erase the phone numbers already stored (see [prospecting](prospecting.md#rules)).
 - Mapping a column to `sourceRef` is worth doing when the file has a stable id: tier 1 of the dedupe key is the only one that survives a rename.
-- Decimal coordinates written with a comma (`45,7578`) are read correctly — that is what a French spreadsheet exports.
+- Decimal coordinates written with a comma (`50,8467`) are read correctly — that is what a French spreadsheet exports.
 - A `type` value we do not recognise falls back to `other` rather than rejecting the row.
 - Rows without `name` are rejected in the preview with a reason, and shown **first**, so the problems are read before they are scrolled past. Their address is still displayed, so the admin can find the line in their spreadsheet.
 - The preview validates with the same zod schema the Worker uses, so it rejects exactly what the Worker would. There is no second opinion and no surprise 400 after the admin has approved the import.
@@ -114,7 +114,7 @@ X-Goog-FieldMask: places.id,places.displayName,places.formattedAddress,places.lo
   "maxResultCount": 20,
   "rankPreference": "DISTANCE",
   "languageCode": "fr",
-  "regionCode": "FR",
+  "regionCode": "BE",
   "locationRestriction": { "circle": { "center": {...}, "radius": <metres> } }
 }
 ```

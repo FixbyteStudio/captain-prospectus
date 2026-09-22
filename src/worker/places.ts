@@ -80,8 +80,14 @@ function roundRadius(radius: number): number {
  * answer is then a ring around the pin, which is something an admin can reason
  * about and shrink.
  *
- * `languageCode` is French so display names arrive the way the admin and the
- * agents will read them. It does not change the SKU.
+ * `regionCode` is **BE**, because the canvassing is in Brussels
+ * (docs/vision.md). It is not cosmetic: Google uses it to bias results and to
+ * format addresses, so a wrong country here skews every search and nothing in
+ * the response says so. Pinned in places.test.ts for that reason.
+ *
+ * `languageCode` stays French even though Brussels is bilingual: the UI, the
+ * copy and the agents are French, so display names should arrive the way they
+ * will be read. Neither field changes the SKU.
  */
 export function buildPlacesBody(center: Vertex, radius: number): string {
   const [lat, lng] = center;
@@ -90,7 +96,7 @@ export function buildPlacesBody(center: Vertex, radius: number): string {
     maxResultCount: PLACES_MAX_RESULTS,
     rankPreference: "DISTANCE",
     languageCode: "fr",
-    regionCode: "FR",
+    regionCode: "BE",
     locationRestriction: {
       circle: {
         center: { latitude: Number(round5(lat)), longitude: Number(round5(lng)) },

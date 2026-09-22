@@ -5,7 +5,9 @@ const REASONS = { missingName: "Nom manquant", invalid: "Ligne invalide" };
 
 describe("parseCsv", () => {
   it("reads headers and rows, ignoring blank lines", () => {
-    const parsed = parseCsv("nom,adresse\nChez Léa,4 place Bellecour\n\nLe Zinc,9 rue Mercière\n");
+    const parsed = parseCsv(
+      "nom,adresse\nChez Léa,4 place Saint-Géry\n\nLe Zinc,9 rue des Bouchers\n",
+    );
     expect(parsed.headers).toEqual(["nom", "adresse"]);
     expect(parsed.rows).toHaveLength(2);
     expect(parsed.rows[1]?.nom).toBe("Le Zinc");
@@ -85,12 +87,12 @@ describe("mapRows", () => {
   });
 
   it("rejects a row with no name, and says which line", () => {
-    const parsed = parseCsv("nom,adresse\n,7 rue Mercière\nChez Léa,4 place Bellecour\n");
+    const parsed = parseCsv("nom,adresse\n,7 rue des Bouchers\nChez Léa,4 place Saint-Géry\n");
     const rows = mapRows(parsed, { name: "nom", address: "adresse" }, REASONS);
 
     expect(rows[0]).toMatchObject({ ok: false, line: 1, reason: "Nom manquant" });
     // The address still comes through, so the admin can find the line.
-    expect(rows[0]).toMatchObject({ address: "7 rue Mercière" });
+    expect(rows[0]).toMatchObject({ address: "7 rue des Bouchers" });
     expect(rows[1]?.ok).toBe(true);
   });
 

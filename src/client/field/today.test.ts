@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { FieldProspect, Prospect } from "../../shared/schemas";
 import { buildTodayList, navigationUrl } from "./today";
 
-/** Place Bellecour, which is where the local seed puts the round. */
-const BELLECOUR = { lat: 45.7578, lng: 4.832 };
+/** The Grand-Place, which is where the local seed puts the round. */
+const GRAND_PLACE = { lat: 50.8467, lng: 4.3525 };
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
 
@@ -37,10 +37,10 @@ const field = (over: Partial<FieldProspect> = {}): FieldProspect => ({
   ...over,
 });
 
-/** Roughly 100 m, 400 m and 800 m north of Bellecour. */
+/** Roughly 100 m, 400 m and 800 m north of the Grand-Place. */
 const near = (metresNorth: number) => ({
-  lat: BELLECOUR.lat + metresNorth / 111_320,
-  lng: BELLECOUR.lng,
+  lat: GRAND_PLACE.lat + metresNorth / 111_320,
+  lng: GRAND_PLACE.lng,
 });
 
 describe("buildTodayList", () => {
@@ -52,7 +52,7 @@ describe("buildTodayList", () => {
         prospect({ name: "milieu", ...near(400) }),
       ],
       [],
-      BELLECOUR,
+      GRAND_PLACE,
       NOW,
     );
 
@@ -67,7 +67,7 @@ describe("buildTodayList", () => {
         prospect({ name: "sans position aussi" }),
       ],
       [],
-      BELLECOUR,
+      GRAND_PLACE,
       NOW,
     );
 
@@ -92,7 +92,7 @@ describe("buildTodayList", () => {
   });
 
   it("measures the distance to each located prospect", () => {
-    const [item] = buildTodayList([prospect(near(1000))], [], BELLECOUR, NOW).now;
+    const [item] = buildTodayList([prospect(near(1000))], [], GRAND_PLACE, NOW).now;
 
     expect(item?.distanceM).toBeGreaterThan(950);
     expect(item?.distanceM).toBeLessThan(1050);
@@ -110,7 +110,7 @@ describe("buildTodayList", () => {
           }),
         ],
         [],
-        BELLECOUR,
+        GRAND_PLACE,
         NOW,
       );
 
@@ -122,7 +122,7 @@ describe("buildTodayList", () => {
       const list = buildTodayList(
         [prospect({ name: "en retard", status: "follow_up", nextVisitAt: NOW - DAY })],
         [],
-        BELLECOUR,
+        GRAND_PLACE,
         NOW,
       );
 
@@ -134,7 +134,7 @@ describe("buildTodayList", () => {
       const list = buildTodayList(
         [prospect({ name: "sans date", status: "follow_up", nextVisitAt: null })],
         [],
-        BELLECOUR,
+        GRAND_PLACE,
         NOW,
       );
 
@@ -158,7 +158,7 @@ describe("buildTodayList", () => {
           }),
         ],
         [],
-        BELLECOUR,
+        GRAND_PLACE,
         NOW,
       );
 
@@ -168,7 +168,7 @@ describe("buildTodayList", () => {
 
   describe("unsynced field prospects", () => {
     it("shows one the server has not accepted yet, so it can be visited offline", () => {
-      const list = buildTodayList([], [field({ name: "Food truck du pont" })], BELLECOUR, NOW);
+      const list = buildTodayList([], [field({ name: "Food truck du pont" })], GRAND_PLACE, NOW);
 
       expect(list.now.map((i) => i.name)).toEqual(["Food truck du pont"]);
       expect(list.now[0]?.pending).toBe(true);
@@ -176,7 +176,7 @@ describe("buildTodayList", () => {
 
     it("invents no status for a prospect the server has never seen", () => {
       // INVARIANT 3: status is the server's to derive.
-      const list = buildTodayList([], [field()], BELLECOUR, NOW);
+      const list = buildTodayList([], [field()], GRAND_PLACE, NOW);
 
       expect(list.now[0]?.status).toBeNull();
     });
@@ -185,7 +185,7 @@ describe("buildTodayList", () => {
       const list = buildTodayList(
         [prospect({ name: "loin", ...near(800) }), prospect({ name: "près", ...near(100) })],
         [field({ name: "camion", ...near(400) })],
-        BELLECOUR,
+        GRAND_PLACE,
         NOW,
       );
 
@@ -197,7 +197,7 @@ describe("buildTodayList", () => {
       const list = buildTodayList(
         [prospect({ id, name: "Food truck du pont", source: "field" })],
         [field({ id, name: "Food truck du pont" })],
-        BELLECOUR,
+        GRAND_PLACE,
         NOW,
       );
 
