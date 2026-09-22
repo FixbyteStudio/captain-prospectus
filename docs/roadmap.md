@@ -73,7 +73,9 @@ the bundle budget, cited against a measurement each time.
 - [x] `GET` / `POST /api/admin/scripts` — versioning server-side, "exactly one active script"
       enforced by a partial unique index rather than by the route alone
 - [ ] Script editor (admin), versioning — shadcn `form`, `accordion`, `select`, drag to reorder
-- [ ] Script questions in the visit form, validation — one shadcn control per question type
+- [x] Script questions in the visit form, validation — a second step after the outcome
+      (design.md), one control per question type from `field-controls.tsx` rather than shadcn,
+      since ADR-0015's native-controls rule still governs this route
 
 ## M4 — Map import & live feed
 - [ ] **Design pass** with the `frontend-design` skill: map + results side by side,

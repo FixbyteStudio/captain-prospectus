@@ -7,7 +7,8 @@
  * whether a visit is savable, and on this side a disagreement loses a visit.
  * There is no form library here — ADR-0015.
  */
-import { visitSchema, type Visit } from "../../shared/schemas";
+import { answersSchemaFor } from "../../shared/answers";
+import { visitSchema, type Answers, type Script, type Visit } from "../../shared/schemas";
 import type { Outcome } from "../../shared/constants";
 import type { Point } from "../../shared/geo";
 
@@ -17,6 +18,8 @@ export type VisitDraft = {
   /** The raw "YYYY-MM-DD" from `<input type="date">`, or "" when untouched. */
   followUpDate: string;
   notes: string;
+  /** Keyed by question `key`; only the questions this build can ask. */
+  answers: Answers;
 };
 
 export const emptyDraft: VisitDraft = {
@@ -24,6 +27,7 @@ export const emptyDraft: VisitDraft = {
   outcome: null,
   followUpDate: "",
   notes: "",
+  answers: {},
 };
 
 /**
@@ -39,6 +43,8 @@ export type DraftErrors = {
   outcome?: "required";
   followUpDate?: "required" | "invalid";
   notes?: "tooLong";
+  /** Per question `key`, so each control is marked on its own. */
+  answers?: Record<string, "required" | "invalid">;
 };
 
 export type DraftResult = { ok: true; visit: Visit } | { ok: false; errors: DraftErrors };
@@ -100,7 +106,18 @@ export function epochMsToDateInput(epochMs: number): string {
  */
 export function toVisit(
   draft: VisitDraft,
-  context: { id: string; prospectId: string; visitedAt: number; position: Point | null },
+  context: {
+    id: string;
+    prospectId: string;
+    visitedAt: number;
+    position: Point | null;
+    /**
+     * The script as it stood when the form opened, pinned by the caller.
+     * scripts.md: a visit records the version it was answered with, even if a
+     * newer one arrived before it synced. Null when none was cached.
+     */
+    script?: Script | null;
+  },
 ): DraftResult {
   const errors: DraftErrors = {};
 
@@ -115,6 +132,27 @@ export function toVisit(
     errors.followUpDate = draft.followUpDate ? "invalid" : "required";
   }
 
+  // field-operations.md: required questions must be answered unless the outcome
+  // is `no_contact` — nobody was there to ask. A wrong answer is still wrong.
+  const script = context.script ?? null;
+  if (script) {
+    const answers = answersSchemaFor(script.questions, {
+      enforceRequired: draft.outcome !== "no_contact",
+    }).safeParse(draft.answers);
+
+    if (!answers.success) {
+      const byKey: Record<string, "required" | "invalid"> = {};
+      for (const issue of answers.error.issues) {
+        const key = issue.path[0];
+        if (typeof key !== "string") continue;
+        // An absent value is the agent not answering; anything else is an
+        // answer that is wrong, and those read very differently on a pavement.
+        byKey[key] = draft.answers[key] === undefined ? "required" : "invalid";
+      }
+      errors.answers = byKey;
+    }
+  }
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const candidate = {
@@ -127,10 +165,9 @@ export function toVisit(
     outcome: draft.outcome,
     followUpAt,
     notes: draft.notes.trim() || null,
-    // Script questions arrive in M3. The visit records that it answered none,
-    // rather than pretending a script it never saw.
-    scriptId: null,
-    answers: {},
+    // The version the agent actually answered, not whichever is active now.
+    scriptId: script?.id ?? null,
+    answers: script ? draft.answers : {},
   };
 
   const parsed = visitSchema.safeParse(candidate);
@@ -143,7 +180,10 @@ export function toVisit(
     const field = issue.path[0];
     if (field === "notes") errors.notes = "tooLong";
     else if (field === "followUpAt") errors.followUpDate = "required";
-    else errors.outcome = "required";
+    else if (field === "answers") {
+      const key = issue.path[1];
+      if (typeof key === "string") errors.answers = { ...errors.answers, [key]: "invalid" };
+    } else errors.outcome = "required";
   }
   return { ok: false, errors };
 }

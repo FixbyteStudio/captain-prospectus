@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { CLIENT_VERSION } from "../../shared/constants";
-import type { SyncResponse, Visit } from "../../shared/schemas";
-import { FieldDb } from "./db";
+import type { Script, SyncResponse, Visit } from "../../shared/schemas";
+import { FieldDb, getMeta, setMeta } from "./db";
 import { backoffDelayMs, runSync } from "./sync";
 
 /**
@@ -67,6 +67,41 @@ describe("runSync — what clears the outbox", () => {
     await db.outboxVisits.add(visit());
     await runSync({ db, fetchFn: respondWith(okResponse()) });
     expect(await db.outboxVisits.count()).toBe(1);
+  });
+});
+
+/**
+ * The script travels on every sync and is cached for the visit form to pin.
+ * Nothing asserted this before: `okResponse()` set `script: null` everywhere.
+ */
+describe("runSync — the cached script", () => {
+  const script: Script = {
+    id: 7,
+    name: "Questionnaire",
+    version: 3,
+    isActive: true,
+    createdAt: 1_700_000_000_000,
+    questions: [{ key: "has_delivery", label: "Livraison ?", type: "yes_no", required: true }],
+  };
+
+  it("writes the active script into meta", async () => {
+    await runSync({ db, fetchFn: respondWith(okResponse({ script })) });
+
+    expect(await getMeta(db, "script")).toEqual(script);
+  });
+
+  it("clears it when the server reports none, rather than keeping a stale one", async () => {
+    await setMeta(db, "script", script);
+    await runSync({ db, fetchFn: respondWith(okResponse({ script: null })) });
+
+    expect(await getMeta(db, "script")).toBeNull();
+  });
+
+  it("leaves the cached script alone when the sync failed", async () => {
+    await setMeta(db, "script", script);
+    await runSync({ db, fetchFn: failWith(500) });
+
+    expect(await getMeta(db, "script")).toEqual(script);
   });
 });
 
