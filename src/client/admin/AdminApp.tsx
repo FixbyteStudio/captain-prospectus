@@ -5,6 +5,7 @@ import { DuplicatesScreen } from "./DuplicatesScreen";
 import { ProspectsScreen } from "./ProspectsScreen";
 import { VisitsScreen } from "./VisitsScreen";
 import { ImportScreen } from "./import/ImportScreen";
+import { ScriptsScreen } from "./scripts/ScriptsScreen";
 
 /**
  * The whole admin side behind one lazy boundary.
@@ -30,6 +31,7 @@ export function AdminApp() {
         <Route path="import" element={<ImportScreen />} />
         <Route path="doublons" element={<DuplicatesScreen />} />
         <Route path="visites" element={<VisitsScreen />} />
+        <Route path="scripts" element={<ScriptsScreen />} />
       </Routes>
       {/* Admin-side only: the field client reports sync state inline. */}
       <Toaster position="bottom-right" />

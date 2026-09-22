@@ -8,7 +8,7 @@
  * Enum labels must match the tables in docs/glossary.md. Copy style follows
  * CLAUDE.md: sentence case, active verbs, errors say what happened and what to do.
  */
-import type { Outcome, ProspectType, Source, Status } from "../shared/constants";
+import type { Outcome, ProspectType, QuestionType, Source, Status } from "../shared/constants";
 
 export const copy = {
   appName: "Captain Prospectus",
@@ -180,6 +180,73 @@ export const copy = {
     mergeFailed: "La fusion a échoué. Réessayez.",
   },
 
+  scripts: {
+    title: "Scripts",
+    lede: "Le questionnaire posé à chaque visite. L'enregistrement crée une nouvelle version et l'active aussitôt ; les versions précédentes restent pour les visites déjà répondues.",
+    loading: "Chargement du script…",
+    loadFailed: "Impossible de charger les scripts. Réessayez.",
+
+    name: "Nom du script",
+    namePlaceholder: "default",
+
+    question: {
+      sectionTitle: "Questions",
+      empty: "Aucune question. Ajoutez-en une pour commencer.",
+      untitled: "Question sans intitulé",
+      add: "Ajouter une question",
+      remove: (label: string) => `Supprimer « ${label} »`,
+      dragHandle: (label: string) => `Réordonner « ${label} »`,
+      label: "Intitulé",
+      labelPlaceholder: "Ex. Proposez-vous la livraison ?",
+      key: "Clé",
+      keyHint: "Identifie la réponse. Ne change plus une fois la version enregistrée.",
+      keyLocked: "Cette clé existe déjà dans une version enregistrée.",
+      unlockKey: "Modifier la clé",
+      keyUnlockedWarning:
+        "Les réponses déjà données sous l'ancienne clé resteront associées à celle-ci, pas à la nouvelle.",
+      type: "Type de réponse",
+      required: "Obligatoire",
+      options: "Choix proposés",
+      optionPlaceholder: (n: number) => `Choix ${n}`,
+      removeOption: (n: number) => `Supprimer le choix ${n}`,
+      addOption: "Ajouter un choix",
+    },
+
+    errors: {
+      nameRequired: "Donnez un nom au script.",
+      noQuestions: "Ajoutez au moins une question.",
+      emptyLabel: "Indiquez l'intitulé de cette question.",
+      invalidKey: "La clé doit être en minuscules, sans espaces, et commencer par une lettre.",
+      duplicateKey: "Une autre question utilise déjà cette clé.",
+      missingOptions: "Ajoutez au moins un choix pour cette question.",
+    },
+
+    editor: {
+      saveWarning: "L'enregistrement crée une nouvelle version et l'active immédiatement.",
+      save: "Enregistrer une nouvelle version",
+      saving: "Enregistrement…",
+      saved: (version: number) => `Version ${version} enregistrée et activée.`,
+      saveFailed: "L'enregistrement a échoué. Réessayez.",
+    },
+
+    confirm: {
+      title: "Enregistrer une nouvelle version ?",
+      body: (version: number) =>
+        `Cela crée la version ${version} et l'active pour toutes les prochaines visites. Les versions précédentes restent consultables.`,
+      cancel: "Annuler",
+      confirm: "Enregistrer",
+    },
+
+    history: {
+      title: "Versions",
+      empty: "Aucune version enregistrée pour l'instant.",
+      version: (n: number) => `Version ${n}`,
+      active: "Active",
+      inactive: "Inactive",
+      questionsCount: (n: number) => (n === 1 ? "1 question" : `${n} questions`),
+    },
+  },
+
   today: {
     title: "Tournée du jour",
     empty: "Aucun prospect à visiter. Synchronisez pour récupérer votre liste.",
@@ -302,6 +369,15 @@ export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
   csv: "CSV",
   osm: "Carte",
   field: "Terrain",
+};
+
+export const QUESTION_TYPE_LABELS: Readonly<Record<QuestionType, string>> = {
+  yes_no: "Oui / non",
+  single: "Choix unique",
+  multi: "Choix multiple",
+  text: "Texte",
+  number: "Nombre",
+  rating: "Note (1 à 5)",
 };
 
 export const TYPE_LABELS: Readonly<Record<ProspectType, string>> = {

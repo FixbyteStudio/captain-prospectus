@@ -214,6 +214,7 @@ export function App() {
           {isAdmin && <BandLink to="/admin/import">{copy.nav.import}</BandLink>}
           {isAdmin && <BandLink to="/admin/doublons">{copy.nav.duplicates}</BandLink>}
           {isAdmin && <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>}
+          {isAdmin && <BandLink to="/admin/scripts">{copy.nav.scripts}</BandLink>}
         </nav>
         <SyncDot />
       </header>

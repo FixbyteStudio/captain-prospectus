@@ -68,11 +68,15 @@ the bundle budget, cited against a measurement each time.
 - [x] Field bundle back under budget before the milestone spends anything —
       [ADR-0017](adr/0017-zod-mini-for-the-shared-wire-contract.md), closing
       [backlog/004](backlog/004-field-bundle-budget.md)
-- [ ] **Design pass** with the `frontend-design` skill: the question editor is the
-      most complex screen in the app
+- [x] **Design pass** with the `frontend-design` skill: the question editor is the
+      most complex screen in the app — written up in
+      [design.md](design.md#the-script-editor)
 - [x] `GET` / `POST /api/admin/scripts` — versioning server-side, "exactly one active script"
       enforced by a partial unique index rather than by the route alone
-- [ ] Script editor (admin), versioning — shadcn `form`, `accordion`, `select`, drag to reorder
+- [x] Script editor (admin), versioning — shadcn `form` + `select`, `@dnd-kit` drag-and-keyboard
+      reorder over a bordered ledger list rather than `accordion` (design.md: no cards, dense
+      rows), a confirmation dialog before a save that activates a new version, and a lock on a
+      question's `key` once it has been saved
 - [ ] Script questions in the visit form, validation — one shadcn control per question type
 
 ## M4 — Map import & live feed
