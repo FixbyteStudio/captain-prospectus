@@ -444,7 +444,12 @@ export function VisitScreen() {
           {/* An action keeps its name through the flow, so « Enregistrer la
               visite » appears only on the screen that actually saves. */}
           {step === "outcome" && hasQuestions ? (
+            /* `key` is load-bearing: without it React reconciles both branches
+               to the same <button> node, and a node that has been type="submit"
+               on step 2 keeps submitting when step 1 renders it as
+               type="button" again — tapping « Continuer » saved the visit. */
             <button
+              key="continue"
               type="button"
               className={cn(buttonVariants({ size: "touch" }), "w-full")}
               onClick={() => void goToQuestions()}
@@ -453,6 +458,7 @@ export function VisitScreen() {
             </button>
           ) : (
             <button
+              key="save"
               type="submit"
               className={cn(buttonVariants({ size: "touch" }), "w-full")}
               disabled={saving}
