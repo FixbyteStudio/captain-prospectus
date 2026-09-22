@@ -70,4 +70,26 @@ Field canvassing of restaurants and food trucks is run from spreadsheets and mem
   **Quote both numbers from here on**: the 150 kB budget governs the entry chunk, which is how it has
   been measured at every milestone, and the precache total is what an agent's connection actually
   experiences. Re-measure whenever the field screens grow; if either number moves the wrong way,
-  settle it before adding to it. The headroom is 8 kB, which is not much.
+  settle it before adding to it.
+
+  **Re-measured at the start of M4, and both figures above had drifted.** The entry chunk is
+  **143.29 kB**, not the 142.04 kB recorded after ADR-0018: M3's script answers in the visit form
+  (`src/shared/answers.ts` and the controls that render them) cost 1.25 kB, which nothing measured at
+  the time. Still under budget, but the headroom is **6.7 kB**, not the 8 kB claimed above. The
+  precache total had drifted further — **893.57 KiB**, not 782 KiB — for the same reason plus the
+  admin side's own growth, since every chunk is precached whether or not a phone can open it.
+
+  That second number is what [ADR-0019](adr/0019-admin-chunk-out-of-the-precache.md) settles, before
+  M4 adds Leaflet to the admin chunk rather than after. `AdminApp-*.js` was 298.65 kB of the total —
+  TanStack Query, Radix, sonner and PapaParse, for an app `App.tsx` refuses to render without a
+  network anyway. Ignoring it in the Workbox glob takes the precache to **601.92 KiB across 14
+  entries**, a third less, and leaves the entry chunk untouched at 143.29 kB. The lesson is in the
+  drift itself: both numbers are only true on the day someone runs `pnpm build` and reads them.
+
+  **Measured again after M4's map import**, which adds Leaflet: **entry chunk 143.93 kB, precache
+  604.59 KiB.** Leaflet costs 45.7 kB gzipped and all of it lands in `AdminApp-*.js` (90.87 →
+  136.58 kB gzipped), so a field phone pays none of it — which is the whole point of doing ADR-0019
+  first. The entry chunk still moved, by 0.47 kB, and not because of the map: `copy.ts` is one object
+  in the entry chunk and the map's French strings ride along with it
+  ([issue #20](https://github.com/FixbyteStudio/captain-prospectus/issues/20)). Headroom is now
+  **6.2 kB**. That issue stops being cosmetic the next time a screen adds copy.

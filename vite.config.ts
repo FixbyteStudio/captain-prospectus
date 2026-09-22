@@ -44,6 +44,16 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        // ADR-0019: precache the field app only. `AdminApp-*.js` is ~299 kB of
+        // TanStack Query, Radix, sonner, PapaParse and (from M4) Leaflet that a
+        // phone can never open — App.tsx refuses to render /admin/* from a
+        // cached identity, so precaching it bought nothing. Vite emits the whole
+        // admin side as one chunk per extension, so the glob is deliberately
+        // extension-less: M4's Leaflet import emitted an `AdminApp-*.css` that
+        // a `.js`-only rule silently kept precaching. A NEW admin-only chunk
+        // under a different name would still need adding here.
+        // Asserted in config.test.ts.
+        globIgnores: ["**/assets/AdminApp-*"],
         // INVARIANT 8: the service worker never caches /api/*.
         // A cached sync response would show an agent a stale today list, or
         // worse, make a failed sync look successful. navigateFallbackDenylist

@@ -53,13 +53,21 @@ out center;
 | OSM | Field |
 |---|---|
 | `type/id` | `source_ref` |
-| `name` | `name` (elements without a name are shown but unchecked by default) |
+| `name` | `name` (may be empty; see "unnamed elements" below) |
 | `lat/lon` or `center` | `lat`, `lng` |
 | `amenity` | `type` (`street_vendor` present → `food_truck`) |
 | `addr:housenumber` + `addr:street` + `addr:city` | `address` |
 | `phone` / `contact:phone` | `phone` |
 | `website` / `contact:website` | `website` |
 | `cuisine` | `cuisine` |
+
+### Unnamed elements
+OSM holds plenty of amenities with no `name`. They are **returned and shown**, so
+the admin sees what the area really contains, but they are **not importable**:
+`name` is required by `importRowSchema`, so a nameless candidate is listed with
+the reason « Sans nom » and excluded from the count, exactly as the CSV preview
+treats a line with no name. Naming one inline is a separate feature and is not in
+v1 (`docs/design.md`, "The map import").
 
 ### Limits and etiquette
 - Polygon: 3–200 vertices.

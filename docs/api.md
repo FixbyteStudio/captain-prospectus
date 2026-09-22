@@ -29,8 +29,8 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `GET /api/admin/prospects/duplicates` | `{pairs[], truncated}` — prospects that are probably the same place |
 | `POST /api/admin/prospects/merge` | `{survivorId, mergedId}` → `{survivorId, mergedId, dedupeKeyUpdated}` |
 | `POST /api/admin/prospects/:id/unmerge` | Undo a merge → the restored prospect |
-| `POST /api/admin/import/overpass` | `{polygon: [lat,lng][]}` → candidates (not saved) |
-| `GET /api/admin/visits?since=<ms>` | Visits with `received_at > since`, newest first, max 500 |
+| `POST /api/admin/import/overpass` | `{polygon: [lat,lng][]}` → `{candidates[], truncated, cached}`. Nothing is saved: the candidates go through the same preview and the same `POST /prospects/batch` as a CSV |
+| `GET /api/admin/visits?since=<ms>&limit=` | `{visits[], serverTime}` — visits with `received_at > since`, newest first, max 500. Each carries `prospectName` |
 | `GET /api/admin/scripts` | `{scripts[]}` — all versions, newest first, max 100. At most one has `isActive` |
 | `POST /api/admin/scripts` | `{name, questions[]}` → **201** with the created script. Writes version N+1 of that name and makes it the only active one |
 
@@ -51,7 +51,7 @@ Every array is bounded, because one request must stay inside the Workers Free
 10 ms CPU budget (`docs/free-tier-budget.md`). The limits live in
 `src/shared/constants.ts`: 250 import rows, 200 visits and 100 field prospects
 per sync, 500 ids per bulk assign, 500 visits per live-feed page, 200 prospects
-per list page.
+per list page, 1000 candidates per map import.
 
 `GET /api/admin/prospects` returns at most `PROSPECTS_PAGE_SIZE` rows; `total`
 counts every row matching the filters, so the list header can say "412
@@ -67,6 +67,50 @@ only compared with its own cell and the eight around it.
 `POST /api/admin/prospects/merge` returns 400 `already_merged` when either side
 has already been absorbed, and 404 when either id is unknown. Repeating a merge
 that already happened is a 200 no-op (INVARIANT 4).
+
+## The live feed
+
+`GET /api/admin/visits` backs the admin's live feed, polled every 15 s while the
+tab is visible (ADR-0010).
+
+- Ordered by **`received_at`**, not `visited_at`. The feed answers "what has
+  reached me": a phone that syncs a three-day-old visit this minute is news, and
+  `visited_at` comes from a clock that can be wrong (INVARIANT 12).
+  `visits_received_idx` exists for this ordering.
+- **`since` is exclusive.** The client passes back the highest `receivedAt` it
+  has seen and gets only what is newer, which is what makes a 15 s poll cheap.
+  Omitted, it returns the most recent page — a freshly opened tab is not empty.
+- **Visits of merged prospects are included**, unlike every other admin list,
+  which filters `merged_into IS NULL`. This one records what agents did, no
+  visit is ever repointed on a merge (`prospecting.md`), and filtering here
+  would make history disappear from the feed because an admin tidied a
+  duplicate. The name shown is the one the visit was made against.
+- `serverTime` is the server's clock as it answered, so a client never has to
+  derive a cursor from its own.
+
+## The map import
+
+`POST /api/admin/import/overpass` proxies the public Overpass API (ADR-0008).
+The browser never calls it directly (INVARIANT 11), which is what makes the
+cache possible.
+
+- A polygon has 3–200 vertices. Coordinates are rounded to **5 decimals**
+  (~1 m) before hashing, so nudging a vertex between two searches still hits the
+  same cache entry rather than costing another request.
+- Answers are cached in `overpass_cache` for `OVERPASS_CACHE_TTL_MS` (7 days),
+  keyed by SHA-256 of the query version plus the rounded polygon. The response
+  says `cached: true` when it was served from there, because an answer may be a
+  week old and the screen has to be able to say so.
+- At most `OVERPASS_CANDIDATES_LIMIT` (1000) candidates, with `truncated` set
+  when the polygon held more. That is a CPU cap, not a payload one: waiting on
+  Overpass is free, `JSON.parse` and tag mapping are not.
+- A candidate is **not** an import row. `name` may be empty and `named` says so:
+  OSM has many unnamed amenities, they are worth showing, and `importRowSchema`
+  will not accept one. `sourceRef` is always present and is always
+  `<type>/<id>` — tier 1 of the dedupe key.
+- **502** on a timeout, a 429, a 5xx, or a 200 whose body is not an Overpass
+  answer (a rate-limit notice arrives as HTML). There is no retry loop on either
+  side; the screen offers the admin a retry.
 
 ## Who can be assigned
 There is no users table (ADR-0006). `GET /api/admin/agents` returns the union of

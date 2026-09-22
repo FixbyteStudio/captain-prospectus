@@ -3,19 +3,23 @@
  * field client's source of truth is Dexie, and a second cache over the outbox
  * is how visits get lost.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "../api";
 import { copy } from "../copy";
 import { IMPORT_ROWS_PER_REQUEST } from "../../shared/constants";
+import { arrivedIds, mergeVisits, nextSince } from "./visits/feed";
 import { batched } from "./import/csv";
 import type {
+  AdminVisit,
+  AdminVisitsResponse,
   AgentsResponse,
   AssignResult,
   DuplicatesResponse,
   ImportResult,
   ImportRow,
   MergeResult,
+  OverpassImportResponse,
   Prospect,
   ProspectsResponse,
   Question,
@@ -36,6 +40,7 @@ export const adminKeys = {
   prospects: (filters: ProspectFilters) => ["admin", "prospects", filters] as const,
   agents: () => ["admin", "agents"] as const,
   duplicates: () => ["admin", "duplicates"] as const,
+  visitsFeed: () => ["admin", "visits", "feed"] as const,
   scripts: () => ["admin", "scripts"] as const,
 };
 
@@ -115,7 +120,7 @@ export function useAssign() {
  * one fails. Resending the whole file afterwards is safe — the upsert is keyed
  * on the dedupe key — which is what the failure copy tells them.
  */
-export function useImportBatches() {
+export function useImportBatches(source: "csv" | "osm" = "csv") {
   const invalidate = useInvalidateProspects();
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -136,7 +141,7 @@ export function useImportBatches() {
       for (const batch of batches) {
         const outcome = await apiFetch<ImportResult>("/api/admin/prospects/batch", {
           method: "POST",
-          body: JSON.stringify({ source: "csv", rows: batch }),
+          body: JSON.stringify({ source, rows: batch }),
         });
         totals.created += outcome.created;
         totals.updated += outcome.updated;
@@ -159,6 +164,92 @@ export function useImportBatches() {
   }
 
   return { start, reset, progress, result, error, isRunning };
+}
+
+/**
+ * Search an area for places — ADR-0008.
+ *
+ * A mutation rather than a query: it is an action the admin takes by pressing a
+ * button, not state the screen reads. That also means no automatic retry — the
+ * screen offers the admin one, because Overpass is a shared public service and
+ * a client that retries on its own is how an app gets rate-limited.
+ */
+export function useOverpassImport() {
+  return useMutation({
+    mutationFn: (polygon: [number, number][]) =>
+      apiFetch<OverpassImportResponse>("/api/admin/import/overpass", {
+        method: "POST",
+        body: JSON.stringify({ polygon }),
+      }),
+    retry: false,
+  });
+}
+
+/** How often the feed asks, while the tab is visible (ADR-0010). */
+const FEED_POLL_MS = 15_000;
+
+/**
+ * Visits as they arrive — ADR-0010.
+ *
+ * The cursor lives in a ref, not in the query key. Putting a moving `since` in
+ * the key would mint a fresh cache entry every 15 s and grow without bound; a
+ * stable key means one entry that is refetched, which is what TanStack's
+ * interval is for.
+ *
+ * `refetchIntervalInBackground` stays at its default of false, which is what
+ * pauses the poll on a hidden tab. `refetchOnWindowFocus` is overridden to
+ * true: AdminApp turns it off globally, and coming back to the tab is exactly
+ * when the feed should catch up rather than wait out the interval.
+ */
+export function useVisitsFeed() {
+  const since = useRef(0);
+  /**
+   * Whether a first answer has landed. Without this the opening page arrives
+   * all at once and every row highlights — the screen announces eighteen new
+   * visits when nothing is new, which is precisely the noise the ambient rule
+   * exists to avoid. A visit arriving into an empty feed while it is open is
+   * still new; a feed being filled for the first time is not.
+   */
+  const seeded = useRef(false);
+  /** The list as the effect last folded it, so the fold never reads stale state. */
+  const held = useRef<AdminVisit[]>([]);
+  const [visits, setVisits] = useState<AdminVisit[]>([]);
+  const [arrived, setArrived] = useState<string[]>([]);
+
+  const query = useQuery({
+    queryKey: adminKeys.visitsFeed(),
+    queryFn: () => apiFetch<AdminVisitsResponse>(`/api/admin/visits?since=${since.current}`),
+    refetchInterval: FEED_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+
+  const page = query.data;
+  useEffect(() => {
+    if (!page) return;
+
+    /**
+     * Folded here rather than inside a `setVisits` updater, with the list
+     * mirrored in a ref.
+     *
+     * An updater must be pure, and StrictMode double-invokes it in development
+     * to prove it: doing this work in there ran the merge twice against the
+     * same stale list and marked the whole opening page as new. Running it in
+     * the effect body is safe under the same double-invocation because
+     * `mergeVisits` is idempotent — a second pass over the same answer is a
+     * no-op, which `feed.test.ts` pins.
+     */
+    const merged = mergeVisits(held.current, page.visits);
+    setArrived(seeded.current ? arrivedIds(held.current, page.visits) : []);
+    held.current = merged;
+    seeded.current = true;
+    // Advance from what we actually hold, never from the server clock: a visit
+    // written between the query and its answer is then delivered next poll
+    // rather than skipped for good.
+    since.current = nextSince(merged);
+    setVisits(merged);
+  }, [page]);
+
+  return { visits, arrived, isPending: query.isPending, isError: query.isError };
 }
 
 export function usePatchProspect() {

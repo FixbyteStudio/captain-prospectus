@@ -44,4 +44,15 @@ describe("service worker", () => {
     expect(config).toContain("navigateFallbackDenylist");
     expect(config).toMatch(/runtimeCaching:\s*\[\s*\]/);
   });
+
+  it("precaches the field app only, never the admin chunk", () => {
+    const config = readFileSync("vite.config.ts", "utf8");
+
+    // ADR-0019. Without this, every field phone downloads ~299 kB of TanStack
+    // Query, Radix, sonner, PapaParse and Leaflet on install, for an app that
+    // App.tsx will not render without a network anyway.
+    // Extension-less on purpose: Leaflet's stylesheet arrives as a separate
+    // `AdminApp-*.css`, which a `.js`-only ignore would keep precaching.
+    expect(config).toMatch(/globIgnores:\s*\[\s*"\*\*\/assets\/AdminApp-\*"/);
+  });
 });

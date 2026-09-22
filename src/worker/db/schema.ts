@@ -158,3 +158,4 @@ export type NewProspectRow = typeof prospects.$inferInsert;
 export type VisitRow = typeof visits.$inferSelect;
 export type NewVisitRow = typeof visits.$inferInsert;
 export type ScriptRow = typeof scripts.$inferSelect;
+export type OverpassCacheRow = typeof overpassCache.$inferSelect;

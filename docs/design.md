@@ -208,6 +208,137 @@ Five rules this encodes:
   A drag-only list here would be the same accessibility regression ADR-0015
   already refuses on the field route, just on the admin side instead.
 
+### The map import
+
+The map is a **source, not a screen**. `ingestion.md` opens with "two sources,
+one pipeline", and the band already carries six links — so drawing an area is a
+first step inside **Import**, not a seventh nav item:
+
+```
+Source → Fichier → Colonnes → Aperçu     CSV
+Source → Carte                            carte
+```
+
+Step one asks one question, « D'où viennent les prospects ? », and the two
+answers are a file and a map. After that the CSV path is untouched.
+
+The map path is one screen, because the polygon and the result are the same
+question asked twice:
+
+```
+┌────────────────────────────────────┬─────────────────────────────┐
+│                                    │ 47 lieux trouvés            │
+│                                    │ 6 sans nom                  │
+│         [ Leaflet canvas ]         ├─────────────────────────────┤
+│                                    │ Le Bouchon        Restaurant│
+│          ·———·———·                 │ 12 rue des Capucins         │
+│         /         \                │ Chez Marcel       Café      │
+│        ·           ·               │ 3 place Sathonay            │
+│         \____·____/                │ ⌁ Sans nom        Bar       │
+│                                    │   4 rue Neuve               │
+│  © les contributeurs OpenStreetMap │ …                           │
+├────────────────────────────────────┼─────────────────────────────┤
+│ 7 sommets   [Annuler le dernier]   │                             │
+│             [Effacer]              │ [ Importer 41 prospects ]   │
+│        [ Rechercher dans la zone ] │                             │
+└────────────────────────────────────┴─────────────────────────────┘
+```
+
+Eight rules this encodes:
+
+- **Side by side, because the list is the verdict on the polygon.** A wizard
+  step would hide the map at the moment the admin learns the area was wrong.
+  Here a thin result — or forty restaurants from the wrong arrondissement — is
+  answered by moving a vertex and searching again, with both halves on screen.
+  This is the one admin screen where two things compete for attention on
+  purpose; the split is the point.
+- **Leaflet owns the canvas, and nothing else.** Every control around it is
+  shadcn (roadmap). The map has no Leaflet zoom buttons styled to look like
+  ours and no custom toolbar inside the canvas: the actions sit under it, in the
+  screen's own language.
+- **One toolbar slot, under the map.** Same rule as §128, applied to a half
+  screen: vertex count on the left as a standing fact, the search action on the
+  right. It is never a floating bar over the canvas.
+- **The candidate list is a ledger, not a preview table.** It reuses the leading
+  edge — `status-new` for a place that will be imported, `status-rejected` for
+  one that cannot be — so the panel scans the same way the prospect list does,
+  at half the width. No cards, no checkboxes-as-chrome.
+- **A place without a name is shown and inert.** OSM has plenty of unnamed
+  amenities, and `ingestion.md` asks for them to be visible so the admin can see
+  what the area really holds. But `name` is required by `importRowSchema`, so an
+  unnamed candidate cannot be imported: it is listed greyed, struck, with
+  « Sans nom » as its reason — exactly how the CSV preview renders a rejected
+  line — and the import count excludes it. Naming one inline is a real feature
+  and not this one.
+- **Attribution is Leaflet's own control, not our chrome.** `copy.attribution`
+  is passed to the tile layer's `attribution` option, so it moves with the map
+  and cannot be laid out away by accident (INVARIANT 11).
+- **Drawing is pointer-only, and that is stated rather than hidden.** Placing a
+  vertex is a click; Leaflet gives keyboard pan and zoom but no keyboard vertex.
+  The mitigation is that **the CSV path is fully keyboard-reachable and imports
+  the same prospects** — the source step is the accessible fork, not an
+  afterthought. Making the polygon keyboard-editable is worth doing and is not
+  in M4.
+- **A cached answer says so.** Overpass results are cached seven days
+  (ADR-0008); a result served from cache says « Résultat en cache » with its
+  age, because "I searched twice and got the same 47" should be explainable
+  without reading the Worker.
+- **The candidate list is bounded and scrolls, and the live feed's is not.**
+  That looks like two answers to one question; it is one answer to two. Here the
+  two halves have to stay aligned or the split stops working — a hundred results
+  in an unbounded list would push the map off screen, and "move a vertex and
+  search again" is exactly what the admin does while reading them. The feed has
+  no second column to stay level with, so it takes the page's own scrollbar.
+
+### The live feed
+
+The roadmap sketched this as shadcn `card` + `badge` + `scroll-area`. **It is a
+ledger instead**, for the reason at the top of this file: no cards around rows,
+no status as a coloured pill. The feed is the prospect list with time as its
+spine.
+
+```
+│ Visites                                        47 visites      │
+├────────────────────────────────────────────────────────────────┤
+│ 16:42  Le Bouchon          Intéressé      flyer  agent@…       │
+│ 16:31  Chez Marcel         Pas intéressé         agent@…       │
+│ 15:58  Pizza Vera          À relancer     flyer  agent@…       │
+│        « rappeler après 18 h »                                 │
+│ 15:12  Le Comptoir         Converti       flyer  agent@…       │
+└────────────────────────────────────────────────────────────────┘
+```
+
+Six rules this encodes:
+
+- **An arrival is ambient, never a toast.** Principle 8 was written for the
+  field side but the logic is the same here: a visit that landed is a fact that
+  stays true, and the admin who was making coffee should find it on the list
+  rather than have missed it. `sonner` stays for things the admin *did*.
+- **The edge is the outcome's consequence, not the outcome.** A row's leading
+  edge uses `STATUS_EDGE[OUTCOME_TO_STATUS[outcome]]`, so the column scans as
+  "what does this leave me to do" — `À relancer` mustard, `Converti` green,
+  `Refusé` red. The outcome's own French label sits in its column, because
+  colour never carries the information alone.
+- **Time is the spine.** The feed orders by `received_at`, not `visited_at` —
+  the server's clock, not the phone's, because a phone's clock can be wrong
+  (INVARIANT 12) and the feed's promise is "what has reached me". Times are
+  `.tnum` and left, where the prospect list puts numbers right: this column is
+  read down as a sequence, not compared as quantities.
+- **A new row is marked once and then settles.** Principle 5 allows motion where
+  something changed, so an arriving row holds a brief wash and releases it.
+  Under `prefers-reduced-motion` it appears without the transition — it is never
+  the only signal that the row is new.
+- **No scroll-area.** A pane with its own scrollbar inside a page that also
+  scrolls is two scrollbars and a lost keyboard. The page scrolls; the feed is
+  the page.
+- **A visit to a merged prospect still appears.** Every other admin list filters
+  `merged_into IS NULL`, but this one records what agents did, and an absorbed
+  prospect keeps its visits (`prospecting.md`). The name shown is the one the
+  visit was made against.
+
+Empty, it is an invitation like every other empty screen: « Aucune visite reçue.
+Les visites apparaissent ici dès qu'un agent synchronise. »
+
 ## Principles
 
 1. The list is the product. Chrome yields to rows.

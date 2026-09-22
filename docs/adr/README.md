@@ -22,5 +22,6 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0016](0016-autonomous-overnight-agent-runs.md) | Autonomous overnight agent runs, bounded by the repo | proposed |
 | [0017](0017-zod-mini-for-the-shared-wire-contract.md) | Write the shared wire contract in `zod/mini` | proposed |
 | [0018](0018-one-form-stack.md) | One form stack — react-hook-form everywhere, the field route included | proposed |
+| [0019](0019-admin-chunk-out-of-the-precache.md) | Keep the admin chunk out of the service worker precache | proposed |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.

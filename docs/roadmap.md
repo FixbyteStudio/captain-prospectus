@@ -82,10 +82,22 @@ the bundle budget, cited against a measurement each time.
       since ADR-0015's native-controls rule still governs this route
 
 ## M4 — Map import & live feed
-- [ ] **Design pass** with the `frontend-design` skill: map + results side by side,
-      and the live feed
-- [ ] Leaflet polygon drawing, Overpass proxy + cache — Leaflet owns the map canvas; every control around it is shadcn
-- [ ] Live visits feed for admin — shadcn `card`, `badge`, `scroll-area`
+- [x] **Design pass** with the `frontend-design` skill: map + results side by side,
+      and the live feed — written up in [design.md](design.md#the-map-import) and
+      [design.md](design.md#the-live-feed)
+- [x] Leaflet polygon drawing, Overpass proxy + cache — Leaflet owns the map canvas; every control
+      around it is shadcn. Drawing is hand-rolled over `L.Polygon` + `L.CircleMarker` rather than a
+      draw plugin (~60 kB gzipped for a toolbar we would restyle and translate); the cache is keyed
+      on the polygon rounded to 5 dp, so redrawing does not cost Overpass another query
+- [x] Live visits feed for admin — a **ledger**, not the `card` + `badge` +
+      `scroll-area` this line used to ask for: cards around rows and status as a
+      coloured pill are both on design.md's "Not this" list, and the design pass
+      resolved the contradiction in that file's favour (design.md#the-live-feed)
+- [x] Precached the field app only before adding Leaflet to the admin chunk
+      ([ADR-0019](adr/0019-admin-chunk-out-of-the-precache.md)) — the precache total had drifted to
+      893.57 KiB, a third of it an app a phone cannot open. **Measured at the end of M4: entry chunk
+      143.93 kB against the 150 kB budget, precache 604.59 KiB across 14 entries.** None of
+      Leaflet's 45.7 kB reaches a phone
 
 ## M5 — Hardening
 - [ ] Security review against [security.md](security.md)
