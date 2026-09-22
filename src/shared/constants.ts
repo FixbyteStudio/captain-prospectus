@@ -82,6 +82,9 @@ export const SYNC_VISITS_PER_REQUEST = 200;
 export const SYNC_PROSPECTS_PER_REQUEST = 100;
 export const ADMIN_VISITS_PAGE_SIZE = 500;
 
+/** Past visits shown on the visit form. Enough context, one D1 page. */
+export const VISIT_HISTORY_LIMIT = 20;
+
 /**
  * One page of the admin prospect list. Also the cap: D1's free tier counts
  * *scanned* rows, so an unbounded select over a few thousand prospects is a

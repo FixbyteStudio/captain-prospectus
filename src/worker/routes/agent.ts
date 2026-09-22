@@ -9,15 +9,15 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
-  CLIENT_VERSION,
   MIN_CLIENT_VERSION,
   OPEN_STATUSES,
   OUTCOME_TO_STATUS,
+  VISIT_HISTORY_LIMIT,
 } from "../../shared/constants";
 import { chunk } from "../../shared/chunk";
 import { dedupeKey } from "../../shared/dedupe";
-import { syncRequestSchema } from "../../shared/schemas";
-import type { Prospect, Script, SyncResponse } from "../../shared/schemas";
+import { prospectIdParamSchema, syncRequestSchema } from "../../shared/schemas";
+import type { Prospect, Script, SyncResponse, VisitHistoryResponse } from "../../shared/schemas";
 import { validate } from "../validate";
 import { boundParamsPerRow, getDb } from "../db/client";
 import { prospects, scripts, visits } from "../db/schema";
@@ -262,11 +262,16 @@ function toWireScript(row: typeof scripts.$inferSelect): Script {
   };
 }
 
-/** Last 20 visits of a prospect. An agent sees only prospects assigned to them. */
-agentRoutes.get("/prospects/:id/visits", async (c) => {
+/**
+ * Last 20 visits of a prospect. An agent sees only prospects assigned to them.
+ *
+ * The visit form shows these as « Visites précédentes », so an agent knows what
+ * happened last time before knocking (field-operations.md).
+ */
+agentRoutes.get("/prospects/:id/visits", validate("param", prospectIdParamSchema), async (c) => {
   const db = getDb(c.env.DB);
   const { email, role } = c.get("identity");
-  const id = c.req.param("id");
+  const { id } = c.req.valid("param");
 
   const [prospect] = await db.select().from(prospects).where(eq(prospects.id, id)).limit(1);
   if (!prospect) return c.json({ error: "not_found" }, 404);
@@ -274,12 +279,24 @@ agentRoutes.get("/prospects/:id/visits", async (c) => {
     return c.json({ error: "forbidden", message: "Ce prospect ne vous est pas assigné." }, 403);
   }
 
+  // Only the columns the contract declares. The row also carries clock-skew
+  // and upgrade diagnostics, which are nobody's business at a doorstep.
   const history = await db
-    .select()
+    .select({
+      id: visits.id,
+      prospectId: visits.prospectId,
+      agentEmail: visits.agentEmail,
+      visitedAt: visits.visitedAt,
+      flyerGiven: visits.flyerGiven,
+      outcome: visits.outcome,
+      followUpAt: visits.followUpAt,
+      notes: visits.notes,
+    })
     .from(visits)
     .where(eq(visits.prospectId, id))
     .orderBy(desc(visits.visitedAt))
-    .limit(20);
+    .limit(VISIT_HISTORY_LIMIT);
 
-  return c.json({ visits: history, clientVersion: CLIENT_VERSION });
+  const response: VisitHistoryResponse = { visits: history };
+  return c.json(response);
 });

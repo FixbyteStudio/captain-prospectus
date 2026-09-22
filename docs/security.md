@@ -15,7 +15,7 @@
 
 ## Personal data
 - **Prospect data** is mostly public business info, but may include a contact person's name or phone. Keep it to what the business needs.
-- **Agent location** is personal data. Captured **once per visit at check-in**, never tracked in the background. Agents are told this.
+- **Agent location** is personal data. One reading (`getCurrentPosition`, never `watchPosition`) is written to the visit at check-in and to a field prospect when it is added — that reading is what reaches the server and is stored. The today list also takes a reading to order the round by distance; that one stays in memory for the ordering only and is never persisted or sent. Neither case tracks in the background. Agents are told this.
 - **Retention**: define before go-live how long visit notes and positions are kept.
 - Data stays in the Cloudflare account; no third-party analytics.
 

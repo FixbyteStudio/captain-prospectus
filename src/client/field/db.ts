@@ -6,12 +6,28 @@
  * upgrade must MIGRATE outbox rows and never clear them.
  */
 import Dexie, { type Table } from "dexie";
-import type { FieldProspect, Prospect, Script, Visit } from "../../shared/schemas";
+import type {
+  FieldProspect,
+  MeResponse,
+  Prospect,
+  Script,
+  Visit,
+  VisitHistoryEntry,
+} from "../../shared/schemas";
 
 export type MetaValues = {
   script: Script | null;
   lastSyncAt: number;
-  agentEmail: string;
+  /**
+   * The last identity `/api/me` returned.
+   *
+   * Cached because the shell cannot reach the network on a pavement with no
+   * signal, and an agent opening the app there must still get their round.
+   * It is a convenience for rendering, never proof of anything: the Worker
+   * re-derives identity from the verified Access JWT on every request
+   * (INVARIANT 10), so a tampered copy of this unlocks nothing.
+   */
+  identity: MeResponse;
 };
 export type MetaKey = keyof MetaValues;
 export type MetaRow = { key: MetaKey; value: MetaValues[MetaKey] };
@@ -21,6 +37,13 @@ export class FieldDb extends Dexie {
   outboxProspects!: Table<FieldProspect, string>;
   outboxVisits!: Table<Visit, string>;
   meta!: Table<MetaRow, string>;
+  /**
+   * Past visits pulled from the server, so the visit form can still show
+   * « Visites précédentes » with no signal (field-operations.md: "offline it
+   * shows what is cached"). A cache, never a source of truth — unlike the
+   * outbox, losing this loses nothing.
+   */
+  visitHistory!: Table<VisitHistoryEntry, string>;
 
   constructor(name = "captain-prospectus") {
     super(name);
@@ -29,6 +52,16 @@ export class FieldDb extends Dexie {
       outboxProspects: "id",
       outboxVisits: "id, prospectId",
       meta: "key",
+    });
+    /**
+     * v2 ADDS a table and changes no existing one, so Dexie carries every row
+     * across untouched and no upgrade function is needed. That is the only
+     * shape of migration allowed to run near the outbox: the sync-contract-change
+     * skill's step 3 says a version bump must migrate outbox rows, never clear
+     * them, and the safest way to honour that is not to touch them.
+     */
+    this.version(2).stores({
+      visitHistory: "id, prospectId",
     });
   }
 }
@@ -58,4 +91,42 @@ export async function pendingCount(db: FieldDb): Promise<number> {
     db.outboxVisits.count(),
   ]);
   return prospects + visits;
+}
+
+/**
+ * Replace a prospect's cached history with what the server just returned.
+ *
+ * Scoped to one prospect: another prospect's cache is still valid, and an
+ * agent offline for the rest of the round should keep it.
+ */
+export async function cacheVisitHistory(
+  db: FieldDb,
+  prospectId: string,
+  entries: readonly VisitHistoryEntry[],
+): Promise<void> {
+  await db.transaction("rw", db.visitHistory, async () => {
+    await db.visitHistory.where("prospectId").equals(prospectId).delete();
+    if (entries.length > 0) await db.visitHistory.bulkPut([...entries]);
+  });
+}
+
+/**
+ * Drop everything this device caches *about an agent*, keeping the outbox.
+ *
+ * Used when the identity that owns the cache stops being valid: another agent
+ * signed in, or the Worker answered `/api/me` with a 401 because the email was
+ * removed from the Access policy (docs/security.md, "stolen phone"). Without
+ * this, the round and the visit history survive the revocation and the next
+ * launch with no network shows them again — offline there is no 401 to refuse.
+ *
+ * The outbox is deliberately not touched: INVARIANT 5 lets only the server's
+ * `accepted` list delete a queued visit, and a revoked session is not that.
+ * The residual gap that leaves is `docs/backlog/005-outbox-identity-stamp.md`.
+ */
+export async function clearAgentCache(db: FieldDb): Promise<void> {
+  await Promise.all([
+    db.prospects.clear(),
+    db.visitHistory.clear(),
+    db.meta.delete("identity" satisfies MetaKey),
+  ]);
 }
