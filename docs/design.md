@@ -137,6 +137,77 @@ can I do right now".
 │ 12 sélectionnés   [Assigner à ▾]  [Désassigner]    Annuler │   selection
 ```
 
+### The script editor
+
+The roadmap calls this "the most complex screen in the app" — a variable-length
+list of typed questions, reorderable, versioned, and read by both the admin
+composing it and (later, M3's next PR) the agent answering it. It stays a
+**ledger**, not a form wizard: one dense editor, no steps, no cards.
+
+```
+┌──────────────────────────────────────────────────────┬──────────────────┐
+│ Scripts                                                │                  │
+│ Le questionnaire posé à chaque visite. L'enregistrement│                  │
+│ crée une nouvelle version et l'active aussitôt…        │                  │
+├──────────────────────────────────────────────────────┤  Versions        │
+│ Nom du script   [ default                    ]         │ ┌──────────────┐│
+│                                                          │ │ Version 3    ││
+│ Questions                          [+ Ajouter une       │ │ Active       ││
+│                                        question]         │ │ 4 questions  ││
+│ ┌──────────────────────────────────────────────────┐   │ ├──────────────┤│
+│ │⠿ 1  Proposez-vous la livraison ?              [🗑]│   │ │ Version 2    ││
+│ │     Oui / non          ☐ Obligatoire               │   │ │ Inactive     ││
+│ │     clé  has_delivery                              │   │ │ 3 questions  ││
+│ ├──────────────────────────────────────────────────┤   │ └──────────────┘│
+│ │⠿ 2  Quel système de caisse utilisez-vous ?    [🗑]│   │                  │
+│ │     Choix unique       ☐ Obligatoire               │   │                  │
+│ │     Aucun · Papier · Autre        [+ Ajouter un    │   │                  │
+│ │                                       choix]        │   │                  │
+│ │     clé  pos_system 🔒  Modifier la clé            │   │                  │
+│ └──────────────────────────────────────────────────┘   │                  │
+│                                                          │                  │
+│           L'enregistrement crée une nouvelle version    │                  │
+│           et l'active immédiatement.                    │                  │
+│                    [ Enregistrer une nouvelle version ] │                  │
+└──────────────────────────────────────────────────────┴──────────────────┘
+```
+
+Five rules this encodes:
+
+- **No card, drag handle instead of a shadow.** A question is a row in a
+  bordered, divided list — `⠿` (a `GripVerticalIcon`) is the only affordance
+  that says "reorder me", never a raised surface. Same rule as the prospect
+  table: chrome yields to content.
+- **A saved key locks.** A question copied in from the active version arrives
+  with `🔒` and a disabled key field — docs/domains/scripts.md: keys are
+  "stable, and never reused with a different meaning", and an answer already
+  recorded under `pos_system` must stay findable under that key. Unlocking is
+  one explicit click (**Modifier la clé**), never a default state, and it
+  prints a standing warning once unlocked rather than a one-time toast, since
+  the risk (silently orphaning old answers) outlives a four-second message. A
+  brand-new question's key is suggested from its label as it is typed and
+  stays editable until the admin edits it by hand.
+- **One primary action, and it gets a confirmation.** Every other admin screen
+  in this app avoids a confirmation dialog — a merge, an assignment, a status
+  change are all either reversible or additive. Saving a script is neither: it
+  silently reassigns what every agent is asked next, including mid-round, and
+  it is not append-only the way a visit is (compare "no confirmation dialog on
+  saving a visit" on the field side — that rule exists *because* a visit is
+  append-only and this action is not). So Save opens a dialog stating the
+  version number it is about to create and activate, and that is the only
+  place a confirmation dialog appears in this app.
+- **Version history is a fact, not a feature.** The list on the right shows
+  every version with its question count and Active/Inactive, in text — bold
+  and `success`-toned for active, muted for inactive — never a coloured pill
+  (same rule as the prospect ledger's status column). Nothing there is
+  clickable in this PR; restoring an old version as a starting point is not a
+  rule the domain doc states, so it is not built.
+- **Reorder works from a keyboard.** `@dnd-kit`'s `KeyboardSensor` with
+  `sortableKeyboardCoordinates` is wired alongside the pointer sensor, so
+  Tab-to-the-handle-then-arrow-keys reorders a script exactly like a drag does.
+  A drag-only list here would be the same accessibility regression ADR-0015
+  already refuses on the field route, just on the admin side instead.
+
 ## Principles
 
 1. The list is the product. Chrome yields to rows.
