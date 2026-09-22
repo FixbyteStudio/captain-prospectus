@@ -1,16 +1,21 @@
 # Security & privacy
 
 ## Threat model (short)
+
+Reviewed in full at M5 (see the roadmap). A row that the code does not honour says so
+and links the issue; a row with no caveat was checked and holds. **Keep it that way** —
+a mitigation nobody has verified is worse than one nobody claimed.
+
 | Threat | Mitigation |
 |---|---|
-| Access bypass (Worker reached without Access) | JWT verified in the Worker; preview URLs disabled or protected |
+| Access bypass (Worker reached without Access) | JWT verified in the Worker (`src/worker/auth.ts`), fail-closed when Access is misconfigured. **Preview URLs are a manual dashboard step with no repo-side control** — [#38](https://github.com/FixbyteStudio/captain-prospectus/issues/38) |
 | Header spoofing | Email taken from the verified JWT only |
 | Dev impersonation leaking to prod | `DEV_USER_EMAIL` ignored unless host is localhost; `/api/dev/*` needs both that variable and a localhost host, and it is the one route mounted before auth |
-| Agent reading other agents' data | Agent routes filter by the verified email |
+| Agent reading other agents' data | Agent **reads** filter by the verified email. **Writes do not**: sync accepts a visit against any prospect that exists, and the derived status follows — [#33](https://github.com/FixbyteStudio/captain-prospectus/issues/33) |
 | Malformed or oversized payloads | zod validation, array size caps, and a `MAX_REQUEST_BYTES` body cap enforced Worker-wide in `src/worker/index.ts` before anything parses the body |
 | SQL injection | Drizzle parameterised queries only; no string-built SQL |
 | XSS through imported data (names, notes) | React escaping; no `dangerouslySetInnerHTML` |
-| Stolen phone | Access session expiry; admin removes the email from the Access policy |
+| Stolen phone | Access session expiry; admin removes the email from the Access policy, and the next `/api/me` clears the cached round. **Only at mount**, so a resumed PWA keeps it — [#35](https://github.com/FixbyteStudio/captain-prospectus/issues/35) |
 | Leaked Cloudflare token | Scoped token in GitHub secrets, never in the repo |
 
 ### The body cap
@@ -31,7 +36,7 @@ it — a payload the server always refuses is an outbox that never drains (INVAR
 - **Prospect data** is mostly public business info, but may include a contact person's name or phone. Keep it to what the business needs.
 - **Agent location** is personal data. One reading (`getCurrentPosition`, never `watchPosition`) is written to the visit at check-in and to a field prospect when it is added — that reading is what reaches the server and is stored. The today list also takes a reading to order the round by distance; that one stays in memory for the ordering only and is never persisted or sent. Neither case tracks in the background. Agents are told this.
 - **Retention**: define before go-live how long visit notes and positions are kept.
-- Data stays in the Cloudflare account; no third-party analytics.
+- No third-party analytics. Data stays in the Cloudflare account **except** the backup workflow, which uploads a full database export to a GitHub artifact for 90 days — [#34](https://github.com/FixbyteStudio/captain-prospectus/issues/34).
 
 ## Secrets
 - No secrets in `wrangler.jsonc` beyond non-sensitive vars. If a real secret is ever needed: `wrangler secret put`.
