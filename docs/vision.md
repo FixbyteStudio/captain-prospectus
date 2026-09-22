@@ -59,5 +59,15 @@ Field canvassing of restaurants and food trucks is run from spreadsheets and mem
   still serving both sides — takes that to 9.6 kB and the entry chunk to 141.95 kB. The Worker bundle
   fell 110.26 → 83.93 kB in the same change, and the PWA now precaches 782 KiB rather than 842 KiB.
 
-  Re-measure whenever the field screens grow; if the entry chunk crosses whatever the current budget
-  is, settle it before adding to it. The headroom is 8 kB, which is not much.
+  **Measured again after [ADR-0018](adr/0018-one-form-stack.md)** — react-hook-form adopted for every
+  form, the field route included — **142.04 kB, still under budget.** It lands in the shared chunk of
+  the two lazy field screens rather than the entry chunk. That is worth stating precisely, because
+  ADR-0015 made the point first: a lazy chunk defers bytes, it does not save them, since the service
+  worker precaches all of them. On that fuller measure the field route is **164.71 kB**, against
+  149.12 kB after ADR-0017 and 165.95 kB at the end of M2 — ADR-0017's win paid for react-hook-form
+  almost exactly, and the total is a kilobyte below where M2 left it.
+
+  **Quote both numbers from here on**: the 150 kB budget governs the entry chunk, which is how it has
+  been measured at every milestone, and the precache total is what an agent's connection actually
+  experiences. Re-measure whenever the field screens grow; if either number moves the wrong way,
+  settle it before adding to it. The headroom is 8 kB, which is not much.
