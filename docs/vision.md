@@ -9,6 +9,13 @@ Field canvassing of restaurants and food trucks is run from spreadsheets and mem
 | Admin | 1–2 | Laptop | Import prospects, assign them, edit the question script, watch visits live |
 | Field agent | 2 | Phone, often poor signal | Today's list ordered by distance, a fast visit form, works offline, add new places |
 
+## Where
+**Brussels.** The first deployment canvasses the Brussels-Capital Region, which is why the
+import map opens on the Grand-Place (`src/client/admin/import/map.ts`), why the local seed
+invents Brussels restaurants, and why the Google Places request sends `regionCode: "BE"`
+([ADR-0020](adr/0020-google-places-as-a-second-map-provider.md)). Nothing in the data model
+is tied to a city — moving is changing those three places, not a migration.
+
 ## Core jobs
 1. **Build the prospect base** from a CSV or an area drawn on a map.
 2. **Assign** prospects to agents.

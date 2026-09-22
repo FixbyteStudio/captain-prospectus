@@ -12,6 +12,7 @@ import {
   DUPLICATES_PAGE_SIZE,
   DUPLICATES_SCAN_LIMIT,
   OVERPASS_CACHE_TTL_MS,
+  PLACES_CACHE_TTL_MS,
   SCRIPTS_PAGE_SIZE,
 } from "../../shared/constants";
 import { dedupeKey, normalize } from "../../shared/dedupe";
@@ -21,6 +22,7 @@ import {
   assignSchema,
   mergeSchema,
   overpassImportSchema,
+  placesImportSchema,
   visitsSinceQuerySchema,
   prospectBatchSchema,
   prospectIdParamSchema,
@@ -35,7 +37,7 @@ import type {
   DuplicatesResponse,
   ImportResult,
   MergeResult,
-  OverpassImportResponse,
+  AreaSearchResponse,
   Prospect,
   ProspectsResponse,
   Script,
@@ -52,6 +54,13 @@ import {
   polygonHash,
   toCandidates,
 } from "../overpass";
+import {
+  PLACES_ENDPOINT,
+  PLACES_FIELD_MASK,
+  buildPlacesBody,
+  circleHash,
+  toCandidates as toPlaceCandidates,
+} from "../places";
 import type { NewProspectRow, ProspectRow } from "../db/schema";
 import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
@@ -66,6 +75,23 @@ export const adminRoutes = new Hono<AppEnv>();
 const OVERPASS_UNAVAILABLE = {
   error: "overpass_failed",
   message: "OpenStreetMap n'a pas répondu. Réessayez dans quelques instants.",
+} as const;
+
+/** The same, for the other provider (ADR-0020). */
+const PLACES_UNAVAILABLE = {
+  error: "places_failed",
+  message: "Google Places n'a pas répondu. Réessayez dans quelques instants.",
+} as const;
+
+/**
+ * No key on this deployment. A different fact from "the provider failed", and
+ * the admin can act on it — nobody has run `wrangler secret put` — so it gets
+ * its own code and its own status rather than a 502 that reads as Google's
+ * fault (ADR-0020).
+ */
+const PLACES_UNCONFIGURED = {
+  error: "places_unconfigured",
+  message: "Le fournisseur Google n'est pas configuré sur ce serveur.",
 } as const;
 
 function toWireProspect(row: ProspectRow): Prospect {
@@ -670,7 +696,7 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), asy
     // A cached body that no longer parses is a bug in what we stored, not
     // something to hand the admin. Fall through and ask Overpass again.
     if (mapped) {
-      return c.json<OverpassImportResponse>({ ...mapped, cached: true });
+      return c.json<AreaSearchResponse>({ ...mapped, cached: true });
     }
   }
 
@@ -712,7 +738,85 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), asy
       set: { body, createdAt: Date.now() },
     });
 
-  return c.json<OverpassImportResponse>({ ...mapped, cached: false });
+  return c.json<AreaSearchResponse>({ ...mapped, cached: false });
+});
+
+/**
+ * Find places inside a circle — ADR-0020, docs/domains/ingestion.md.
+ *
+ * The other provider, deliberately the same route in every way it can be: same
+ * cache table, same candidate shape, same preview, nothing written to
+ * `prospects` here. A circle rather than a polygon because Nearby Search has no
+ * polygon search, and at most 20 results because Google has no page tokens.
+ *
+ * Two things differ from Overpass and both matter. The key is a secret that
+ * must never leave the Worker, which is why this cannot be a browser call at
+ * all. And a miss costs money, so the cache here is not politeness — it is the
+ * difference between paying once for a circle and paying every time the admin
+ * presses the button again.
+ */
+adminRoutes.post("/import/places", validate("json", placesImportSchema), async (c) => {
+  const key = c.env.GOOGLE_PLACES_KEY;
+  // Checked before anything else: no key means no search is possible, and
+  // answering that without touching D1 or Google is the honest order.
+  if (!key) return c.json(PLACES_UNCONFIGURED, 503);
+
+  const { center, radius } = c.req.valid("json");
+  const db = getDb(c.env.DB);
+
+  const hash = await circleHash(center, radius);
+  const [hit] = await db.select().from(overpassCache).where(eq(overpassCache.hash, hash)).limit(1);
+
+  const fresh = hit && Date.now() - hit.createdAt < PLACES_CACHE_TTL_MS;
+  if (fresh) {
+    const mapped = toPlaceCandidates(hit.body);
+    // A cached body that no longer parses is a bug in what we stored, not
+    // something to hand the admin. Fall through and ask Google again.
+    if (mapped) {
+      return c.json<AreaSearchResponse>({ ...mapped, cached: true });
+    }
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(PLACES_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": key,
+        // Omitting this is a 400 from Google, and widening it past the Pro
+        // fields changes the SKU we are billed at (ADR-0020).
+        "X-Goog-FieldMask": PLACES_FIELD_MASK,
+      },
+      body: buildPlacesBody(center, radius),
+    });
+  } catch {
+    // No retry loop, here or on the client. With Overpass that was etiquette;
+    // here a retry is also another billable call, so it stays the admin's
+    // decision and the screen offers them the button.
+    return c.json(PLACES_UNAVAILABLE, 502);
+  }
+
+  // Never surface Google's own body: a 400 from a bad field mask echoes the
+  // request back, and the key is in the headers of that request.
+  if (!response.ok) return c.json(PLACES_UNAVAILABLE, 502);
+
+  const body = await response.text();
+  const mapped = toPlaceCandidates(body);
+  if (!mapped) return c.json(PLACES_UNAVAILABLE, 502);
+
+  // Upsert for the same reason as the Overpass cache above, plus one: a refresh
+  // that keeps serving a week-old answer is a week of searches we do not pay
+  // for twice.
+  await db
+    .insert(overpassCache)
+    .values({ hash, body, createdAt: Date.now() })
+    .onConflictDoUpdate({
+      target: overpassCache.hash,
+      set: { body, createdAt: Date.now() },
+    });
+
+  return c.json<AreaSearchResponse>({ ...mapped, cached: false });
 });
 
 /* ---------------------------------------------------------------- live feed */

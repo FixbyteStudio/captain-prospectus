@@ -19,7 +19,7 @@ import type {
   ImportResult,
   ImportRow,
   MergeResult,
-  OverpassImportResponse,
+  AreaSearchResponse,
   Prospect,
   ProspectsResponse,
   Question,
@@ -120,7 +120,7 @@ export function useAssign() {
  * one fails. Resending the whole file afterwards is safe — the upsert is keyed
  * on the dedupe key — which is what the failure copy tells them.
  */
-export function useImportBatches(source: "csv" | "osm" = "csv") {
+export function useImportBatches(source: Source = "csv") {
   const invalidate = useInvalidateProspects();
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -177,9 +177,28 @@ export function useImportBatches(source: "csv" | "osm" = "csv") {
 export function useOverpassImport() {
   return useMutation({
     mutationFn: (polygon: [number, number][]) =>
-      apiFetch<OverpassImportResponse>("/api/admin/import/overpass", {
+      apiFetch<AreaSearchResponse>("/api/admin/import/overpass", {
         method: "POST",
         body: JSON.stringify({ polygon }),
+      }),
+    retry: false,
+  });
+}
+
+/**
+ * Search a circle for places — ADR-0020.
+ *
+ * The same mutation-not-query reasoning as above, with one more: a search here
+ * is billable, so it must never happen because a component remounted or a
+ * window regained focus. `retry: false` matters twice over — an automatic
+ * retry would be a second charge for the same failure.
+ */
+export function usePlacesImport() {
+  return useMutation({
+    mutationFn: (circle: { center: [number, number]; radius: number }) =>
+      apiFetch<AreaSearchResponse>("/api/admin/import/places", {
+        method: "POST",
+        body: JSON.stringify(circle),
       }),
     retry: false,
   });

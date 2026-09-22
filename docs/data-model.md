@@ -16,8 +16,8 @@ erDiagram
     text phone
     text website
     text cuisine
-    text source "csv|osm|field"
-    text source_ref "e.g. osm node/123"
+    text source "csv|osm|google|field"
+    text source_ref "e.g. osm node/123, google/ChIJ…"
     text dedupe_key UK
     text status "new|assigned|follow_up|converted|rejected"
     text assigned_to "agent email"
@@ -54,11 +54,22 @@ erDiagram
     int created_at
   }
   OVERPASS_CACHE {
-    text hash PK
-    text body
+    text hash PK "versioned per provider"
+    text body "raw provider answer"
     int created_at
   }
 ```
+
+`overpass_cache` holds **both** map providers' raw answers (ADR-0020) and keeps the
+name of its first one. The hash is SHA-256 of a provider-specific query version plus
+the normalised shape — `v1` and a rounded polygon for Overpass, `gv1` and a rounded
+centre and radius for Google — so two providers cannot read each other's rows. It has
+no eviction path yet (issue #25); a second writer makes that slightly more pressing.
+
+`source` distinguishes `osm` from `google` because the two differ in licence, in
+freshness and in `source_ref` format, and because the same restaurant found through
+both imports twice: tier 1 of the dedupe key is the source's own id, and `node/4711`
+is not `google/ChIJ…`. The duplicates sweep is what resolves that pair.
 
 ## Rules
 
@@ -97,7 +108,7 @@ erDiagram
 | `prospects(dedupe_key)` unique | import upsert, field-prospect dedupe |
 | `prospects(assigned_to, status)` | sync pull |
 | `prospects(status)` | admin list filtered by status |
-| `prospects(source)` | admin list filtered by source |
+| `prospects(source)` | admin list filtered by source (`csv`, `osm`, `google`, `field`) |
 | `prospects(updated_at)` | admin list default order |
 | `prospects(merged_into)` | live-prospect filter, and finding what a survivor absorbed |
 

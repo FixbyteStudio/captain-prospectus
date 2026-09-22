@@ -29,7 +29,13 @@ export const PROSPECT_TYPES = [
 ] as const;
 export type ProspectType = (typeof PROSPECT_TYPES)[number];
 
-export const SOURCES = ["csv", "osm", "field"] as const;
+/**
+ * Where a prospect came from. `osm` and `google` are both the map import, and
+ * they stay distinct: they have different licences, different freshness and
+ * different `source_ref` formats, and the admin filters on the difference
+ * (ADR-0020).
+ */
+export const SOURCES = ["csv", "osm", "google", "field"] as const;
 export type Source = (typeof SOURCES)[number];
 
 export const ROLES = ["admin", "agent"] as const;
@@ -144,3 +150,33 @@ export const OVERPASS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
  * response says `truncated` rather than silently costing more.
  */
 export const OVERPASS_CANDIDATES_LIMIT = 1_000;
+
+/* ------------------------------------------------ Google Places (ADR-0020) */
+
+/**
+ * Nearby Search has no polygon search, so the Google provider draws a circle.
+ *
+ * The 50 km Google allows is pointless behind a 20-result cap: a circle that
+ * large returns the 20 places nearest its centre and nothing else. 2 km is
+ * already more than one canvassing round.
+ */
+export const PLACES_RADIUS_MIN_M = 50;
+export const PLACES_RADIUS_MAX_M = 2_000;
+
+/**
+ * Google's own ceiling, not a choice of ours: `maxResultCount` caps at 20 and
+ * Nearby Search has no page tokens. A circle holding more than this returns its
+ * 20 nearest and sets `truncated`, and the screen tells the admin to shrink it.
+ */
+export const PLACES_MAX_RESULTS = 20;
+
+/**
+ * How long a Google answer stays good (ADR-0020).
+ *
+ * The same seven days as OVERPASS_CACHE_TTL_MS, for a different reason, which
+ * is why it is a separate constant: the Overpass cache is etiquette towards a
+ * donated public service, this one is how we avoid paying twice for the same
+ * circle. Google's terms also cap caching of Places content at 30 days, so this
+ * number may shrink but must never grow past that.
+ */
+export const PLACES_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;

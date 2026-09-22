@@ -12,12 +12,27 @@ Limits change. **Re-verify on the vendors' pricing pages before relying on them*
 | D1 rows written | 100 k / day (**enforced**) | imports up to a few thousand; visits ~100 | large |
 | Cloudflare Access | Free Zero Trust plan, seat-capped | 3–4 users | large |
 | Overpass API | Public, fair-use | a few queries per week, cached 7 days | fine if cached |
+| Google Places — Nearby Search **Pro** | Per-SKU monthly free call count; Google retired the universal $200 credit in March 2025 | one call per map search, cached 7 days; a few dozen a month | **verify in the Cloud console** |
 | OSM tiles | Public, fair-use, attribution required | light admin use | fine |
 | GitHub Actions | Free minutes for private repos | a few minutes per PR | fine |
 
-Checked: 2026-09-21 (from public sources, to be confirmed on official pricing pages).
+Checked: 2026-09-22 (from public sources, to be confirmed on official pricing pages).
 
 ## Watch-outs
+
+- **Google Places is the one line here that can actually bill us** (ADR-0020), and the only
+  one whose free allowance this file does not state a number for. Per-SKU allowances changed
+  in March 2025 and the figures in circulation disagree; the authoritative number is in the
+  owner's own Cloud console, under the *Nearby Search Pro* SKU. Read it there before relying
+  on headroom.
+- **The field mask decides which SKU is billed.** `places.nationalPhoneNumber`,
+  `places.internationalPhoneNumber` and `places.websiteUri` are Enterprise-tier on Nearby
+  Search; adding one moves every search — including ones that find nothing — onto a smaller
+  allowance at a higher price, and nothing in the response would say so. `places.test.ts`
+  fails if the mask grows to include them.
+- **A cache miss on the Google provider is a charge.** The 7-day TTL is not etiquette there,
+  it is the bill; coordinates are rounded to 5 decimals before hashing so a nudged pin is not
+  a second search.
 
 - A bug that loops syncs could burn request quota: the client backs off exponentially on errors.
 - Row reads count scanned rows: keep the indexes in [data-model.md](data-model.md) and avoid unindexed filters.

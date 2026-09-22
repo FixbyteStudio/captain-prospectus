@@ -96,7 +96,10 @@ export const copy = {
       csv: "Un fichier CSV",
       csvHint: "Un export de tableur, lu dans votre navigateur.",
       map: "Une zone sur la carte",
-      mapHint: "Les commerces qu'OpenStreetMap connaît dans la zone que vous dessinez.",
+      // Two providers since ADR-0020, so the fork names the gesture and not
+      // one of them; the choice between them lives on the map step.
+      mapHint:
+        "Les commerces qu'OpenStreetMap ou Google connaissent dans la zone que vous dessinez.",
     },
 
     file: {
@@ -170,6 +173,30 @@ export const copy = {
 
   map: {
     lede: "Dessinez une zone : cliquez pour poser chaque sommet.",
+
+    /** Which data source the area is searched against — ADR-0020. */
+    provider: {
+      label: "Données",
+      osm: "OpenStreetMap",
+      google: "Google Places",
+      /**
+       * A standing fact, not a warning: a Google search is a billable call and
+       * a small circle is the habit that keeps it cheap. Said once, under the
+       * choice, where it changes what the admin draws next.
+       */
+      googleHint:
+        "Chaque recherche Google compte dans le quota mensuel. 20 lieux maximum par cercle.",
+      osmHint: "Gratuit et sans limite. Couverture variable selon la ville.",
+    },
+
+    /** Google's Nearby Search takes a circle; there is no polygon search. */
+    circle: {
+      lede: "Dessinez un cercle : cliquez pour placer le centre, puis pour fixer le rayon.",
+      radius: (m: number) => (m >= 1000 ? `Rayon ${(m / 1000).toFixed(1)} km` : `Rayon ${m} m`),
+      hint: "Faites glisser le centre pour déplacer le cercle, le point à droite pour le redimensionner.",
+      none: "Cliquez sur la carte pour placer le centre.",
+    },
+
     vertices: (n: number) => (n === 1 ? "1 sommet" : `${n} sommets`),
     needMore: "Trois sommets au minimum.",
     full: "Nombre de sommets maximum atteint.",
@@ -179,6 +206,11 @@ export const copy = {
     searching: "Recherche en cours…",
     // ADR-0008: Overpass is a public service that is sometimes slow or down.
     failed: "OpenStreetMap n'a pas répondu. Réessayez dans quelques instants, ou réduisez la zone.",
+    placesFailed:
+      "Google n'a pas répondu. Réessayez dans quelques instants, ou réduisez le cercle.",
+    // A server configuration fact, not a failure: it says who can fix it.
+    placesUnconfigured:
+      "Google Places n'est pas configuré sur ce serveur. Utilisez OpenStreetMap, ou demandez l'ajout de la clé API.",
     retry: "Réessayer",
 
     results: {
@@ -192,6 +224,13 @@ export const copy = {
       // letting two identical searches look like two live ones.
       cached: "Résultat en cache, actualisé sous 7 jours.",
       truncated: "Zone trop vaste : seuls les premiers résultats sont affichés. Réduisez-la.",
+      // Google's own ceiling, not ours: 20 per call and no next page.
+      truncatedGoogle:
+        "Google renvoie 20 lieux au maximum : voici les 20 plus proches du centre. Réduisez le cercle et cherchez à nouveau.",
+      // The attribution Google's terms ask for; the tiles stay OSM (ADR-0020).
+      poweredByGoogle: "Résultats fournis par Google",
+      idleGoogle:
+        "Dessinez un cercle sur la carte, puis lancez la recherche pour voir ce que Google y connaît.",
       // A place OSM has no name for cannot be imported: `name` is required.
       noName: "Sans nom",
       start: (n: number) => (n === 1 ? "Importer 1 prospect" : `Importer ${n} prospects`),
@@ -437,7 +476,11 @@ export const STATUS_LABELS: Readonly<Record<Status, string>> = {
 
 export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
   csv: "CSV",
-  osm: "Carte",
+  // Both map sources say "Carte" first, because that is the screen the admin
+  // used; the provider is what tells them why two rows for the same restaurant
+  // exist (ADR-0020).
+  osm: "Carte (OSM)",
+  google: "Carte (Google)",
   field: "Terrain",
 };
 

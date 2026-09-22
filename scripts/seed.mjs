@@ -13,33 +13,33 @@ const URL_BASE = process.env.SEED_URL ?? "http://localhost:5173";
 const AGENT = process.env.DEV_USER_EMAIL ?? "admin@example.com";
 const OTHER_AGENT = "agent@example.com";
 
-// Around Place Bellecour, Lyon.
-const CENTER = { lat: 45.7578, lng: 4.832 };
+// Around the Grand-Place, Brussels — the area this canvasses (docs/vision.md).
+const CENTER = { lat: 50.8467, lng: 4.3525 };
 
 const NAMES = [
-  ["Le Bouchon des Halles", "restaurant"],
+  ["L'Estaminet des Halles", "restaurant"],
   ["Chez Léa", "restaurant"],
   ["Pizza Roma", "fast_food"],
   ["Café de la Gare", "cafe"],
-  ["Le Comptoir Lyonnais", "restaurant"],
-  ["Sushi Bellecour", "restaurant"],
-  ["Brasserie du Rhône", "bar"],
+  ["Le Comptoir Bruxellois", "restaurant"],
+  ["Sushi Sablon", "restaurant"],
+  ["Brasserie de la Senne", "bar"],
   ["Le Petit Creux", "fast_food"],
-  ["Kebab Saint-Jean", "fast_food"],
+  ["Kebab Sainte-Catherine", "fast_food"],
   ["La Crêperie Bretonne", "restaurant"],
   ["Coffee & Co", "cafe"],
   ["Le Bistrot d'Édouard", "restaurant"],
   ["Tacos République", "fast_food"],
-  ["Bar des Terreaux", "bar"],
+  ["Bar des Marolles", "bar"],
   ["Le Wagon Gourmand", "food_truck"],
-  ["Burger Truck 69", "food_truck"],
+  ["Burger Truck 1000", "food_truck"],
   ["Chez Mémé", "restaurant"],
   ["Thé & Compagnie", "cafe"],
   ["La Table de Paul", "restaurant"],
   ["Pasta Presto", "fast_food"],
   ["Le Zinc", "bar"],
-  ["Boulangerie Saint-Paul", "other"],
-  ["Street Food Lyon", "food_truck"],
+  ["Boulangerie Saint-Géry", "other"],
+  ["Street Food Bruxelles", "food_truck"],
   ["Le Relais des Voyageurs", "restaurant"],
   ["Curry House", "restaurant"],
   ["Le Café Perché", "cafe"],
@@ -55,7 +55,7 @@ const prospects = NAMES.map(([name, type], i) => ({
   // Spread over roughly a square kilometre so nearest-next ordering is visible.
   lat: i % 7 === 0 ? null : CENTER.lat + Math.sin(i) * 0.012,
   lng: i % 7 === 0 ? null : CENTER.lng + Math.cos(i) * 0.012,
-  address: i % 7 === 0 ? `${i + 1} rue de la Ruche, Lyon` : null,
+  address: i % 7 === 0 ? `${i + 1} rue de la Ruche, Bruxelles` : null,
   // Two thirds to the dev user, the rest to a second agent, a few unassigned.
   assignedTo: i % 3 === 2 ? OTHER_AGENT : i % 11 === 0 ? null : AGENT,
 }));

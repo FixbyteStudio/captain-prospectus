@@ -1,11 +1,11 @@
 # CLAUDE.md — rules for AI agents working in this repo
 
-Captain Prospectus: B2B field-canvassing app. Admin imports restaurants/food trucks (CSV or OSM map area) and assigns them; 2 field agents visit them from an offline-first PWA. Read `docs/vision.md` once, `docs/glossary.md` always.
+Captain Prospectus: B2B field-canvassing app. Admin imports restaurants/food trucks (CSV, or an area on the map) and assigns them; 2 field agents visit them from an offline-first PWA. Read `docs/vision.md` once, `docs/glossary.md` always.
 
 ## Stack (decided — see docs/adr)
-Vite + React SPA/PWA · React Router · Hono on one Cloudflare Worker · D1 + Drizzle · Dexie · Leaflet + Overpass · Cloudflare Access · TypeScript strict · zod · Vitest.
+Vite + React SPA/PWA · React Router · Hono on one Cloudflare Worker · D1 + Drizzle · Dexie · Leaflet + Overpass (+ optional Google Places, ADR-0020) · Cloudflare Access · TypeScript strict · zod · Vitest.
 Styling is Tailwind CSS v4 with shadcn/ui elements vendored into `src/client/ui/` (ADR-0014); the UI is in French while code, DB values and docs stay English; TanStack Query is admin-side only (ADR-0013).
-Do not introduce Next.js, another database, another host, an auth library, a second CSS or component framework beside Tailwind + shadcn, an i18n library, or any paid API.
+Do not introduce Next.js, another database, another host, an auth library, a second CSS or component framework beside Tailwind + shadcn, or an i18n library. A paid API needs the owner's explicit consent in an ADR (ADR-0020); Google Places is the only one that has it.
 
 ## Before you change anything
 1. Architecture, data model, sync, auth, dependencies → read the relevant ADR in `docs/adr/`. If your change contradicts one, stop and propose a new ADR instead.
@@ -21,7 +21,10 @@ One concern per change. When you find a bug, inconsistency or code/doc drift tha
 Fix it in the current change only when the task cannot be finished or verified without it, and say so in the PR description. If you are unsure whether it blocks you, ask.
 
 ## Non-negotiable invariants
-1. **Zero cost.** No paid service, no dependency needing a paid plan.
+1. **Nothing bills without the owner's consent.** No paid service and no dependency needing a paid plan,
+   unless an ADR records the owner accepting that specific cost and `docs/free-tier-budget.md` records its
+   limits and our usage (ADR-0002, amended by ADR-0020). Google Places is the one exception, and it stays
+   inert until `GOOGLE_PLACES_KEY` is configured.
 2. **Agents only insert** visits and field prospects. Never add an agent-side update of shared data.
 3. **Prospect status from visits is computed by the server** (`OUTCOME_TO_STATUS`). Clients never send a derived status.
 4. **Every write is idempotent.** Client ids are `crypto.randomUUID()`. Inserts use `onConflictDoNothing` unless the doc says upsert.
