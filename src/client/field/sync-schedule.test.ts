@@ -27,11 +27,11 @@ const FAILURES: readonly SyncStatus[] = ["offline", "auth", "upgrade", "error"];
 
 describe("shouldDrain", () => {
   it("goes again when a successful pass left work behind", () => {
-    expect(shouldDrain(result({ remaining: 40 }), 1)).toBe(true);
+    expect(shouldDrain(result({ acceptedVisits: 200, remaining: 40 }), 1)).toBe(true);
   });
 
   it("stops once the outbox is empty", () => {
-    expect(shouldDrain(result({ remaining: 0 }), 1)).toBe(false);
+    expect(shouldDrain(result({ acceptedVisits: 200, remaining: 0 }), 1)).toBe(false);
   });
 
   it.each(FAILURES)("never drains after %s, however much is left", (status) => {
@@ -39,10 +39,21 @@ describe("shouldDrain", () => {
     expect(shouldDrain(result({ status, remaining: 500 }), 1)).toBe(false);
   });
 
-  it("caps the passes so a server that accepts nothing cannot spin", () => {
-    // The pathological case: every pass succeeds and nothing ever drains.
-    expect(shouldDrain(result({ remaining: 200 }), MAX_DRAIN_PASSES - 1)).toBe(true);
-    expect(shouldDrain(result({ remaining: 200 }), MAX_DRAIN_PASSES)).toBe(false);
+  it("stops when a successful pass accepted nothing", () => {
+    // The held visit (docs/backlog/003): the server takes the request and
+    // stores none of it, for ever. `remaining > 0` alone would send the same
+    // payload MAX_DRAIN_PASSES times on every trigger, for the life of the row.
+    expect(shouldDrain(result({ remaining: 3 }), 1)).toBe(false);
+  });
+
+  it("counts an accepted prospect as progress, not only a visit", () => {
+    expect(shouldDrain(result({ acceptedProspects: 1, remaining: 3 }), 1)).toBe(true);
+  });
+
+  it("caps the passes even while every one of them is making progress", () => {
+    const progressing = result({ acceptedVisits: 200, remaining: 200 });
+    expect(shouldDrain(progressing, MAX_DRAIN_PASSES - 1)).toBe(true);
+    expect(shouldDrain(progressing, MAX_DRAIN_PASSES)).toBe(false);
   });
 });
 

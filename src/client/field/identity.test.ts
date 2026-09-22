@@ -49,7 +49,7 @@ describe("a successful /api/me", () => {
 
   it("refuses a response that does not match meResponseSchema", () => {
     const outcome = resolveIdentity({ ok: true, body: { email: "not-an-email" } }, null);
-    expect(outcome).toEqual({ kind: "error", message: copy.errors.generic });
+    expect(outcome).toEqual({ kind: "error", message: copy.errors.generic, revoked: false });
   });
 });
 
@@ -57,7 +57,22 @@ describe("a 401 — the session is invalid, not merely unreachable", () => {
   it("never falls back to the cache, even with a valid one sitting there", () => {
     const error = new ApiError(401, "auth", "Votre session a expiré. Reconnectez-vous.");
     const outcome = resolveIdentity({ ok: false, error }, AGENT_A);
-    expect(outcome).toEqual({ kind: "error", message: error.message });
+    expect(outcome).toEqual({ kind: "error", message: error.message, revoked: true });
+  });
+
+  it("tells the caller to delete the cache, not merely to ignore it", () => {
+    // Refusing the fallback is not enough on its own: the cache survives, and
+    // the same phone in airplane mode takes the offline branch below, where
+    // there is no 401 to refuse. `revoked` is what closes that door.
+    const error = new ApiError(401, "auth", "Votre session a expiré. Reconnectez-vous.");
+    const revoked = resolveIdentity({ ok: false, error }, AGENT_A);
+    expect(revoked.kind === "error" && revoked.revoked).toBe(true);
+
+    const stillCached = resolveIdentity(
+      { ok: false, error: new TypeError("Failed to fetch") },
+      AGENT_A,
+    );
+    expect(stillCached.kind).toBe("ready");
   });
 });
 
@@ -70,6 +85,16 @@ describe("any other ApiError (the Worker answered, but not about identity)", () 
       identity: AGENT_A,
       offline: true,
       identitySwitched: false,
+    });
+  });
+
+  it("does not revoke the cache, because it says nothing about this identity", () => {
+    const error = new ApiError(500, "misconfigured", "Access is not configured on this Worker.");
+    const outcome = resolveIdentity({ ok: false, error }, null);
+    expect(outcome).toEqual({
+      kind: "error",
+      message: copy.errors.offlineFirstRun,
+      revoked: false,
     });
   });
 });
@@ -90,7 +115,11 @@ describe("a genuine network failure (fetch itself threw)", () => {
 
   it("errors with the first-run message when nothing is cached", () => {
     const outcome = resolveIdentity({ ok: false, error: new TypeError("Failed to fetch") }, null);
-    expect(outcome).toEqual({ kind: "error", message: copy.errors.offlineFirstRun });
+    expect(outcome).toEqual({
+      kind: "error",
+      message: copy.errors.offlineFirstRun,
+      revoked: false,
+    });
   });
 
   it("errors the same way when the cache exists but fails to parse", () => {
@@ -98,7 +127,11 @@ describe("a genuine network failure (fetch itself threw)", () => {
       { ok: false, error: new TypeError("Failed to fetch") },
       { email: "not-an-email" },
     );
-    expect(outcome).toEqual({ kind: "error", message: copy.errors.offlineFirstRun });
+    expect(outcome).toEqual({
+      kind: "error",
+      message: copy.errors.offlineFirstRun,
+      revoked: false,
+    });
   });
 
   it("treats a plain thrown string the same as any other non-ApiError failure", () => {

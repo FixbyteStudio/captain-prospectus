@@ -217,6 +217,13 @@ export const copy = {
     historyOffline: "Les visites précédentes s'afficheront au retour du réseau.",
     flyerHint: "Cochez si vous avez laissé un flyer sur place.",
     saving: "Enregistrement…",
+    /**
+     * The outbox write itself failed, so nothing is queued and nothing will be
+     * sent. Says the storage is full because that is the realistic cause on a
+     * phone, and it is the one thing the agent can act on.
+     */
+    saveFailed:
+      "Impossible d'enregistrer la visite sur cet appareil. Libérez de l'espace de stockage, puis réessayez.",
   },
 
   fieldProspect: {
@@ -237,6 +244,10 @@ export const copy = {
     saving: "Ajout…",
     saved: "Prospect ajouté. Il partira à la prochaine synchronisation.",
     cancel: "Annuler",
+    addressTooLong: "Cette adresse est trop longue. Raccourcissez-la.",
+    phoneTooLong: "Ce numéro est trop long. Vérifiez-le.",
+    saveFailed:
+      "Impossible d'enregistrer ce prospect sur cet appareil. Libérez de l'espace de stockage, puis réessayez.",
   },
 
   sync: {

@@ -13,6 +13,7 @@
  */
 import { createContext, use, useCallback, useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
+import { applyUpdateNow } from "../pwa";
 import { fieldDb, pendingCount } from "./db";
 import { runSync, type SyncStatus } from "./sync";
 import { nextDelayMs, nextFailureCount, shouldDrain } from "./sync-schedule";
@@ -78,6 +79,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       failures.current = nextFailureCount(result.status, failures.current);
       setStatus(result.status);
       if (result.status === "ok") setLastSyncAt(Date.now());
+
+      // 426: the server refuses this build's payload outright, so the outbox
+      // stops draining until the phone is on a newer one. field-operations.md
+      // makes this the one case that takes an update without asking; backing
+      // off politely here just means the visits sit there (INVARIANT 5 keeps
+      // them, but keeping them is not sending them).
+      if (result.status === "upgrade") void applyUpdateNow();
     } finally {
       inFlight.current = false;
       setRunning(false);

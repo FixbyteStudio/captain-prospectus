@@ -26,11 +26,37 @@ export const emptyDraft: VisitDraft = {
   notes: "",
 };
 
-/** Which control to mark, so an error lands on the thing that caused it. */
-export type DraftErrorField = "outcome" | "followUpDate" | "notes";
+/**
+ * Which control to mark and why — so an error lands on the thing that caused
+ * it, saying what is actually wrong with it.
+ *
+ * A follow-up date has two distinct failures with two distinct lines in
+ * `copy.visit` — "you have not given one" and "the day you typed does not
+ * exist" — and telling an agent the date is missing when it is there, but
+ * impossible, is the kind of message that gets a form abandoned outdoors.
+ */
+export type DraftErrors = {
+  outcome?: "required";
+  followUpDate?: "required" | "invalid";
+  notes?: "tooLong";
+};
 
-export type DraftResult =
-  { ok: true; visit: Visit } | { ok: false; errors: Partial<Record<DraftErrorField, true>> };
+export type DraftResult = { ok: true; visit: Visit } | { ok: false; errors: DraftErrors };
+
+/**
+ * Change the outcome, dropping a follow-up date the new outcome does not use.
+ *
+ * The date input is rendered only for `follow_up`, so leaving `followUpDate`
+ * behind would send a date the agent cancelled and can no longer see — and
+ * `POST /api/agent/sync` writes `followUpAt` into `prospects.next_visit_at`
+ * whatever the outcome is, which would park the prospect under « Plus tard »
+ * on a day nobody chose. It would also let validation fail on an unmounted
+ * control, leaving the save button doing nothing with no error in view.
+ */
+export function withOutcome(draft: VisitDraft, outcome: Outcome): VisitDraft {
+  if (outcome === "follow_up") return { ...draft, outcome };
+  return { ...draft, outcome, followUpDate: "" };
+}
 
 /**
  * `<input type="date">` yields a calendar date with no time and no zone. Read
@@ -76,16 +102,18 @@ export function toVisit(
   draft: VisitDraft,
   context: { id: string; prospectId: string; visitedAt: number; position: Point | null },
 ): DraftResult {
-  const errors: Partial<Record<DraftErrorField, true>> = {};
+  const errors: DraftErrors = {};
 
-  if (!draft.outcome) errors.outcome = true;
+  if (!draft.outcome) errors.outcome = "required";
 
   const followUpAt = draft.followUpDate ? dateInputToEpochMs(draft.followUpDate) : null;
-  if (draft.followUpDate && followUpAt === null) errors.followUpDate = true;
+  if (draft.followUpDate && followUpAt === null) errors.followUpDate = "invalid";
 
   // field-operations.md: required when the outcome is follow_up. visitSchema
   // refines this too; checking here is what lets the error point at the field.
-  if (draft.outcome === "follow_up" && followUpAt === null) errors.followUpDate = true;
+  if (draft.outcome === "follow_up" && followUpAt === null) {
+    errors.followUpDate = draft.followUpDate ? "invalid" : "required";
+  }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
@@ -113,9 +141,9 @@ export function toVisit(
   // than showing a zod message, which would be English and mention a path.
   for (const issue of parsed.error.issues) {
     const field = issue.path[0];
-    if (field === "notes") errors.notes = true;
-    else if (field === "followUpAt") errors.followUpDate = true;
-    else errors.outcome = true;
+    if (field === "notes") errors.notes = "tooLong";
+    else if (field === "followUpAt") errors.followUpDate = "required";
+    else errors.outcome = "required";
   }
   return { ok: false, errors };
 }

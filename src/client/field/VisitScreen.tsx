@@ -24,7 +24,7 @@ import { formatDate } from "../format";
 import { OUTCOMES, type Outcome } from "../../shared/constants";
 import { visitHistoryResponseSchema } from "../../shared/schemas";
 import { cacheVisitHistory, fieldDb } from "./db";
-import { emptyDraft, toVisit, type DraftErrorField, type VisitDraft } from "./visit-draft";
+import { emptyDraft, toVisit, withOutcome, type DraftErrors, type VisitDraft } from "./visit-draft";
 import { useAgentPosition } from "./useAgentPosition";
 import { useSyncState } from "./useSync";
 
@@ -43,8 +43,10 @@ export function VisitScreen() {
   const { point } = useAgentPosition();
 
   const [draft, setDraft] = useState<VisitDraft>(emptyDraft);
-  const [errors, setErrors] = useState<Partial<Record<DraftErrorField, true>>>({});
+  const [errors, setErrors] = useState<DraftErrors>({});
   const [saving, setSaving] = useState(false);
+  /** The outbox write itself failed, so nothing is queued. */
+  const [saveFailed, setSaveFailed] = useState(false);
 
   // The visit's id is minted once, not per validation attempt: it is the
   // idempotency key (INVARIANT 4), so re-validating must not mint a second one.
@@ -112,10 +114,23 @@ export function VisitScreen() {
 
     setSaving(true);
     setErrors({});
+    setSaveFailed(false);
+
     // INVARIANT 3: the prospect's status is the server's to derive from this
     // visit. Nothing here touches the local copy — the new status arrives on
     // the next pull, in the list.
-    await fieldDb.outboxVisits.add(result.visit);
+    try {
+      await fieldDb.outboxVisits.add(result.visit);
+    } catch {
+      // Until this row exists, the outbox is not the only copy of the visit —
+      // there is no copy at all (INVARIANT 5). A quota-exhausted or evicted
+      // IndexedDB must therefore say so and leave the form standing, rather
+      // than navigating away from a visit that was never queued.
+      setSaving(false);
+      setSaveFailed(true);
+      return;
+    }
+
     void syncNow();
     await navigate("/tournee", { replace: true, state: { saved: true } });
   }, [draft, id, navigate, point, saving, syncNow, visitId]);
@@ -159,14 +174,19 @@ export function VisitScreen() {
 
       <div className="border-border mt-4 border-t pt-4">
         <p className="mb-3 font-medium">{copy.visit.outcome}</p>
-        <FieldRadioGroup label={copy.visit.outcome} invalid={errors.outcome}>
+        <FieldRadioGroup label={copy.visit.outcome} invalid={errors.outcome !== undefined}>
           {OUTCOMES.map((outcome) => (
             <FieldRadioOption
               key={outcome}
               name="outcome"
               value={outcome}
               checked={draft.outcome === outcome}
-              onSelect={(value) => setDraft((d) => ({ ...d, outcome: value as Outcome }))}
+              onSelect={(value) => {
+                setDraft((d) => withOutcome(d, value as Outcome));
+                // The date control may have just been unmounted; an error
+                // pinned to it would block saving with nothing on screen.
+                setErrors((e) => ({ ...e, outcome: undefined, followUpDate: undefined }));
+              }}
             >
               {OUTCOME_LABELS[outcome]}
             </FieldRadioOption>
@@ -191,7 +211,13 @@ export function VisitScreen() {
             aria-invalid={errors.followUpDate ? true : undefined}
             onChange={(e) => setDraft((d) => ({ ...d, followUpDate: e.target.value }))}
           />
-          {errors.followUpDate && <FieldError>{copy.visit.followUpRequired}</FieldError>}
+          {errors.followUpDate && (
+            <FieldError>
+              {errors.followUpDate === "invalid"
+                ? copy.visit.followUpInvalid
+                : copy.visit.followUpRequired}
+            </FieldError>
+          )}
         </div>
       )}
 
@@ -217,9 +243,21 @@ export function VisitScreen() {
         ) : (
           <ul className="divide-border mt-2 divide-y">
             {history.map((entry) => (
-              <li key={entry.id} className="flex items-baseline justify-between gap-4 py-2">
-                <span className="text-muted-foreground text-sm">{formatDate(entry.visitedAt)}</span>
-                <span className="text-sm font-medium">{OUTCOME_LABELS[entry.outcome]}</span>
+              <li key={entry.id} className="py-2">
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-muted-foreground text-sm">
+                    {formatDate(entry.visitedAt)}
+                  </span>
+                  <span className="text-sm font-medium">{OUTCOME_LABELS[entry.outcome]}</span>
+                </div>
+                {/* What the last agent wrote is the reason this section exists
+                    (field-operations.md): "ferme le lundi" is the difference
+                    between a wasted walk and a kept appointment. */}
+                {entry.notes && (
+                  <p className="text-muted-foreground mt-1 text-sm whitespace-pre-line">
+                    {entry.notes}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
@@ -229,6 +267,11 @@ export function VisitScreen() {
       {/* Sticky, because the outcome list is taller than a phone and the action
           should not require scrolling back past it. */}
       <div className="safe-bottom bg-background border-border fixed inset-x-0 bottom-0 border-t px-4 py-3">
+        {saveFailed && (
+          <p role="alert" className="text-destructive mb-2 text-sm">
+            {copy.visit.saveFailed}
+          </p>
+        )}
         <button
           type="button"
           className={cn(buttonVariants({ size: "touch" }), "w-full")}

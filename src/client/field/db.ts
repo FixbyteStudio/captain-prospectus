@@ -109,3 +109,24 @@ export async function cacheVisitHistory(
     if (entries.length > 0) await db.visitHistory.bulkPut([...entries]);
   });
 }
+
+/**
+ * Drop everything this device caches *about an agent*, keeping the outbox.
+ *
+ * Used when the identity that owns the cache stops being valid: another agent
+ * signed in, or the Worker answered `/api/me` with a 401 because the email was
+ * removed from the Access policy (docs/security.md, "stolen phone"). Without
+ * this, the round and the visit history survive the revocation and the next
+ * launch with no network shows them again — offline there is no 401 to refuse.
+ *
+ * The outbox is deliberately not touched: INVARIANT 5 lets only the server's
+ * `accepted` list delete a queued visit, and a revoked session is not that.
+ * The residual gap that leaves is `docs/backlog/005-outbox-identity-stamp.md`.
+ */
+export async function clearAgentCache(db: FieldDb): Promise<void> {
+  await Promise.all([
+    db.prospects.clear(),
+    db.visitHistory.clear(),
+    db.meta.delete("identity" satisfies MetaKey),
+  ]);
+}

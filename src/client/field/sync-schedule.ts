@@ -11,23 +11,32 @@ import { backoffDelayMs, SYNC_INTERVAL_MS, type SyncResult, type SyncStatus } fr
  * (SYNC_VISITS_PER_REQUEST = 200), and field-operations.md asks the client to
  * "repeat until the outbox is empty".
  *
- * The cap is what stops that being a hot loop. A server that accepts nothing
- * still reports `remaining > 0` for ever, and an uncapped drain would spin
- * against it — the sync-loop quota watch-out in docs/free-tier-budget.md. Six
- * passes clears 1200 visits, far past anything two agents produce in a week;
- * whatever is left waits for the next trigger, seconds later.
+ * The cap is the backstop under `shouldDrain`'s progress rule: even a server
+ * that accepts something every pass cannot hold the loop open indefinitely —
+ * the sync-loop quota watch-out in docs/free-tier-budget.md. Six passes clears
+ * 1200 visits, far past anything two agents produce in a week; whatever is left
+ * waits for the next trigger, seconds later.
  */
 export const MAX_DRAIN_PASSES = 6;
 
 /**
  * Whether to immediately run another pass.
  *
- * Only after a *successful* pass that left work behind. A failure backs off
- * instead — retrying a 503 at once is how a quota gets burned.
+ * Only after a *successful* pass that left work behind **and made progress**. A
+ * failure backs off instead — retrying a 503 at once is how a quota gets burned.
+ *
+ * Progress is what makes the next pass different from this one. `runSync` takes
+ * the first SYNC_VISITS_PER_REQUEST rows of the outbox, so a pass that accepted
+ * nothing would build the identical payload again: the rows left are ones the
+ * server will not take (an orphan visit — `docs/backlog/003`), not a slice it
+ * has not been shown yet. Without this check the documented held-visit gap turns
+ * every trigger into MAX_DRAIN_PASSES identical requests, for ever, which is the
+ * sync-loop watch-out in docs/free-tier-budget.md arriving by a different door.
  */
 export function shouldDrain(result: SyncResult, passesSoFar: number): boolean {
   if (result.status !== "ok") return false;
   if (result.remaining <= 0) return false;
+  if (result.acceptedProspects + result.acceptedVisits <= 0) return false;
   return passesSoFar < MAX_DRAIN_PASSES;
 }
 

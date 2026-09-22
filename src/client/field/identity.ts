@@ -5,8 +5,11 @@
  * A security review of the first version of this logic (M2) found it treated
  * a 401 — the Worker saying a session is no longer valid — the same as a
  * network failure, which would let a revoked phone keep opening the round
- * from its cache forever. Every branch below exists because of a specific
- * failure mode; see the comment on each.
+ * from its cache forever. Refusing to *fall back* to the cache was only half
+ * of that: while the cache survived the 401, the same phone got its round back
+ * by going offline, where there is no 401 to refuse. Hence `revoked`, which
+ * tells the caller to delete it. Every branch below exists because of a
+ * specific failure mode; see the comment on each.
  */
 import { ApiError } from "../api";
 import { meResponseSchema, type MeResponse } from "../../shared/schemas";
@@ -23,7 +26,17 @@ export type IdentityOutcome =
       /** True when a *different* email than the cached one just signed in. */
       identitySwitched: boolean;
     }
-  | { kind: "error"; message: string };
+  | {
+      kind: "error";
+      message: string;
+      /**
+       * True when the *server* refused this identity, as opposed to the shell
+       * simply having nothing to show. The caller must then drop the offline
+       * caches, or the next launch with no network falls back to them and the
+       * revocation is undone by turning on airplane mode.
+       */
+      revoked: boolean;
+    };
 
 /**
  * Decide what to show, given how `/api/me` went and what (if anything) is
@@ -34,7 +47,7 @@ export type IdentityOutcome =
 export function resolveIdentity(result: IdentityFetchResult, cached: unknown): IdentityOutcome {
   if (result.ok) {
     const parsed = meResponseSchema.safeParse(result.body);
-    if (!parsed.success) return { kind: "error", message: copy.errors.generic };
+    if (!parsed.success) return { kind: "error", message: copy.errors.generic, revoked: false };
 
     const identity = parsed.data;
     const cachedParsed = cached ? meResponseSchema.safeParse(cached) : null;
@@ -53,7 +66,7 @@ export function resolveIdentity(result: IdentityFetchResult, cached: unknown): I
   // misconfigured Worker, say) is not a statement about *this* identity, so
   // it falls through to the cache like a genuine network failure would.
   if (result.error instanceof ApiError && result.error.status === 401) {
-    return { kind: "error", message: result.error.message };
+    return { kind: "error", message: result.error.message, revoked: true };
   }
 
   const cachedParsed = cached ? meResponseSchema.safeParse(cached) : null;
@@ -62,5 +75,5 @@ export function resolveIdentity(result: IdentityFetchResult, cached: unknown): I
   }
   // Nothing usable cached: this phone has never reached the server, so there
   // is no round to show and no identity to assume.
-  return { kind: "error", message: copy.errors.offlineFirstRun };
+  return { kind: "error", message: copy.errors.offlineFirstRun, revoked: false };
 }

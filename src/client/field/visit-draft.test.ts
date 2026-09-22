@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { dateInputToEpochMs, emptyDraft, epochMsToDateInput, toVisit } from "./visit-draft";
+import {
+  dateInputToEpochMs,
+  emptyDraft,
+  epochMsToDateInput,
+  toVisit,
+  withOutcome,
+} from "./visit-draft";
 
 const CONTEXT = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -50,14 +56,14 @@ describe("toVisit", () => {
     const result = toVisit(draft(), CONTEXT);
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.outcome).toBe(true);
+    if (!result.ok) expect(result.errors.outcome).toBe("required");
   });
 
   it("requires a follow-up date when the outcome is follow_up", () => {
     const result = toVisit(draft({ outcome: "follow_up" }), CONTEXT);
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.followUpDate).toBe(true);
+    if (!result.ok) expect(result.errors.followUpDate).toBe("required");
   });
 
   it("saves a follow-up once the date is there", () => {
@@ -71,7 +77,22 @@ describe("toVisit", () => {
     const result = toVisit(draft({ outcome: "interested", followUpDate: "2026-02-30" }), CONTEXT);
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.followUpDate).toBe(true);
+    // "invalid", not "required": the agent typed a date, it just cannot exist,
+    // and telling them to supply one they can see would read as a bug.
+    if (!result.ok) expect(result.errors.followUpDate).toBe("invalid");
+  });
+
+  it("separates an impossible follow-up date from a missing one", () => {
+    const missing = toVisit(draft({ outcome: "follow_up" }), CONTEXT);
+    const impossible = toVisit(
+      draft({ outcome: "follow_up", followUpDate: "2026-02-30" }),
+      CONTEXT,
+    );
+
+    expect(missing.ok).toBe(false);
+    expect(impossible.ok).toBe(false);
+    if (!missing.ok) expect(missing.errors.followUpDate).toBe("required");
+    if (!impossible.ok) expect(impossible.errors.followUpDate).toBe("invalid");
   });
 
   it.each(["no_contact", "interested", "not_interested", "converted"] as const)(
@@ -122,7 +143,7 @@ describe("toVisit", () => {
     const result = toVisit(draft({ outcome: "interested", notes: "x".repeat(2001) }), CONTEXT);
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.notes).toBe(true);
+    if (!result.ok) expect(result.errors.notes).toBe("tooLong");
   });
 
   it("claims no script, because script questions arrive in M3", () => {
@@ -141,5 +162,43 @@ describe("toVisit", () => {
     const b = toVisit(draft({ outcome: "converted" }), CONTEXT);
 
     expect(a.ok && b.ok && a.visit.id === b.visit.id).toBe(true);
+  });
+});
+
+describe("withOutcome", () => {
+  it("keeps the date while the outcome still asks for one", () => {
+    const next = withOutcome(
+      draft({ outcome: "follow_up", followUpDate: "2026-09-29" }),
+      "follow_up",
+    );
+
+    expect(next.followUpDate).toBe("2026-09-29");
+  });
+
+  it.each(["no_contact", "interested", "not_interested", "converted"] as const)(
+    "drops the date when the outcome becomes %s",
+    (outcome) => {
+      // The control is unmounted for these, so a date left behind is one the
+      // agent cancelled and can no longer see — and the Worker would still
+      // write it to prospects.next_visit_at.
+      const next = withOutcome(
+        draft({ outcome: "follow_up", followUpDate: "2026-09-29" }),
+        outcome,
+      );
+
+      expect(next.outcome).toBe(outcome);
+      expect(next.followUpDate).toBe("");
+
+      const result = toVisit(next, CONTEXT);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.visit.followUpAt).toBeNull();
+    },
+  );
+
+  it("leaves the rest of the draft alone", () => {
+    const next = withOutcome(draft({ flyerGiven: true, notes: "ferme le lundi" }), "interested");
+
+    expect(next.flyerGiven).toBe(true);
+    expect(next.notes).toBe("ferme le lundi");
   });
 });

@@ -33,8 +33,15 @@ export function AddProspectScreen() {
   const [type, setType] = useState<ProspectType>("restaurant");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
-  const [nameError, setNameError] = useState(false);
+  /**
+   * Which control the shared schema refused. Every field has its own cap, and
+   * marking the name because the address is too long sends the agent to fix
+   * the one thing that was already right.
+   */
+  const [errors, setErrors] = useState<{ name?: true; address?: true; phone?: true }>({});
   const [saving, setSaving] = useState(false);
+  /** The outbox write itself failed, so nothing is queued. */
+  const [saveFailed, setSaveFailed] = useState(false);
 
   // Minted once: the client id is the idempotency key (INVARIANT 4).
   const [prospectId] = useState(() => crypto.randomUUID());
@@ -54,15 +61,36 @@ export function AddProspectScreen() {
     });
 
     if (!parsed.success) {
-      setNameError(true);
+      const next: { name?: true; address?: true; phone?: true } = {};
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0];
+        if (field === "address") next.address = true;
+        else if (field === "phone") next.phone = true;
+        // Anything else is the name or a field with no control of its own (the
+        // id, the position, the timestamp) — none of which the agent typed, so
+        // the name is where a message can still be acted on.
+        else next.name = true;
+      }
+      setErrors(next);
       return;
     }
 
     setSaving(true);
-    setNameError(false);
-    await fieldDb.outboxProspects.add(parsed.data);
+    setErrors({});
+    setSaveFailed(false);
+
+    try {
+      await fieldDb.outboxProspects.add(parsed.data);
+    } catch {
+      // Same rule as the visit form: the outbox row is the only copy of this
+      // prospect, so a failed write is reported rather than navigated past.
+      setSaving(false);
+      setSaveFailed(true);
+      return;
+    }
+
     void syncNow();
-    await navigate("/tournee", { replace: true });
+    await navigate("/tournee", { replace: true, state: { added: true } });
   }, [address, name, navigate, phone, point, prospectId, saving, syncNow, type]);
 
   return (
@@ -84,10 +112,10 @@ export function AddProspectScreen() {
           className="mt-1.5"
           value={name}
           placeholder={copy.fieldProspect.namePlaceholder}
-          aria-invalid={nameError ? true : undefined}
+          aria-invalid={errors.name ? true : undefined}
           onChange={(e) => setName(e.target.value)}
         />
-        {nameError && (
+        {errors.name && (
           <p role="alert" className="text-destructive mt-1.5 text-sm">
             {copy.fieldProspect.nameRequired}
           </p>
@@ -144,8 +172,14 @@ export function AddProspectScreen() {
           touch
           className="mt-1.5"
           value={address}
+          aria-invalid={errors.address ? true : undefined}
           onChange={(e) => setAddress(e.target.value)}
         />
+        {errors.address && (
+          <p role="alert" className="text-destructive mt-1.5 text-sm">
+            {copy.fieldProspect.addressTooLong}
+          </p>
+        )}
       </div>
 
       <div className="mt-4">
@@ -159,11 +193,22 @@ export function AddProspectScreen() {
           touch
           className="mt-1.5"
           value={phone}
+          aria-invalid={errors.phone ? true : undefined}
           onChange={(e) => setPhone(e.target.value)}
         />
+        {errors.phone && (
+          <p role="alert" className="text-destructive mt-1.5 text-sm">
+            {copy.fieldProspect.phoneTooLong}
+          </p>
+        )}
       </div>
 
       <div className="safe-bottom bg-background border-border fixed inset-x-0 bottom-0 border-t px-4 py-3">
+        {saveFailed && (
+          <p role="alert" className="text-destructive mb-2 text-sm">
+            {copy.fieldProspect.saveFailed}
+          </p>
+        )}
         <button
           type="button"
           className={cn(buttonVariants({ size: "touch" }), "w-full")}

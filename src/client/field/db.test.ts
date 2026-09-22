@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Dexie from "dexie";
 import type { Visit } from "../../shared/schemas";
-import { cacheVisitHistory, FieldDb } from "./db";
+import { cacheVisitHistory, clearAgentCache, FieldDb, getMeta, setMeta } from "./db";
 
 /**
  * INVARIANT 5 again, from the storage end. A schema upgrade is the one moment
@@ -114,6 +114,76 @@ describe("cacheVisitHistory", () => {
     await cacheVisitHistory(db, prospectId, []);
 
     await expect(db.visitHistory.where("prospectId").equals(prospectId).count()).resolves.toBe(0);
+    db.close();
+  });
+});
+
+describe("clearAgentCache", () => {
+  it("drops the round, the history and the identity", async () => {
+    const db = new FieldDb(dbName());
+    await db.open();
+    const prospectId = crypto.randomUUID();
+
+    await db.prospects.put({
+      id: prospectId,
+      name: "Chez Paul",
+      type: "restaurant",
+      status: "assigned",
+      address: null,
+      phone: null,
+      website: null,
+      cuisine: null,
+      source: "osm",
+      assignedTo: "a@example.com",
+      lat: null,
+      lng: null,
+      lastVisitAt: null,
+      nextVisitAt: null,
+    });
+    await cacheVisitHistory(db, prospectId, [entry(prospectId)]);
+    await setMeta(db, "identity", { email: "a@example.com", role: "agent" });
+
+    await clearAgentCache(db);
+
+    await expect(db.prospects.count()).resolves.toBe(0);
+    await expect(db.visitHistory.count()).resolves.toBe(0);
+    await expect(getMeta(db, "identity")).resolves.toBeUndefined();
+    db.close();
+  });
+
+  it("leaves the outbox alone — INVARIANT 5", async () => {
+    const db = new FieldDb(dbName());
+    await db.open();
+
+    // A revoked session is not the server listing these in `accepted`, which
+    // is the only thing allowed to delete them.
+    await db.outboxVisits.bulkPut([visit(), visit()]);
+    await db.outboxProspects.put({
+      id: crypto.randomUUID(),
+      name: "Le camion",
+      type: "food_truck",
+      lat: null,
+      lng: null,
+      address: null,
+      phone: null,
+      createdAt: 1_700_000_000_000,
+    });
+
+    await clearAgentCache(db);
+
+    await expect(db.outboxVisits.count()).resolves.toBe(2);
+    await expect(db.outboxProspects.count()).resolves.toBe(1);
+    db.close();
+  });
+
+  it("keeps the last sync time, which belongs to the device, not the agent", async () => {
+    const db = new FieldDb(dbName());
+    await db.open();
+    await setMeta(db, "lastSyncAt", 1_700_000_000_000);
+
+    await clearAgentCache(db);
+
+    await expect(getMeta(db, "lastSyncAt")).resolves.toBe(1_700_000_000_000);
     db.close();
   });
 });

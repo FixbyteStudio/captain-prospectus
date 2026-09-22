@@ -5,11 +5,11 @@ import { copy } from "./copy";
 import { cn } from "./lib/utils";
 import type { MeResponse } from "../shared/schemas";
 import { buttonVariants } from "@/ui/button-variants";
-import { usePwa } from "./pwa";
+import { usePwa, type PwaState } from "./pwa";
 import { TodayScreen } from "./field/TodayScreen";
 import { SyncDot, SyncStrip } from "./field/SyncIndicator";
 import { SyncProvider } from "./field/useSync";
-import { fieldDb, getMeta, setMeta } from "./field/db";
+import { clearAgentCache, fieldDb, getMeta, setMeta } from "./field/db";
 import { resolveIdentity } from "./field/identity";
 
 /**
@@ -68,9 +68,15 @@ function BandLink({ to, children }: { to: string; children: string }) {
 /**
  * A new build is waiting. `registerType` is "prompt" (vite.config.ts), so the
  * agent decides when to take it rather than being reloaded mid-round.
+ *
+ * The registration itself is deliberately *not* done here. This component
+ * renders only once `/api/me` has settled, and a phone whose first load fails
+ * to identify would then never register a worker at all — which is exactly the
+ * phone that most needs one, since without it there is nothing cached to open
+ * offline next time. `App` holds the hook; this only draws the prompt.
  */
-function UpdatePrompt() {
-  const { needRefresh, update, dismiss } = usePwa();
+function UpdatePrompt({ pwa }: { pwa: PwaState }) {
+  const { needRefresh, update, dismiss } = pwa;
   if (!needRefresh) return null;
 
   return (
@@ -128,6 +134,10 @@ export function App() {
   /** True when the identity came from the cache rather than from the server. */
   const [offline, setOffline] = useState(false);
 
+  // Registers the service worker on mount, before and regardless of whether
+  // `/api/me` answers. See the note on `UpdatePrompt`.
+  const pwa = usePwa();
+
   /**
    * Identity, with an offline fallback — but only for genuine unreachability.
    *
@@ -145,6 +155,12 @@ export function App() {
       const outcome = resolveIdentity(result, cached);
 
       if (outcome.kind === "error") {
+        // A 401 is the Worker revoking this identity. The cache it would
+        // otherwise be read from offline goes with it, or airplane mode hands
+        // the round straight back (docs/domains/identity-access.md). The
+        // outbox stays: INVARIANT 5.
+        if (outcome.revoked) await clearAgentCache(fieldDb);
+        if (cancelled) return;
         setError(outcome.message);
         return;
       }
@@ -155,7 +171,7 @@ export function App() {
       // residual gap that leaves (a queued visit written under the previous
       // identity still syncs under this one).
       if (outcome.identitySwitched) {
-        await Promise.all([fieldDb.prospects.clear(), fieldDb.visitHistory.clear()]);
+        await clearAgentCache(fieldDb);
       }
       setMe(outcome.identity);
       setOffline(outcome.offline);
@@ -202,7 +218,7 @@ export function App() {
         <SyncDot />
       </header>
 
-      <UpdatePrompt />
+      <UpdatePrompt pwa={pwa} />
       <SyncStrip />
 
       <main className="safe-bottom px-4 py-6">

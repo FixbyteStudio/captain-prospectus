@@ -5,7 +5,7 @@
  * instruction. It gets the width, the space and the actions; the rest of the
  * round is a quiet ledger beneath it.
  */
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { buttonVariants } from "@/ui/button-variants";
@@ -111,9 +111,20 @@ function StopRow({ item, index }: { item: TodayItem; index?: number }) {
   );
 }
 
+/**
+ * What the visit form and the add-prospect form left in the router state.
+ *
+ * Both replace their history entry with this screen, so there is nowhere else
+ * to confirm a save: without this, an agent taps « Enregistrer la visite » and
+ * lands back on the round with no sign anything happened.
+ */
+type RoundState = { saved?: boolean; added?: boolean };
+
 export function TodayScreen() {
   const { point, locating, denied, refresh } = useAgentPosition();
   const { lastSyncAt } = useSyncState();
+  const { state } = useLocation();
+  const justSaved = (state as RoundState | null) ?? null;
 
   /**
    * "Now", for deciding which follow-ups are not due yet.
@@ -145,6 +156,17 @@ export function TodayScreen() {
           </span>
         )}
       </header>
+
+      {justSaved?.saved && (
+        <p role="status" className="text-success mt-2 text-sm">
+          {copy.visit.saved}
+        </p>
+      )}
+      {justSaved?.added && (
+        <p role="status" className="text-success mt-2 text-sm">
+          {copy.fieldProspect.saved}
+        </p>
+      )}
 
       {locating && <p className="text-muted-foreground mt-1 text-sm">{copy.today.locating}</p>}
       {denied && (
