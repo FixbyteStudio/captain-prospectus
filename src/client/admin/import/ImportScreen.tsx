@@ -76,7 +76,9 @@ export function ImportScreen() {
               aria-current={s.id === step ? "step" : undefined}
               className={cn(
                 s.id === step && "text-foreground font-semibold",
-                index < reachedStep && "text-primary",
+                // A finished step is success-green, not the brand gold: gold text
+                // is 2.2:1 on this page (docs/design.md).
+                index < reachedStep && "text-success",
               )}
             >
               {s.label}

@@ -20,10 +20,15 @@ export const STATUS_EDGE: Readonly<Record<Status, string>> = {
   rejected: "shadow-[inset_4px_0_0_0_var(--color-status-rejected)]",
 };
 
+/**
+ * `converted` is `success`, never `primary`. The brand colour is gold, and gold
+ * sits 7° in hue from the mustard that means `follow_up` — a converted prospect
+ * and one that needs chasing would stop being separable at a glance.
+ */
 export const STATUS_TEXT: Readonly<Record<Status, string>> = {
   new: "text-muted-foreground",
   assigned: "text-foreground font-medium",
   follow_up: "text-warn font-medium",
-  converted: "text-primary font-medium",
+  converted: "text-success font-medium",
   rejected: "text-destructive font-medium",
 };

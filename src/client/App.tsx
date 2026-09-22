@@ -29,7 +29,7 @@ function BandLink({ to, children }: { to: string; children: string }) {
         cn(
           "inline-flex h-8 shrink-0 items-center rounded-md px-2.5 font-medium transition-colors",
           isActive
-            ? "bg-white/10 text-band-foreground"
+            ? "bg-band-foreground/12 text-band-foreground"
             : "text-band-muted hover:text-band-foreground",
         )
       }
@@ -55,6 +55,15 @@ export function App() {
   return (
     <>
       <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
+        {/*
+          An <img> rather than an inline SVG: the mark is ~5 kB of path data and
+          this shell is in the entry chunk a field phone downloads. The file is
+          precached by the service worker, so it still shows offline.
+
+          mark.svg is the logo with its navy swapped for the band's foreground —
+          the navy wheel on the navy band would be 1:1, literally invisible.
+        */}
+        <img src="/mark.svg" alt="" aria-hidden="true" className="h-7 w-auto shrink-0" />
         <span className="shrink-0 text-[0.9375rem] font-semibold tracking-[0.01em] whitespace-nowrap">
           {copy.appName}
         </span>

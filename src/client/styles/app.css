@@ -4,8 +4,8 @@
  *
  * Design direction: the admin side is a ledger, not a dashboard. Status is read
  * down a row's leading edge before it is read as a word, numbers are tabular and
- * right-aligned, and nothing is wrapped in a card. Colours are cool zinc around
- * the brasserie green that is already the PWA's theme_color.
+ * right-aligned, and nothing is wrapped in a card. The palette is the brand's
+ * navy and gold; docs/design.md explains what each colour may and may not do.
  */
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -74,10 +74,19 @@
   --color-accent: var(--secondary);
   --color-accent-foreground: var(--foreground);
   --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--primary-foreground);
+  --color-destructive-foreground: var(--on-destructive);
   --color-border: var(--border);
   --color-input: var(--border);
-  --color-ring: var(--primary);
+  /**
+   * Deliberately NOT var(--primary). The brand gold is 2.4:1 on white, and a
+   * focus ring needs 3:1 against what it sits on, so a gold ring would be
+   * invisible exactly where it matters most.
+   */
+  --color-ring: var(--ring);
+
+  /* A gold fill is 2.2:1 against the page, so the button needs its own edge to
+     satisfy WCAG 1.4.11. A darker gold gives 3.4:1 and still reads as gold. */
+  --color-primary-edge: var(--primary-edge);
 
   /* The dark band the app shell sits under. */
   --color-band: var(--band);
@@ -86,12 +95,15 @@
 
   /* follow_up. Neither success nor failure — someone owes this place a visit. */
   --color-warn: var(--warn);
+  /* converted. Its own token now: the brand colour is gold, and a gold
+     "converted" would sit 7° from the mustard that means "à relancer". */
+  --color-success: var(--success);
 
   /* The leading edge of a ledger row. One per status, in ramp order. */
   --color-status-new: var(--status-new);
   --color-status-assigned: var(--status-assigned);
   --color-status-follow-up: var(--warn);
-  --color-status-converted: var(--primary);
+  --color-status-converted: var(--success);
   --color-status-rejected: var(--destructive);
 
   --font-sans: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -113,20 +125,31 @@
   --spacing-row: 2.75rem;
 }
 
+/**
+ * The brand is navy #1b2a4a and gold #c9a227, taken from the mark in
+ * public/icon-512.png. Navy is the ink and the band; gold is the primary
+ * action and nothing else. Every pair below is asserted in palette.test.ts.
+ */
 :root {
-  --background: #f0f2f1;
-  --foreground: #16211c;
+  /* The logo's own field, so the app and the mark sit on the same white. */
+  --background: #f6f7f0;
+  --foreground: #1b2a4a;
   --card: #ffffff;
-  --secondary: #e7eae8;
-  --muted-foreground: #56635d;
-  --border: #d5dcd8;
-  --primary: #1f6f4a;
-  --primary-foreground: #ffffff;
+  --secondary: #e8eaef;
+  --muted-foreground: #5a6478;
+  --border: #d7dae2;
+  --primary: #c9a227;
+  /* Navy on gold is 5.9:1. White on gold is 2.4:1, so never white. */
+  --primary-foreground: #1b2a4a;
+  --primary-edge: #a8801a;
+  --ring: #1b2a4a;
+  --success: #1f6f4a;
   --warn: #9a6b12;
   --destructive: #8c2f39;
-  --band: #16211c;
-  --band-foreground: #e6ebe8;
-  --band-muted: #8b9a93;
+  --on-destructive: #ffffff;
+  --band: #1b2a4a;
+  --band-foreground: #eef0f4;
+  --band-muted: #95a0b8;
 
   /* Nothing has happened here yet: present, but the quietest thing in the column. */
   --status-new: color-mix(in oklab, var(--foreground) 16%, transparent);
@@ -140,38 +163,46 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: #121815;
-    --foreground: #e6ebe8;
-    --card: #19211d;
-    --secondary: #222c27;
-    --muted-foreground: #94a29b;
-    --border: #2c3832;
-    --primary: #4fa97d;
-    --primary-foreground: #0c1310;
-    --warn: #d4a23e;
+    --background: #101726;
+    --foreground: #e7eaf0;
+    --card: #182031;
+    --secondary: #222b3d;
+    --muted-foreground: #97a2b8;
+    --border: #2b3547;
+    --primary: #d9b43c;
+    --primary-foreground: #141c2e;
+    --primary-edge: #e6c65c;
+    --ring: #e7eaf0;
+    --success: #4fa97d;
+    --on-destructive: #141c2e;
+    --warn: #d98a3c;
     --destructive: #d2757e;
-    --band: #0c1310;
-    --band-foreground: #e6ebe8;
-    --band-muted: #7d8c85;
+    --band: #0b1120;
+    --band-foreground: #e7eaf0;
+    --band-muted: #7d899f;
 
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --background: #121815;
-  --foreground: #e6ebe8;
-  --card: #19211d;
-  --secondary: #222c27;
-  --muted-foreground: #94a29b;
-  --border: #2c3832;
-  --primary: #4fa97d;
-  --primary-foreground: #0c1310;
-  --warn: #d4a23e;
+  --background: #101726;
+  --foreground: #e7eaf0;
+  --card: #182031;
+  --secondary: #222b3d;
+  --muted-foreground: #97a2b8;
+  --border: #2b3547;
+  --primary: #d9b43c;
+  --primary-foreground: #141c2e;
+  --primary-edge: #e6c65c;
+  --ring: #e7eaf0;
+  --success: #4fa97d;
+  --on-destructive: #141c2e;
+  --warn: #d98a3c;
   --destructive: #d2757e;
-  --band: #0c1310;
-  --band-foreground: #e6ebe8;
-  --band-muted: #7d8c85;
+  --band: #0b1120;
+  --band-foreground: #e7eaf0;
+  --band-muted: #7d899f;
 
   color-scheme: dark;
 }
