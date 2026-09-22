@@ -4,8 +4,21 @@
  *
  * JSON is camelCase, SQL is snake_case (Drizzle maps them). Timestamps are
  * epoch-millisecond integers.
+ *
+ * **Why `zod/mini` and not `zod`.** This module is reachable from the field
+ * entry chunk — `sync.ts` validates the server's response before trusting it
+ * enough to clear an outbox row (INVARIANT 5), so the schemas an agent's phone
+ * downloads are not optional. Classic zod's runtime is ~27.8 kB gzipped of that
+ * chunk, ~5.5 kB of which is JSON-Schema conversion this app never calls; the
+ * mini runtime is ~8 kB for the same contract. ADR-0017 has the measurement.
+ *
+ * The cost is the API: mini composes with `.check(...)` and standalone wrappers
+ * (`z.optional(x)`, `z.nullable(x)`, `z._default(x, v)`) where classic chains
+ * methods. Same core, same parsed values, same `issues` shape — `@hono/zod-validator`
+ * takes a mini schema because both are `$ZodType` — so this is one definition
+ * serving both sides, which is the whole point of `src/shared`.
  */
-import { z } from "zod";
+import * as z from "zod/mini";
 import {
   ADMIN_VISITS_PAGE_SIZE,
   IMPORT_ROWS_PER_REQUEST,
@@ -26,14 +39,25 @@ import {
 /* ---------------------------------------------------------------- primitives */
 
 export const uuidSchema = z.uuid();
-export const epochMsSchema = z.int().nonnegative();
-export const latSchema = z.number().min(-90).max(90);
-export const lngSchema = z.number().min(-180).max(180);
-export const emailSchema = z.email().toLowerCase().max(320);
+export const epochMsSchema = z.int().check(z.nonnegative());
+export const latSchema = z.number().check(z.gte(-90), z.lte(90));
+export const lngSchema = z.number().check(z.gte(-180), z.lte(180));
+/**
+ * `z.overwrite`, not `z.lowercase()`: the classic schema called `.toLowerCase()`,
+ * which normalises. `z.lowercase()` is a *check* that would reject `A@b.com`
+ * instead of folding it, and an admin typing a capital into the assign box is
+ * not an error to report.
+ */
+export const emailSchema = z.email().check(
+  z.overwrite((value) => value.toLowerCase()),
+  z.maxLength(320),
+);
 
 /** Free text from the field or an import. Capped so a payload cannot balloon. */
-const shortText = z.string().trim().max(200);
-const longText = z.string().trim().max(2000);
+const shortText = z.string().check(z.trim(), z.maxLength(200));
+const longText = z.string().check(z.trim(), z.maxLength(2000));
+/** `shortText` that may not be empty. Mini's `.check()` clones and appends. */
+const shortTextRequired = shortText.check(z.minLength(1));
 
 export const statusSchema = z.enum(STATUSES);
 export const outcomeSchema = z.enum(OUTCOMES);
@@ -54,24 +78,26 @@ export type MeResponse = z.infer<typeof meResponseSchema>;
 export const questionSchema = z.object({
   key: z
     .string()
-    .regex(/^[a-z][a-z0-9_]*$/, "key must be snake_case and start with a letter")
-    .max(60),
-  label: shortText.min(1),
+    .check(
+      z.regex(/^[a-z][a-z0-9_]*$/, "key must be snake_case and start with a letter"),
+      z.maxLength(60),
+    ),
+  label: shortTextRequired,
   type: z.enum(QUESTION_TYPES),
-  options: z.array(shortText.min(1)).max(30).optional(),
-  required: z.boolean().optional(),
+  options: z.optional(z.array(shortTextRequired).check(z.maxLength(30))),
+  required: z.optional(z.boolean()),
 });
 export type Question = z.infer<typeof questionSchema>;
 
 export const scriptCreateSchema = z.object({
-  name: shortText.min(1),
-  questions: z.array(questionSchema).min(1).max(50),
+  name: shortTextRequired,
+  questions: z.array(questionSchema).check(z.minLength(1), z.maxLength(50)),
 });
 
 export const scriptSchema = z.object({
-  id: z.int().positive(),
+  id: z.int().check(z.positive()),
   name: shortText,
-  version: z.int().positive(),
+  version: z.int().check(z.positive()),
   questions: z.array(questionSchema),
   isActive: z.boolean(),
   createdAt: epochMsSchema,
@@ -80,8 +106,13 @@ export type Script = z.infer<typeof scriptSchema>;
 
 /** Answers are keyed by question `key`; the shape is validated against the script. */
 export const answersSchema = z.record(
-  z.string().max(60),
-  z.union([z.boolean(), z.string().max(2000), z.number(), z.array(z.string().max(200)).max(30)]),
+  z.string().check(z.maxLength(60)),
+  z.union([
+    z.boolean(),
+    z.string().check(z.maxLength(2000)),
+    z.number(),
+    z.array(z.string().check(z.maxLength(200))).check(z.maxLength(30)),
+  ]),
 );
 export type Answers = z.infer<typeof answersSchema>;
 
@@ -89,39 +120,39 @@ export type Answers = z.infer<typeof answersSchema>;
 
 export const prospectSchema = z.object({
   id: uuidSchema,
-  name: shortText.min(1),
+  name: shortTextRequired,
   type: prospectTypeSchema,
-  lat: latSchema.nullable(),
-  lng: lngSchema.nullable(),
-  address: shortText.nullable(),
-  phone: shortText.nullable(),
-  website: shortText.nullable(),
-  cuisine: shortText.nullable(),
+  lat: z.nullable(latSchema),
+  lng: z.nullable(lngSchema),
+  address: z.nullable(shortText),
+  phone: z.nullable(shortText),
+  website: z.nullable(shortText),
+  cuisine: z.nullable(shortText),
   source: sourceSchema,
   status: statusSchema,
-  assignedTo: emailSchema.nullable(),
-  lastVisitAt: epochMsSchema.nullable(),
-  nextVisitAt: epochMsSchema.nullable(),
+  assignedTo: z.nullable(emailSchema),
+  lastVisitAt: z.nullable(epochMsSchema),
+  nextVisitAt: z.nullable(epochMsSchema),
 });
 export type Prospect = z.infer<typeof prospectSchema>;
 
 /** One row of a CSV or Overpass import, before the server assigns a dedupe key. */
 export const importRowSchema = z.object({
-  name: shortText.min(1),
-  type: prospectTypeSchema.default("other"),
-  lat: latSchema.nullish(),
-  lng: lngSchema.nullish(),
-  address: shortText.nullish(),
-  phone: shortText.nullish(),
-  website: shortText.nullish(),
-  cuisine: shortText.nullish(),
-  sourceRef: shortText.nullish(),
+  name: shortTextRequired,
+  type: z._default(prospectTypeSchema, "other"),
+  lat: z.nullish(latSchema),
+  lng: z.nullish(lngSchema),
+  address: z.nullish(shortText),
+  phone: z.nullish(shortText),
+  website: z.nullish(shortText),
+  cuisine: z.nullish(shortText),
+  sourceRef: z.nullish(shortText),
 });
 export type ImportRow = z.infer<typeof importRowSchema>;
 
 export const prospectBatchSchema = z.object({
   source: z.enum(["csv", "osm"]),
-  rows: z.array(importRowSchema).min(1).max(IMPORT_ROWS_PER_REQUEST),
+  rows: z.array(importRowSchema).check(z.minLength(1), z.maxLength(IMPORT_ROWS_PER_REQUEST)),
 });
 
 /**
@@ -130,44 +161,51 @@ export const prospectBatchSchema = z.object({
  * never sends a status *derived from a visit*.
  */
 export const prospectPatchSchema = z
-  .object({
-    name: shortText.min(1),
-    type: prospectTypeSchema,
-    lat: latSchema.nullable(),
-    lng: lngSchema.nullable(),
-    address: shortText.nullable(),
-    phone: shortText.nullable(),
-    website: shortText.nullable(),
-    cuisine: shortText.nullable(),
-    assignedTo: emailSchema.nullable(),
-    status: statusSchema,
-    nextVisitAt: epochMsSchema.nullable(),
-  })
-  .partial()
-  .refine((v) => Object.keys(v).length > 0, { message: "no fields to update" });
+  .partial(
+    z.object({
+      name: shortTextRequired,
+      type: prospectTypeSchema,
+      lat: z.nullable(latSchema),
+      lng: z.nullable(lngSchema),
+      address: z.nullable(shortText),
+      phone: z.nullable(shortText),
+      website: z.nullable(shortText),
+      cuisine: z.nullable(shortText),
+      assignedTo: z.nullable(emailSchema),
+      status: statusSchema,
+      nextVisitAt: z.nullable(epochMsSchema),
+    }),
+  )
+  .check(z.refine((v) => Object.keys(v).length > 0, { error: "no fields to update" }));
 
 export const assignSchema = z.object({
-  ids: z.array(uuidSchema).min(1).max(500),
-  assignedTo: emailSchema.nullable(),
+  ids: z.array(uuidSchema).check(z.minLength(1), z.maxLength(500)),
+  assignedTo: z.nullable(emailSchema),
 });
 
 /** Query string, so every value arrives as text and has to be coerced. */
 export const prospectsQuerySchema = z.object({
-  status: statusSchema.optional(),
-  assignedTo: emailSchema.optional(),
-  source: sourceSchema.optional(),
-  limit: z.coerce.number().int().positive().max(PROSPECTS_PAGE_SIZE).default(PROSPECTS_PAGE_SIZE),
+  status: z.optional(statusSchema),
+  assignedTo: z.optional(emailSchema),
+  source: z.optional(sourceSchema),
+  limit: z._default(
+    z.coerce.number().check(z.int(), z.positive(), z.lte(PROSPECTS_PAGE_SIZE)),
+    PROSPECTS_PAGE_SIZE,
+  ),
   /**
    * Capped like the limit is. SQLite walks the index to reach an offset, so an
    * arbitrarily large one is a scan of the whole table that returns nothing.
    */
-  offset: z.coerce.number().int().nonnegative().max(PROSPECTS_MAX_OFFSET).default(0),
+  offset: z._default(
+    z.coerce.number().check(z.int(), z.nonnegative(), z.lte(PROSPECTS_MAX_OFFSET)),
+    0,
+  ),
 });
 
 export const prospectsResponseSchema = z.object({
   prospects: z.array(prospectSchema),
   /** Rows matching the filters, ignoring limit/offset. The list header shows it. */
-  total: z.int().nonnegative(),
+  total: z.int().check(z.nonnegative()),
 });
 export type ProspectsResponse = z.infer<typeof prospectsResponseSchema>;
 
@@ -176,14 +214,14 @@ export type ProspectsResponse = z.infer<typeof prospectsResponseSchema>;
  * is an update, not a duplicate, and that is the whole point of re-importing.
  */
 export const importResultSchema = z.object({
-  created: z.int().nonnegative(),
-  updated: z.int().nonnegative(),
+  created: z.int().check(z.nonnegative()),
+  updated: z.int().check(z.nonnegative()),
 });
 export type ImportResult = z.infer<typeof importResultSchema>;
 
 export const assignResultSchema = z.object({
   /** Rows whose assignment was written. Unknown ids are silently not counted. */
-  assigned: z.int().nonnegative(),
+  assigned: z.int().check(z.nonnegative()),
 });
 export type AssignResult = z.infer<typeof assignResultSchema>;
 
@@ -199,9 +237,9 @@ export const prospectIdParamSchema = z.object({ id: uuidSchema });
 export const duplicatePairSchema = z.object({
   a: prospectSchema,
   b: prospectSchema,
-  distanceM: z.number().nonnegative().nullable(),
-  aVisits: z.int().nonnegative(),
-  bVisits: z.int().nonnegative(),
+  distanceM: z.nullable(z.number().check(z.nonnegative())),
+  aVisits: z.int().check(z.nonnegative()),
+  bVisits: z.int().check(z.nonnegative()),
 });
 export type DuplicatePair = z.infer<typeof duplicatePairSchema>;
 
@@ -217,10 +255,12 @@ export const mergeSchema = z
     survivorId: uuidSchema,
     mergedId: uuidSchema,
   })
-  .refine((v) => v.survivorId !== v.mergedId, {
-    message: "a prospect cannot be merged into itself",
-    path: ["mergedId"],
-  });
+  .check(
+    z.refine((v) => v.survivorId !== v.mergedId, {
+      error: "a prospect cannot be merged into itself",
+      path: ["mergedId"],
+    }),
+  );
 
 export const mergeResultSchema = z.object({
   survivorId: uuidSchema,
@@ -248,12 +288,12 @@ export type AgentsResponse = z.infer<typeof agentsResponseSchema>;
 /** A prospect an agent added on the ground. Always source = field. */
 export const fieldProspectSchema = z.object({
   id: uuidSchema,
-  name: shortText.min(1),
+  name: shortTextRequired,
   type: prospectTypeSchema,
-  lat: latSchema.nullish(),
-  lng: lngSchema.nullish(),
-  address: shortText.nullish(),
-  phone: shortText.nullish(),
+  lat: z.nullish(latSchema),
+  lng: z.nullish(lngSchema),
+  address: z.nullish(shortText),
+  phone: z.nullish(shortText),
   createdAt: epochMsSchema,
 });
 export type FieldProspect = z.infer<typeof fieldProspectSchema>;
@@ -264,25 +304,30 @@ export const visitSchema = z
     prospectId: uuidSchema,
     /** Phone clock. The server clamps it to received_at on insert (INVARIANT 12). */
     visitedAt: epochMsSchema,
-    lat: latSchema.nullish(),
-    lng: lngSchema.nullish(),
+    lat: z.nullish(latSchema),
+    lng: z.nullish(lngSchema),
     flyerGiven: z.boolean(),
     outcome: outcomeSchema,
-    followUpAt: epochMsSchema.nullish(),
-    notes: longText.nullish(),
-    scriptId: z.int().positive().nullish(),
-    answers: answersSchema.default({}),
+    followUpAt: z.nullish(epochMsSchema),
+    notes: z.nullish(longText),
+    scriptId: z.nullish(z.int().check(z.positive())),
+    answers: z._default(answersSchema, {}),
   })
-  .refine((v) => v.outcome !== "follow_up" || typeof v.followUpAt === "number", {
-    message: "followUpAt is required when the outcome is follow_up",
-    path: ["followUpAt"],
-  });
+  .check(
+    z.refine((v) => v.outcome !== "follow_up" || typeof v.followUpAt === "number", {
+      error: "followUpAt is required when the outcome is follow_up",
+      path: ["followUpAt"],
+    }),
+  );
 export type Visit = z.infer<typeof visitSchema>;
 
 export const syncRequestSchema = z.object({
-  clientVersion: z.int().positive(),
-  prospects: z.array(fieldProspectSchema).max(SYNC_PROSPECTS_PER_REQUEST).default([]),
-  visits: z.array(visitSchema).max(SYNC_VISITS_PER_REQUEST).default([]),
+  clientVersion: z.int().check(z.positive()),
+  prospects: z._default(
+    z.array(fieldProspectSchema).check(z.maxLength(SYNC_PROSPECTS_PER_REQUEST)),
+    [],
+  ),
+  visits: z._default(z.array(visitSchema).check(z.maxLength(SYNC_VISITS_PER_REQUEST)), []),
 });
 export type SyncRequest = z.infer<typeof syncRequestSchema>;
 
@@ -301,7 +346,7 @@ export const syncResponseSchema = z.object({
    */
   idMap: z.record(uuidSchema, uuidSchema),
   prospects: z.array(prospectSchema),
-  script: scriptSchema.nullable(),
+  script: z.nullable(scriptSchema),
 });
 export type SyncResponse = z.infer<typeof syncResponseSchema>;
 
@@ -323,8 +368,8 @@ export const visitHistoryEntrySchema = z.object({
   visitedAt: epochMsSchema,
   flyerGiven: z.boolean(),
   outcome: outcomeSchema,
-  followUpAt: epochMsSchema.nullable(),
-  notes: longText.nullable(),
+  followUpAt: z.nullable(epochMsSchema),
+  notes: z.nullable(longText),
 });
 export type VisitHistoryEntry = z.infer<typeof visitHistoryEntrySchema>;
 
@@ -336,27 +381,24 @@ export type VisitHistoryResponse = z.infer<typeof visitHistoryResponseSchema>;
 /* --------------------------------------------------------------------- admin */
 
 export const visitsSinceQuerySchema = z.object({
-  since: z.coerce.number().int().nonnegative().default(0),
-  limit: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(ADMIN_VISITS_PAGE_SIZE)
-    .default(ADMIN_VISITS_PAGE_SIZE),
+  since: z._default(z.coerce.number().check(z.int(), z.nonnegative()), 0),
+  limit: z._default(
+    z.coerce.number().check(z.int(), z.positive(), z.lte(ADMIN_VISITS_PAGE_SIZE)),
+    ADMIN_VISITS_PAGE_SIZE,
+  ),
 });
 
 export const overpassImportSchema = z.object({
   polygon: z
     .array(z.tuple([latSchema, lngSchema]))
-    .min(POLYGON_MIN_VERTICES)
-    .max(POLYGON_MAX_VERTICES),
+    .check(z.minLength(POLYGON_MIN_VERTICES), z.maxLength(POLYGON_MAX_VERTICES)),
 });
 
 /* -------------------------------------------------------------------- errors */
 
 export const errorSchema = z.object({
   error: z.string(),
-  message: z.string().optional(),
-  issues: z.unknown().optional(),
+  message: z.optional(z.string()),
+  issues: z.optional(z.unknown()),
 });
 export type ApiError = z.infer<typeof errorSchema>;

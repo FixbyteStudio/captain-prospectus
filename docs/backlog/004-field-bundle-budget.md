@@ -1,8 +1,9 @@
 ---
 id: 004
-status: needs-decision
+status: done
 implements: docs/vision.md#success-criteria "field route JS stays under 150 kB gzipped"
 depends_on: []
+settled_by: docs/adr/0017-zod-mini-for-the-shared-wire-contract.md
 ---
 
 # Bring the field entry chunk back under its bundle budget
@@ -59,14 +60,15 @@ decision, not a default):
 
 ## Acceptance criteria
 
-- [ ] An ADR records the choice (this is an architectural trade, not a patch —
-      new-adr skill).
-- [ ] `pnpm build` reports the field entry chunk at or under the budget the ADR
-      settles on.
-- [ ] `pnpm lint && pnpm typecheck && pnpm test && pnpm build` green, including
+- [x] An ADR records the choice (this is an architectural trade, not a patch —
+      new-adr skill). [ADR-0017](../adr/0017-zod-mini-for-the-shared-wire-contract.md).
+- [x] `pnpm build` reports the field entry chunk at or under the budget the ADR
+      settles on. **141.95 kB against the unchanged 150 kB budget.**
+- [x] `pnpm lint && pnpm typecheck && pnpm test && pnpm build` green, including
       the existing `sync.test.ts` and `visit-draft.test.ts` suites unchanged in
       what they assert (only how the assertions are produced, if B or C).
-- [ ] `docs/vision.md`'s measured-bundle paragraph updated with the new number
+      **246 tests pass and neither suite needed an edit at all.**
+- [x] `docs/vision.md`'s measured-bundle paragraph updated with the new number
       and this backlog item marked `done`.
 
 ## Out of scope
@@ -82,3 +84,20 @@ per-package breakdown method in the M2 PR description, not the top-line gzip
 number alone — that is what told the difference between "Radix costs 38 kB" (a
 real, fixable barrel-import problem, fixed in M2) and "zod costs 30 kB" (the
 real, structural cost this task is about).
+
+## Outcome
+
+**Option B (`zod/mini`), and option A was measured and rejected.**
+
+The decision section above assumed the field side drags in admin schemas it never
+uses. It does not: rolldown already tree-shakes them, and every wire schema in the
+repo together is 3.2 kB raw in the entry chunk, so splitting the file was worth
+about 1 kB. The overage was zod's runtime — 88.6 kB raw / 27.8 kB gzipped, of which
+17.4 kB raw is `to-json-schema` machinery nothing calls.
+
+Writing the contract in `zod/mini` took the entry chunk from **158.78 kB to
+141.95 kB gzipped**, and the Worker bundle from 110.26 to 83.93 kB as a side
+effect. One definition still serves both sides — `@hono/zod-validator` accepts a
+mini schema, because both flavours are `$ZodType` — so option C's duplication was
+avoided. See [ADR-0017](../adr/0017-zod-mini-for-the-shared-wire-contract.md) for
+the full attribution table and the compatibility checks.

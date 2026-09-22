@@ -61,9 +61,13 @@ the bundle budget, cited against a measurement each time.
       side is a lazy chunk, the budget is in [vision.md](vision.md); re-measured at the
       end of M2: **158 kB, over the 150 kB budget** — `zod` becoming reachable for the
       first time once the sync engine is actually wired, tracked as
-      [backlog/004](backlog/004-field-bundle-budget.md)
+      [backlog/004](backlog/004-field-bundle-budget.md) and settled at the start of M3 by
+      [ADR-0017](adr/0017-zod-mini-for-the-shared-wire-contract.md): **141.95 kB, under budget**
 
 ## M3 — Scripts
+- [x] Field bundle back under budget before the milestone spends anything —
+      [ADR-0017](adr/0017-zod-mini-for-the-shared-wire-contract.md), closing
+      [backlog/004](backlog/004-field-bundle-budget.md)
 - [ ] **Design pass** with the `frontend-design` skill: the question editor is the
       most complex screen in the app
 - [ ] Script editor (admin), versioning — shadcn `form`, `accordion`, `select`, drag to reorder
