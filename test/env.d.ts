@@ -9,6 +9,8 @@ declare global {
     interface Env {
       TEST_MIGRATIONS: D1Migration[];
       DEV_USER_EMAIL?: string;
+      /** A secret in production (ADR-0020); the Places tests set and clear it. */
+      GOOGLE_PLACES_KEY?: string;
     }
   }
 }

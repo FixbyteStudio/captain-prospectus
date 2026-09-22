@@ -10,3 +10,9 @@ ADMIN_EMAILS="admin@example.com"
 # Comma-separated. Who the admin's assign menu offers, besides the admins.
 # The local seed assigns to admin@example.com and agent@example.com.
 AGENT_EMAILS="agent@example.com"
+
+# Google Places API key (ADR-0020). Optional: without it the map import's
+# Google provider answers 503 and says so, and everything else works.
+# In production this is a SECRET — `wrangler secret put GOOGLE_PLACES_KEY` —
+# never a var in wrangler.jsonc.
+# GOOGLE_PLACES_KEY="AIza..."

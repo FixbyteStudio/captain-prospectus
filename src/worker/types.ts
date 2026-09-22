@@ -23,6 +23,15 @@ export type Bindings = Omit<
   AGENT_EMAILS?: string;
   /** Local development only; honoured only on localhost. See ADR-0006. */
   DEV_USER_EMAIL?: string;
+  /**
+   * Google Places API key — a **secret**, set with `wrangler secret put`, never
+   * in wrangler.jsonc and never sent to the browser (ADR-0020).
+   *
+   * Optional on purpose: absent means the Google map provider is simply not
+   * configured, the route answers 503, and the app works exactly as it did
+   * before. A deployment with no billing account loses nothing.
+   */
+  GOOGLE_PLACES_KEY?: string;
 };
 
 export type Identity = { email: string; role: Role };

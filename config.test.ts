@@ -29,6 +29,16 @@ describe("wrangler.jsonc", () => {
     expect(assets.not_found_handling).toBe("single-page-application");
   });
 
+  it("never carries the Google Places key as a plain var", () => {
+    const vars = (readWranglerConfig().vars ?? {}) as Record<string, unknown>;
+
+    // ADR-0020. `vars` is committed to the repo; the key is a secret and is set
+    // with `wrangler secret put`. Putting it here would publish it in git and
+    // in every `wrangler deploy` output, and nothing would fail.
+    expect(Object.keys(vars)).not.toContain("GOOGLE_PLACES_KEY");
+    expect(readFileSync("wrangler.jsonc", "utf8")).not.toContain("GOOGLE_PLACES_KEY");
+  });
+
   it("keeps observability on, which the release checklist depends on", () => {
     const observability = readWranglerConfig().observability as { enabled?: boolean };
     expect(observability.enabled).toBe(true);
