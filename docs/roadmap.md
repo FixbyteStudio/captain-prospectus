@@ -99,6 +99,17 @@ the bundle budget, cited against a measurement each time.
       143.93 kB against the 150 kB budget, precache 604.59 KiB across 14 entries.** None of
       Leaflet's 45.7 kB reaches a phone
 
+### After M4 — a second map provider
+- [x] Google Places beside Overpass, chosen from a dropdown on the map step
+      ([ADR-0020](adr/0020-google-places-as-a-second-map-provider.md)) — OSM coverage in the target
+      city turned out to be exactly as patchy as ADR-0008 predicted, and the owner has accepted
+      the cost and the licence terms. Overpass stays the default and keeps the polygon; Google
+      draws a circle because Nearby Search has no polygon search, and returns at most 20 places
+      because it has no page tokens either. The field mask stays inside the Pro tier, so phone
+      and website do not come from Google. **Entry chunk 144.38 kB against the 150 kB budget,
+      precache 605.78 KiB across 14 entries** — the +0.45 kB is French copy and constants in the
+      bundle the field shares, and nothing of the provider itself reaches a phone
+
 ## M5 — Hardening
 - [ ] Security review against [security.md](security.md)
 - [ ] Orphan visits: report ids the server could not store in a `rejected` field so a phone stops resending for ever (see [field-operations](domains/field-operations.md#rules))

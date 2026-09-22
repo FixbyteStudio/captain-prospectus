@@ -29,6 +29,10 @@ A staging environment is not planned for v1 (two agents, low risk). If added: a 
    **Domains & Routes** panel (they share one account-wide "Cloudflare Workers Preview URLs"
    policy); enable it, or disable preview URLs. Verify no other route reaches the Worker unprotected.
 8. **GitHub secrets** for CI deploys: `CLOUDFLARE_API_TOKEN` (scoped: Workers Scripts Edit, D1 Edit, on this account only) and `CLOUDFLARE_ACCOUNT_ID`.
+9. **Optional — the Google map provider** ([ADR-0020](adr/0020-google-places-as-a-second-map-provider.md)):
+   `npx wrangler secret put GOOGLE_PLACES_KEY` with a key that has the Places API (New) enabled.
+   A secret, never a var in `wrangler.jsonc`. Skip this and the map import still works on
+   OpenStreetMap; the Google option answers 503 and the screen says it is not configured.
 
 ## Release process
 

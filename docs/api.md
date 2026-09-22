@@ -30,6 +30,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `POST /api/admin/prospects/merge` | `{survivorId, mergedId}` → `{survivorId, mergedId, dedupeKeyUpdated}` |
 | `POST /api/admin/prospects/:id/unmerge` | Undo a merge → the restored prospect |
 | `POST /api/admin/import/overpass` | `{polygon: [lat,lng][]}` → `{candidates[], truncated, cached}`. Nothing is saved: the candidates go through the same preview and the same `POST /prospects/batch` as a CSV |
+| `POST /api/admin/import/places` | `{center: [lat,lng], radius}` → the same `{candidates[], truncated, cached}`. Google Places (ADR-0020); a circle because Nearby Search has no polygon search. **503** when no key is configured |
 | `GET /api/admin/visits?since=<ms>&limit=` | `{visits[], serverTime}` — visits with `received_at > since`, newest first, max 500. Each carries `prospectName` |
 | `GET /api/admin/scripts` | `{scripts[]}` — all versions, newest first, max 100. At most one has `isActive` |
 | `POST /api/admin/scripts` | `{name, questions[]}` → **201** with the created script. Writes version N+1 of that name and makes it the only active one |
@@ -43,15 +44,16 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | 404 | Unknown resource |
 | 426 | `clientVersion` no longer supported: update the app. Checked **before** body validation, so an old build is told to update rather than that its data is invalid |
 | 501 | Route declared but not implemented yet (see the roadmap) |
-| 503 | D1 daily free-tier limit reached. Nothing was lost; retry later |
-| 502 | Overpass failed or timed out |
+| 503 | Either D1's daily free-tier limit (`d1_limit`) or a map provider with no key (`places_unconfigured`). Nothing was lost; the `error` code says which |
+| 502 | A map provider failed or timed out — `overpass_failed` or `places_failed` |
 
 ## Payload caps
 Every array is bounded, because one request must stay inside the Workers Free
 10 ms CPU budget (`docs/free-tier-budget.md`). The limits live in
 `src/shared/constants.ts`: 250 import rows, 200 visits and 100 field prospects
 per sync, 500 ids per bulk assign, 500 visits per live-feed page, 200 prospects
-per list page, 1000 candidates per map import.
+per list page, 1000 candidates per Overpass import. A Google import is capped at 20 by
+Google itself.
 
 `GET /api/admin/prospects` returns at most `PROSPECTS_PAGE_SIZE` rows; `total`
 counts every row matching the filters, so the list header can say "412
@@ -90,9 +92,11 @@ tab is visible (ADR-0010).
 
 ## The map import
 
-`POST /api/admin/import/overpass` proxies the public Overpass API (ADR-0008).
-The browser never calls it directly (INVARIANT 11), which is what makes the
-cache possible.
+Two providers, one shape of answer. `POST /api/admin/import/overpass` proxies the
+public Overpass API (ADR-0008) and `POST /api/admin/import/places` proxies Google
+Places (ADR-0020). The browser never calls either directly (INVARIANT 11), which is
+what makes the cache possible — and, for Google, what keeps the API key out of the
+page.
 
 - A polygon has 3–200 vertices. Coordinates are rounded to **5 decimals**
   (~1 m) before hashing, so nudging a vertex between two searches still hits the
@@ -108,9 +112,26 @@ cache possible.
   OSM has many unnamed amenities, they are worth showing, and `importRowSchema`
   will not accept one. `sourceRef` is always present and is always
   `<type>/<id>` — tier 1 of the dedupe key.
-- **502** on a timeout, a 429, a 5xx, or a 200 whose body is not an Overpass
+- **502** on a timeout, a 429, a 5xx, or a 200 whose body is not the provider's
   answer (a rate-limit notice arrives as HTML). There is no retry loop on either
-  side; the screen offers the admin a retry.
+  side; the screen offers the admin a retry. For Google a retry is also another
+  billable call, so it stays their decision.
+
+### Google Places only
+- The request is a **circle**, `{center: [lat, lng], radius}` in metres, 50–2000.
+  Nearby Search has no polygon search, which is the only reason the two providers
+  take different shapes.
+- **At most 20 candidates**, with `truncated` set when the circle held more. That is
+  Google's own ceiling — `maxResultCount` caps at 20 and there are no page tokens —
+  not a payload cap of ours. Results are ranked by distance from the centre, so a
+  truncated answer is a ring around the pin.
+- `phone` and `website` are always `null`: both are Enterprise-tier fields, and
+  requesting them would bill every search at the higher rate (ADR-0020).
+- **503 `places_unconfigured`** when the Worker has no `GOOGLE_PLACES_KEY`. Answered
+  before D1 or Google is touched, so a deployment without a billing account costs
+  nothing and keeps working. Google's own error bodies are never forwarded.
+- The cache is shared with Overpass; hashes carry a per-provider query version, so
+  the two cannot read each other's rows.
 
 ## Who can be assigned
 There is no users table (ADR-0006). `GET /api/admin/agents` returns the union of

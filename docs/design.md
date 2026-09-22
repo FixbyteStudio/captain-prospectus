@@ -222,12 +222,19 @@ Source → Carte                            carte
 Step one asks one question, « D'où viennent les prospects ? », and the two
 answers are a file and a map. After that the CSV path is untouched.
 
+**Which map provider is a choice inside the map step, not a third answer here**
+(ADR-0020). The fork is about where the data comes from *as a workflow* — a
+spreadsheet or a canvas — and OpenStreetMap and Google are the same workflow. A
+three-way source step would also make the admin pick a provider before seeing a
+map, which is the one moment they have no information to pick with.
+
 The map path is one screen, because the polygon and the result are the same
 question asked twice:
 
 ```
 ┌────────────────────────────────────┬─────────────────────────────┐
-│                                    │ 47 lieux trouvés            │
+│ Données [ OpenStreetMap        ▾]  │ 47 lieux trouvés            │
+│ Gratuit et sans limite. Couver…    │                             │
 │                                    │ 6 sans nom                  │
 │         [ Leaflet canvas ]         ├─────────────────────────────┤
 │                                    │ Le Bouchon        Restaurant│
@@ -244,7 +251,28 @@ question asked twice:
 └────────────────────────────────────┴─────────────────────────────┘
 ```
 
-Eight rules this encodes:
+And on the Google provider, the same screen with a circle:
+
+```
+┌────────────────────────────────────┬─────────────────────────────┐
+│ Données [ Google Places        ▾]  │ 20 lieux trouvés            │
+│ Chaque recherche Google compte…    │ ⚠ Google renvoie 20 lieux   │
+│                                    │   au maximum…               │
+│         [ Leaflet canvas ]         ├─────────────────────────────┤
+│                                    │ Le Bouchon        Restaurant│
+│              ╭───────╮             │ 12 rue des Capucins, Lyon   │
+│             │    ·    ●            │ Café des Voraces      Café  │
+│              ╰───────╯             │ 9 montée Saint-Sébastien    │
+│                                    │ …                           │
+│  © les contributeurs OpenStreetMap │ Résultats fournis par Google│
+├────────────────────────────────────┼─────────────────────────────┤
+│ Rayon 300 m · Faites glisser…      │                             │
+│                     [Effacer]      │ [ Importer 20 prospects ]   │
+│        [ Rechercher dans la zone ] │                             │
+└────────────────────────────────────┴─────────────────────────────┘
+```
+
+Eight rules this encodes, and four more for the second provider:
 
 - **Side by side, because the list is the verdict on the polygon.** A wizard
   step would hide the map at the moment the admin learns the area was wrong.
@@ -289,6 +317,34 @@ Eight rules this encodes:
   in an unbounded list would push the map off screen, and "move a vertex and
   search again" is exactly what the admin does while reading them. The feed has
   no second column to stay level with, so it takes the page's own scrollbar.
+
+Four more, from ADR-0020:
+
+- **The provider sits above the map, not in the toolbar under it.** The toolbar is
+  one slot and it holds actions; the provider is not an action, it decides what
+  the canvas *is*. Putting it above keeps the §128 rule intact and puts the choice
+  before the thing it changes, in reading order.
+- **The gesture follows the API, and the API is why.** Overpass takes a polygon
+  and Google takes a circle, so the canvas draws a polygon or a circle. The first
+  click on an empty circle canvas places one at a small default radius rather than
+  leaving a lone pin: a click that produces no visible shape reads as a map that
+  swallowed it. The second click sets the radius, and two handles — centre and
+  east — move or resize it afterwards, the same grab-a-dot grammar as a vertex.
+  « Annuler le dernier point » is hidden for a circle, which has no history to
+  walk back.
+- **Changing the provider starts the drawing over.** A polygon is not a circle, and
+  the previous provider's results left beside a blank canvas would read as an
+  answer about the new one. This is the one control on the screen that discards
+  work, which is why it is a select the admin opens deliberately and not a toggle.
+- **Cost is a standing fact, not a warning.** Under the choice, in the muted
+  register the sync indicator uses: « Chaque recherche Google compte dans le quota
+  mensuel. 20 lieux maximum par cercle. » It is true for hours, it changes what
+  the admin draws next, and an alert would be shouting about something nothing has
+  gone wrong with. The truncation message is different — it is a result, so it is
+  an `Alert` beside the results it describes. And a missing key is neither: it
+  says that nobody configured the provider and that OpenStreetMap is right there,
+  because « Google n'a pas répondu » would send the admin to refresh a page that
+  will never work.
 
 ### The live feed
 
