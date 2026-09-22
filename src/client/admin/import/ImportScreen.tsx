@@ -6,11 +6,12 @@ import { cn } from "../../lib/utils";
 import { useImportBatches } from "../queries";
 import { ColumnsStep } from "./ColumnsStep";
 import { FileStep } from "./FileStep";
-import { MapStep } from "./MapStep";
+import { MapStep, type MapProvider } from "./MapStep";
 import { PreviewStep } from "./PreviewStep";
 import { ResultDialog } from "./ResultDialog";
 import { SourceStep } from "./SourceStep";
 import { guessColumns, mapRows } from "./csv";
+import type { Source } from "../../../shared/constants";
 import type { ColumnMap, ParsedCsv } from "./csv";
 
 type Step = "source" | "file" | "columns" | "map" | "preview";
@@ -44,12 +45,21 @@ const MAP_STEPS: readonly { id: Step; label: string }[] = [
 export function ImportScreen() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("source");
-  const [source, setSource] = useState<"csv" | "osm">("csv");
+  const [fork, setFork] = useState<"csv" | "map">("csv");
+  /**
+   * Which map provider the map step is on, held here rather than inside it.
+   *
+   * It is what the import is stamped with, and `useImportBatches` needs that
+   * before a row is sent. Keeping it at this level also means the CSV path's
+   * sender is untouched by ADR-0020 — its source is still just "csv".
+   */
+  const [provider, setProvider] = useState<MapProvider>("osm");
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedCsv | null>(null);
   const [columns, setColumns] = useState<ColumnMap>({});
 
   // The sender is shared; only the `source` it stamps on each batch differs.
+  const source: Source = fork === "csv" ? "csv" : provider;
   const importer = useImportBatches(source);
 
   const mapped = useMemo(
@@ -68,7 +78,8 @@ export function ImportScreen() {
 
   function startOver() {
     setStep("source");
-    setSource("csv");
+    setFork("csv");
+    setProvider("osm");
     setFileName(null);
     setParsed(null);
     setColumns({});
@@ -77,8 +88,8 @@ export function ImportScreen() {
     importer.reset();
   }
 
-  function chooseSource(chosen: "csv" | "osm") {
-    setSource(chosen);
+  function chooseSource(chosen: "csv" | "map") {
+    setFork(chosen);
     setStep(chosen === "csv" ? "file" : "map");
   }
 
@@ -86,7 +97,7 @@ export function ImportScreen() {
     importer.start(rows);
   }
 
-  const steps = step === "source" || source === "csv" ? CSV_STEPS : MAP_STEPS;
+  const steps = step === "source" || fork === "csv" ? CSV_STEPS : MAP_STEPS;
   const reachedStep = steps.findIndex((s) => s.id === step);
 
   return (
@@ -116,6 +127,8 @@ export function ImportScreen() {
 
       {step === "map" && (
         <MapStep
+          provider={provider}
+          onProviderChange={setProvider}
           progress={importer.progress}
           isRunning={importer.isRunning}
           error={importer.error}
