@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ImportRow, OverpassCandidate } from "../../../shared/schemas";
+import type { ImportRow, AreaCandidate } from "../../../shared/schemas";
 import { TYPE_LABELS, copy } from "../../copy";
 import { Alert, AlertDescription } from "../../ui/alert";
 import { Button } from "../../ui/button";
@@ -179,7 +179,7 @@ export function MapStep({
  * something that will be imported, `status-rejected` for one that cannot be —
  * so the panel scans like every other list in this app (design.md).
  */
-function CandidateRow({ candidate }: { candidate: OverpassCandidate }) {
+function CandidateRow({ candidate }: { candidate: AreaCandidate }) {
   return (
     <li
       className={
@@ -204,7 +204,7 @@ function CandidateRow({ candidate }: { candidate: OverpassCandidate }) {
 }
 
 /** A named candidate is an import row; `named` and the empty-name case are gone. */
-function toImportRow(candidate: OverpassCandidate): ImportRow {
+function toImportRow(candidate: AreaCandidate): ImportRow {
   return {
     name: candidate.name,
     type: candidate.type,

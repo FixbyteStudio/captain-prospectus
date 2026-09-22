@@ -6,7 +6,7 @@ import { getDb } from "./db/client";
 import { overpassCache } from "./db/schema";
 import { OVERPASS_QUERY_VERSION, buildOverpassQuery, polygonHash, toCandidates } from "./overpass";
 import { OVERPASS_CACHE_TTL_MS, OVERPASS_CANDIDATES_LIMIT } from "../shared/constants";
-import type { OverpassImportResponse } from "../shared/schemas";
+import type { AreaSearchResponse } from "../shared/schemas";
 
 /**
  * The map import — ADR-0008, docs/domains/ingestion.md.
@@ -205,7 +205,7 @@ describe("POST /api/admin/import/overpass", () => {
     const response = await search();
     expect(response.status).toBe(200);
 
-    const body = (await response.json()) as OverpassImportResponse;
+    const body = (await response.json()) as AreaSearchResponse;
     expect(body.cached).toBe(false);
     expect(body.truncated).toBe(false);
     expect(body.candidates).toHaveLength(4);
@@ -233,7 +233,7 @@ describe("POST /api/admin/import/overpass", () => {
     await search();
     expect(fetchCalls).toHaveLength(1);
 
-    const second = (await (await search()).json()) as OverpassImportResponse;
+    const second = (await (await search()).json()) as AreaSearchResponse;
     expect(second.cached).toBe(true);
     expect(second.candidates).toHaveLength(4);
     // The whole point of ADR-0008: redrawing must not be another request.
@@ -252,7 +252,7 @@ describe("POST /api/admin/import/overpass", () => {
       .set({ createdAt: Date.now() - OVERPASS_CACHE_TTL_MS - 1 })
       .where(eq(overpassCache.hash, row.hash));
 
-    const again = (await (await search()).json()) as OverpassImportResponse;
+    const again = (await (await search()).json()) as AreaSearchResponse;
     expect(again.cached).toBe(false);
     expect(fetchCalls).toHaveLength(2);
   });

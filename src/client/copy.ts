@@ -437,7 +437,11 @@ export const STATUS_LABELS: Readonly<Record<Status, string>> = {
 
 export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
   csv: "CSV",
-  osm: "Carte",
+  // Both map sources say "Carte" first, because that is the screen the admin
+  // used; the provider is what tells them why two rows for the same restaurant
+  // exist (ADR-0020).
+  osm: "Carte (OSM)",
+  google: "Carte (Google)",
   field: "Terrain",
 };
 

@@ -35,7 +35,7 @@ import type {
   DuplicatesResponse,
   ImportResult,
   MergeResult,
-  OverpassImportResponse,
+  AreaSearchResponse,
   Prospect,
   ProspectsResponse,
   Script,
@@ -670,7 +670,7 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), asy
     // A cached body that no longer parses is a bug in what we stored, not
     // something to hand the admin. Fall through and ask Overpass again.
     if (mapped) {
-      return c.json<OverpassImportResponse>({ ...mapped, cached: true });
+      return c.json<AreaSearchResponse>({ ...mapped, cached: true });
     }
   }
 
@@ -712,7 +712,7 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), asy
       set: { body, createdAt: Date.now() },
     });
 
-  return c.json<OverpassImportResponse>({ ...mapped, cached: false });
+  return c.json<AreaSearchResponse>({ ...mapped, cached: false });
 });
 
 /* ---------------------------------------------------------------- live feed */

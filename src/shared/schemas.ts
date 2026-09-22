@@ -23,6 +23,8 @@ import {
   ADMIN_VISITS_PAGE_SIZE,
   IMPORT_ROWS_PER_REQUEST,
   OVERPASS_CANDIDATES_LIMIT,
+  PLACES_RADIUS_MAX_M,
+  PLACES_RADIUS_MIN_M,
   PROSPECTS_MAX_OFFSET,
   PROSPECTS_PAGE_SIZE,
   OUTCOMES,
@@ -479,20 +481,35 @@ export const overpassImportSchema = z.object({
     .check(z.minLength(POLYGON_MIN_VERTICES), z.maxLength(POLYGON_MAX_VERTICES)),
 });
 
+export const placesImportSchema = z.object({
+  center: z.tuple([latSchema, lngSchema]),
+  /**
+   * Metres. Google's own limit is 50 km, but Nearby Search returns at most 20
+   * places and has no pagination, so a circle wider than PLACES_RADIUS_MAX_M
+   * buys nothing except a bigger area to be silently wrong about (ADR-0020).
+   */
+  radius: z.number().check(z.gte(PLACES_RADIUS_MIN_M), z.lte(PLACES_RADIUS_MAX_M)),
+});
+
 /**
- * One place found on the map, before the admin decides to import it.
+ * One place found on the map, before the admin decides to import it. Both
+ * providers return this shape — the results panel renders either without
+ * knowing which one it is looking at (ADR-0020).
  *
  * Deliberately **not** an `ImportRow`. OSM is full of amenities with no `name`,
  * and `ingestion.md` wants them shown so the admin can see what the area really
  * holds — but `importRowSchema.name` is non-empty by contract, so a nameless
  * candidate can be displayed and never sent. `named` carries that distinction
  * explicitly rather than making every reader re-derive it from `name === ""`.
+ * Google always sends a display name, so its candidates are always `named`;
+ * the field stays because one panel renders both.
  *
  * `sourceRef` is required here, unlike on an import row: every OSM element has
- * a `<type>/<id>`, and it is tier 1 of the dedupe key — the only tier that
- * survives a rename (docs/domains/prospecting.md).
+ * a `<type>/<id>` and every Google place a `google/<placeId>`, and it is tier 1
+ * of the dedupe key — the only tier that survives a rename
+ * (docs/domains/prospecting.md).
  */
-export const overpassCandidateSchema = z.object({
+export const areaCandidateSchema = z.object({
   name: shortText,
   named: z.boolean(),
   type: prospectTypeSchema,
@@ -504,20 +521,27 @@ export const overpassCandidateSchema = z.object({
   cuisine: z.nullable(shortText),
   sourceRef: shortTextRequired,
 });
-export type OverpassCandidate = z.infer<typeof overpassCandidateSchema>;
+export type AreaCandidate = z.infer<typeof areaCandidateSchema>;
 
-export const overpassImportResponseSchema = z.object({
-  candidates: z.array(overpassCandidateSchema).check(z.maxLength(OVERPASS_CANDIDATES_LIMIT)),
-  /** The polygon returned more than OVERPASS_CANDIDATES_LIMIT places. */
+/** The answer from either provider — `POST /import/overpass` and `/import/places`. */
+export const areaSearchResponseSchema = z.object({
+  candidates: z.array(areaCandidateSchema).check(z.maxLength(OVERPASS_CANDIDATES_LIMIT)),
+  /**
+   * The area held more than the provider returned: past
+   * OVERPASS_CANDIDATES_LIMIT for OSM, or past Google's hard cap of
+   * PLACES_MAX_RESULTS. Either way the answer is a prefix, and the screen has
+   * to say so rather than let a short list look like a thin street.
+   */
   truncated: z.boolean(),
   /**
-   * Served from `overpass_cache` rather than from Overpass. The screen says so:
-   * an answer can be up to OVERPASS_CACHE_TTL_MS old, and "I searched twice and
-   * got the same 47" should be explainable without reading the Worker.
+   * Served from `overpass_cache` rather than from the provider. The screen says
+   * so: an answer can be up to a week old, and "I searched twice and got the
+   * same 47" should be explainable without reading the Worker. For Google it is
+   * also the difference between a billable call and a free one.
    */
   cached: z.boolean(),
 });
-export type OverpassImportResponse = z.infer<typeof overpassImportResponseSchema>;
+export type AreaSearchResponse = z.infer<typeof areaSearchResponseSchema>;
 
 /* -------------------------------------------------------------------- errors */
 

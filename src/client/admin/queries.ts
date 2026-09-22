@@ -19,7 +19,7 @@ import type {
   ImportResult,
   ImportRow,
   MergeResult,
-  OverpassImportResponse,
+  AreaSearchResponse,
   Prospect,
   ProspectsResponse,
   Question,
@@ -177,7 +177,7 @@ export function useImportBatches(source: "csv" | "osm" = "csv") {
 export function useOverpassImport() {
   return useMutation({
     mutationFn: (polygon: [number, number][]) =>
-      apiFetch<OverpassImportResponse>("/api/admin/import/overpass", {
+      apiFetch<AreaSearchResponse>("/api/admin/import/overpass", {
         method: "POST",
         body: JSON.stringify({ polygon }),
       }),
