@@ -71,7 +71,8 @@ vendored component ships with the French one from `src/client/copy.ts`.
 Everything here is account setup, done once, by hand. Runbook:
 [deployment.md](deployment.md).
 
-- [ ] Branch protection on `main` (require CI, one review, squash-merge)
+- [ ] Branch protection on `main` (require CI, one review, squash-merge) — needed earlier than M6
+      if the night shift runs, see [ADR-0016](adr/0016-autonomous-overnight-agent-runs.md)
 - [ ] `wrangler d1 create captain-prospectus`, paste `database_id` into `wrangler.jsonc`
 - [ ] Enable Cloudflare Access on the Worker; set `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ADMIN_EMAILS`
 - [ ] GitHub secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
