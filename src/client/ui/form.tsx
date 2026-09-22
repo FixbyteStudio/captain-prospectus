@@ -9,9 +9,10 @@
  *    cannot afford that and does not need it.
  * 2. **`FormMessage` renders its children, never `error.message`.** Zod's
  *    messages are English ("Invalid input"), and INVARIANT 15 puts every
- *    user-facing string in `copy.ts` in French. A screen passes the French text
- *    it wants; when a field is invalid and the screen supplied nothing, this
- *    renders the slot with no text rather than leaking English into the UI.
+ *    user-facing string in `copy.ts` in French. A screen passes the French
+ *    text to show when the field is invalid; a valid field renders nothing,
+ *    and an invalid one whose screen supplied no text renders the slot empty
+ *    rather than leaking English into the UI.
  *    The `aria-invalid` wiring below still marks the control either way.
  */
 import * as React from "react";
@@ -126,7 +127,11 @@ function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
  */
 function FormMessage({ className, children, ...props }: React.ComponentProps<"p">) {
   const { error, formMessageId } = useFormField();
-  if (!error && !children) return null;
+  // Only when the field is actually invalid. `children` is the French text to
+  // show *if* that happens, not a reason to show it: callers pass it
+  // unconditionally, so guarding on `children` too printed every field's error
+  // message, in red and announced by `role="alert"`, from first render.
+  if (!error) return null;
 
   return (
     <p
