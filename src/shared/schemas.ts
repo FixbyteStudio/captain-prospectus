@@ -543,6 +543,40 @@ export const areaSearchResponseSchema = z.object({
 });
 export type AreaSearchResponse = z.infer<typeof areaSearchResponseSchema>;
 
+/* ------------------------------------------------------ local dev seeding */
+
+/**
+ * `POST /api/dev/seed` — local tooling, and still a request body.
+ *
+ * It lives here because INVARIANT 6 has no exceptions: a route that casts its
+ * body is a route whose shape nobody checks, dev-only or not, and this one
+ * writes straight into the prospects table. The field chunk pays nothing worth
+ * measuring for it — ADR-0017 puts *every* schema in this file at 3.2 kB raw of
+ * that chunk, admin ones included, and nothing on the field side imports this.
+ *
+ * Deliberately not an `importRowSchema`: the seed picks `assignedTo`, which no
+ * real import may do. `script` is a `scriptCreateSchema`, so a seeded
+ * questionnaire is exactly what `POST /api/admin/scripts` would have accepted —
+ * a seed that could not have been created through the UI is a local database
+ * that does not match production, which is what this route exists to avoid.
+ */
+export const devSeedSchema = z.object({
+  prospects: z
+    .array(
+      z.object({
+        name: shortTextRequired,
+        type: prospectTypeSchema,
+        lat: z.nullable(latSchema),
+        lng: z.nullable(lngSchema),
+        address: z.nullable(shortText),
+        assignedTo: z.nullable(emailSchema),
+      }),
+    )
+    .check(z.maxLength(IMPORT_ROWS_PER_REQUEST)),
+  script: scriptCreateSchema,
+});
+export type DevSeed = z.infer<typeof devSeedSchema>;
+
 /* -------------------------------------------------------------------- errors */
 
 export const errorSchema = z.object({

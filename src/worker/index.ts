@@ -7,7 +7,9 @@
  * Worker and stay free (INVARIANT 14).
  */
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
+import { MAX_REQUEST_BYTES } from "../shared/constants";
 import { requireAdmin, requireIdentity } from "./auth";
 import { adminRoutes } from "./routes/admin";
 import { agentRoutes } from "./routes/agent";
@@ -16,6 +18,38 @@ import { meRoutes } from "./routes/me";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>().basePath("/api");
+
+/**
+ * INVARIANT 13 and docs/security.md: refuse an oversized body before anything
+ * parses it.
+ *
+ * Registered FIRST, and that is load-bearing. Hono composes matched handlers in
+ * registration order, so a middleware added below the /dev mount would sit
+ * *after* the dev handler in the chain and never run — and /api/dev/* is the one
+ * route mounted before auth. It also has to precede the sync route's
+ * requireSupportedClientVersion, which reads the body: Hono caches the request
+ * text on first read, so a cap placed after it would be checking a body that had
+ * already been buffered.
+ *
+ * onError is handled here rather than in app.onError because hono's default
+ * throws an HTTPException carrying a plain-text "Payload Too Large" response,
+ * which the handler below passes straight through. This is the only place the
+ * JSON shape can be fixed.
+ */
+app.use(
+  "/*",
+  bodyLimit({
+    maxSize: MAX_REQUEST_BYTES,
+    onError: (c) =>
+      c.json(
+        {
+          error: "too_large",
+          message: "Requête trop volumineuse. Envoyez moins de données à la fois.",
+        },
+        413,
+      ),
+  }),
+);
 
 /** Local-only; the route itself 404s off localhost. Mounted before auth. */
 app.route("/dev", devRoutes);

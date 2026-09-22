@@ -111,7 +111,23 @@ the bundle budget, cited against a measurement each time.
       bundle the field shares, and nothing of the provider itself reaches a phone
 
 ## M5 — Hardening
-- [ ] Security review against [security.md](security.md)
+- [x] Security review against [security.md](security.md) — every row of the threat-model
+      table checked against the code. Two rows were claims the code did not honour, and
+      both are closed here: there was **no body size cap anywhere** (#8), and
+      `POST /api/dev/seed` cast its body instead of validating it (#9). The cap is
+      `MAX_REQUEST_BYTES`, 2 MiB, enforced Worker-wide as the first middleware registered
+      — above the `/dev` mount, because Hono composes handlers in registration order and
+      that is the one route mounted before auth. The dev route now needs `DEV_USER_EMAIL`
+      as well as a localhost host, since the host comes from a header we do not control.
+      The field client trims a batch that would exceed the cap: a payload the server
+      always refuses is an outbox that never drains (INVARIANT 5). **Entry chunk 144.51 kB
+      against the 150 kB budget, precache 606.09 KiB across 14 entries.** Filed and left
+      open: [#30](https://github.com/FixbyteStudio/captain-prospectus/issues/30) (a sync
+      referencing >100 distinct prospects breaches D1's bound-parameter limit — a real
+      phone can hit it), [#31](https://github.com/FixbyteStudio/captain-prospectus/issues/31),
+      [#32](https://github.com/FixbyteStudio/captain-prospectus/issues/32), and
+      [backlog/005](backlog/005-outbox-identity-stamp.md), which stays a task of its own
+      because it needs a Dexie migration
 - [ ] Orphan visits: report ids the server could not store in a `rejected` field so a phone stops resending for ever (see [field-operations](domains/field-operations.md#rules))
 - [ ] Data retention decided and written down (visit notes, agent positions)
 - [ ] CSV export of prospects and visits

@@ -1,14 +1,19 @@
 /**
- * Local development only. Mounted solely when the request host is localhost,
- * exactly like DEV_USER_EMAIL (docs/domains/identity-access.md).
+ * Local development only. Mounted solely when the request host is localhost and
+ * DEV_USER_EMAIL is set, exactly like the identity bypass it borrows its gate
+ * from (docs/domains/identity-access.md).
  *
  * Seeding goes through the real insert path — dedupe keys, chunking, status
  * derivation — so the local database matches what production would hold, and
  * `wrangler d1 execute` never needs to be run by hand.
  */
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import { chunk } from "../../shared/chunk";
 import { dedupeKey } from "../../shared/dedupe";
+import { devSeedSchema } from "../../shared/schemas";
+import { isLocalHost } from "../auth";
+import { validate } from "../validate";
 import { boundParamsPerRow, getDb } from "../db/client";
 import { prospects, scripts } from "../db/schema";
 import type { NewProspectRow } from "../db/schema";
@@ -16,25 +21,38 @@ import type { AppEnv } from "../types";
 
 export const devRoutes = new Hono<AppEnv>();
 
-type SeedBody = {
-  prospects: {
-    name: string;
-    type: NewProspectRow["type"];
-    lat: number | null;
-    lng: number | null;
-    address: string | null;
-    assignedTo: string | null;
-  }[];
-  script: { name: string; questions: unknown[] };
-};
-
-devRoutes.post("/seed", async (c) => {
+/**
+ * Two conditions, not one.
+ *
+ * The hostname comes from a header we do not control, so on its own it is a
+ * claim rather than a fact. DEV_USER_EMAIL is ours: it is set in .dev.vars and
+ * never in production, which is what makes this route unreachable there even if
+ * a Host ever arrived that satisfied the first half.
+ *
+ * Runs as middleware rather than inside the handler so an off-localhost request
+ * is refused before a body is read at all.
+ */
+const devOnly = createMiddleware<AppEnv>(async (c, next) => {
   const url = new URL(c.req.url);
-  if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
-    return c.json({ error: "not_found" }, 404);
+  if (!isLocalHost(url.hostname)) return c.json({ error: "not_found" }, 404);
+  if (!c.env.DEV_USER_EMAIL) {
+    // Localhost only: saying why is a help to a developer on a fresh clone, and
+    // it reaches nobody else.
+    return c.json(
+      {
+        error: "not_found",
+        message: "Set DEV_USER_EMAIL in .dev.vars to use the dev routes.",
+      },
+      404,
+    );
   }
+  return next();
+});
 
-  const body = (await c.req.json()) as SeedBody;
+devRoutes.use("*", devOnly);
+
+devRoutes.post("/seed", validate("json", devSeedSchema), async (c) => {
+  const body = c.req.valid("json");
   const db = getDb(c.env.DB);
   const now = Date.now();
 

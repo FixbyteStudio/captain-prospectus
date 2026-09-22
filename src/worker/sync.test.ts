@@ -5,6 +5,11 @@ import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
 import { prospects, scripts, visits } from "./db/schema";
 import { visitHistoryResponseSchema } from "../shared/schemas";
+import {
+  MAX_REQUEST_BYTES,
+  SYNC_PROSPECTS_PER_REQUEST,
+  SYNC_VISITS_PER_REQUEST,
+} from "../shared/constants";
 import type { SyncRequest, SyncResponse } from "../shared/schemas";
 
 /**
@@ -215,6 +220,51 @@ describe("POST /api/agent/sync", () => {
   it("answers 426 for a build below the minimum supported version", async () => {
     const response = await sync({ clientVersion: 0 });
     expect(response.status).toBe(426);
+  });
+
+  /**
+   * docs/security.md, "Malformed or oversized payloads". The body here is not
+   * valid JSON at all, so a 400 or a 500 would prove the cap ran *after* the
+   * parse it exists to prevent (INVARIANT 13).
+   */
+  it("refuses a body over MAX_REQUEST_BYTES before parsing it", async () => {
+    const response = await call("/api/agent/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "x".repeat(MAX_REQUEST_BYTES + 1),
+    });
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ error: "too_large" });
+  });
+
+  /**
+   * The other direction, and the one that matters more: a cap set below what a
+   * phone can legitimately build answers 413 to a payload the outbox rebuilds
+   * identically for ever (INVARIANT 5).
+   */
+  it("accepts a full batch of visits carrying maximum-length notes", async () => {
+    const db = getDb(env.DB);
+    // Two visits each to 100 prospects rather than one each to 200: a payload
+    // referencing more than 100 distinct prospects trips D1's bound-parameter
+    // limit in the route's own lookup, which is a separate bug (INVARIANT 7,
+    // filed). The byte size this test is about is the same either way.
+    const ids = Array.from({ length: SYNC_PROSPECTS_PER_REQUEST }, () => crypto.randomUUID());
+    for (const id of ids) await seedProspect(id);
+
+    const response = await sync({
+      visits: [...ids, ...ids].map((prospectId) => ({
+        id: crypto.randomUUID(),
+        prospectId,
+        visitedAt: Date.now(),
+        flyerGiven: true,
+        outcome: "interested" as const,
+        notes: "é".repeat(2000),
+        answers: {},
+      })),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await db.select().from(visits)).toHaveLength(SYNC_VISITS_PER_REQUEST);
   });
 
   it("returns the existing prospect's id when a field prospect already exists", async () => {

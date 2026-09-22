@@ -5,13 +5,27 @@
 |---|---|
 | Access bypass (Worker reached without Access) | JWT verified in the Worker; preview URLs disabled or protected |
 | Header spoofing | Email taken from the verified JWT only |
-| Dev impersonation leaking to prod | `DEV_USER_EMAIL` ignored unless host is localhost |
+| Dev impersonation leaking to prod | `DEV_USER_EMAIL` ignored unless host is localhost; `/api/dev/*` needs both that variable and a localhost host, and it is the one route mounted before auth |
 | Agent reading other agents' data | Agent routes filter by the verified email |
-| Malformed or oversized payloads | zod validation, array size caps, body size limits |
+| Malformed or oversized payloads | zod validation, array size caps, and a `MAX_REQUEST_BYTES` body cap enforced Worker-wide in `src/worker/index.ts` before anything parses the body |
 | SQL injection | Drizzle parameterised queries only; no string-built SQL |
 | XSS through imported data (names, notes) | React escaping; no `dangerouslySetInnerHTML` |
 | Stolen phone | Access session expiry; admin removes the email from the Access policy |
 | Leaked Cloudflare token | Scoped token in GitHub secrets, never in the repo |
+
+### The body cap
+
+`MAX_REQUEST_BYTES` (`src/shared/constants.ts`) is 2 MiB, about twice the largest
+request a client can legitimately build — a full sync of 100 field prospects and 200
+visits carrying maximum-length notes and a 50-question script answered is 1060 KiB.
+It exists because the array caps bound rows, not bytes: `answersSchema` does not limit
+how many answers a visit carries, so a schema-valid payload can reach 19.7 MiB.
+
+It is enforced as the **first** middleware registered, above the `/dev` mount, because
+Hono composes handlers in registration order and `/api/dev/*` is the one route mounted
+before auth. Budget tests in `src/shared/constants.test.ts` fail if a count cap is ever
+raised past the byte cap, and `src/client/field/sync.ts` trims a batch that would exceed
+it — a payload the server always refuses is an outbox that never drains (INVARIANT 5).
 
 ## Personal data
 - **Prospect data** is mostly public business info, but may include a contact person's name or phone. Keep it to what the business needs.
