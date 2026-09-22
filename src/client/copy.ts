@@ -96,7 +96,10 @@ export const copy = {
       csv: "Un fichier CSV",
       csvHint: "Un export de tableur, lu dans votre navigateur.",
       map: "Une zone sur la carte",
-      mapHint: "Les commerces qu'OpenStreetMap connaît dans la zone que vous dessinez.",
+      // Two providers since ADR-0020, so the fork names the gesture and not
+      // one of them; the choice between them lives on the map step.
+      mapHint:
+        "Les commerces qu'OpenStreetMap ou Google connaissent dans la zone que vous dessinez.",
     },
 
     file: {
