@@ -82,10 +82,14 @@ the bundle budget, cited against a measurement each time.
       since ADR-0015's native-controls rule still governs this route
 
 ## M4 — Map import & live feed
-- [ ] **Design pass** with the `frontend-design` skill: map + results side by side,
-      and the live feed
+- [x] **Design pass** with the `frontend-design` skill: map + results side by side,
+      and the live feed — written up in [design.md](design.md#the-map-import) and
+      [design.md](design.md#the-live-feed)
 - [ ] Leaflet polygon drawing, Overpass proxy + cache — Leaflet owns the map canvas; every control around it is shadcn
-- [ ] Live visits feed for admin — shadcn `card`, `badge`, `scroll-area`
+- [ ] Live visits feed for admin — a **ledger**, not the `card` + `badge` +
+      `scroll-area` this line used to ask for: cards around rows and status as a
+      coloured pill are both on design.md's "Not this" list, and the design pass
+      resolved the contradiction in that file's favour (design.md#the-live-feed)
 
 ## M5 — Hardening
 - [ ] Security review against [security.md](security.md)
