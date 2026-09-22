@@ -79,6 +79,6 @@ Fix it in the current change only when the task cannot be finished or verified w
 
 ## Subagents and skills
 - Subagents in `.claude/agents/`: `architect`, `api-engineer`, `pwa-engineer`, `migration-guard`, `security-reviewer`, `docs-keeper`.
-- Skills in `.claude/skills/`: `new-adr`, `add-api-route`, `d1-migration`, `sync-contract-change`, `overpass-import`, `release-checklist`, `night-shift`.
+- Skills in `.claude/skills/`: `frontend-design`, `new-adr`, `add-api-route`, `d1-migration`, `sync-contract-change`, `overpass-import`, `release-checklist`, `night-shift`.
 - The queue for unattended work is `docs/backlog/` — one file per task. A scheduled run implements exactly
   one of them and stops at a pull request: never a merge, never a deploy (ADR-0016, `night-shift`).
