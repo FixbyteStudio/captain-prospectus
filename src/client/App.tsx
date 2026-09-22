@@ -10,6 +10,7 @@ import { TodayScreen } from "./field/TodayScreen";
 import { SyncDot, SyncStrip } from "./field/SyncIndicator";
 import { SyncProvider } from "./field/useSync";
 import { fieldDb, getMeta, setMeta } from "./field/db";
+import { resolveIdentity } from "./field/identity";
 
 /**
  * The admin side is a separate chunk, fetched only when an admin opens one of
@@ -128,40 +129,46 @@ export function App() {
   const [offline, setOffline] = useState(false);
 
   /**
-   * Identity, with an offline fallback.
+   * Identity, with an offline fallback — but only for genuine unreachability.
    *
    * The whole product is "an agent can log a visit with no network", so the
-   * shell must not be the thing that blocks on one. `/api/me` is tried first;
-   * if it cannot be reached, the last identity the phone saw opens the field
-   * screens anyway.
-   *
-   * The cached copy is never treated as proof. The Worker re-derives identity
-   * from the verified Access JWT on every request (INVARIANT 10), so a
-   * tampered value unlocks nothing — and `offline` below keeps the admin nav
-   * hidden, because every admin screen needs the network regardless.
+   * shell must not be the thing that blocks on one. The branching itself
+   * lives in `field/identity.ts`, tested there; this effect only runs the
+   * fetch, reads the cache, and applies whatever it decides.
    */
   useEffect(() => {
     let cancelled = false;
 
-    apiFetch<MeResponse>("/api/me")
-      .then((identity) => {
-        if (cancelled) return;
-        setMe(identity);
-        void setMeta(fieldDb, "identity", identity);
-      })
-      .catch(() => {
-        void getMeta(fieldDb, "identity").then((cached) => {
-          if (cancelled) return;
-          if (cached) {
-            setMe(cached);
-            setOffline(true);
-          } else {
-            // Nothing cached: this phone has never reached the server, so
-            // there is no round to show and no identity to assume.
-            setError(copy.errors.offlineFirstRun);
-          }
-        });
-      });
+    const settle = async (result: Parameters<typeof resolveIdentity>[0]) => {
+      const cached = await getMeta(fieldDb, "identity");
+      if (cancelled) return;
+      const outcome = resolveIdentity(result, cached);
+
+      if (outcome.kind === "error") {
+        setError(outcome.message);
+        return;
+      }
+      // A different agent signed in on this device since the last cached
+      // identity: their round and visit-history cache are not this agent's
+      // to see (docs/security.md: "Agent reading other agents' data"). The
+      // outbox is never touched here — INVARIANT 5 — see backlog/005 for the
+      // residual gap that leaves (a queued visit written under the previous
+      // identity still syncs under this one).
+      if (outcome.identitySwitched) {
+        await Promise.all([fieldDb.prospects.clear(), fieldDb.visitHistory.clear()]);
+      }
+      setMe(outcome.identity);
+      setOffline(outcome.offline);
+      // The cached copy is never treated as proof, online or offline: the
+      // Worker re-derives identity from the verified Access JWT on every
+      // request (INVARIANT 10). Only overwrite the cache with a live answer,
+      // never with the cache's own value.
+      if (!outcome.offline) void setMeta(fieldDb, "identity", outcome.identity);
+    };
+
+    apiFetch<unknown>("/api/me")
+      .then((body) => settle({ ok: true, body }))
+      .catch((error: unknown) => settle({ ok: false, error }));
 
     return () => {
       cancelled = true;

@@ -75,7 +75,11 @@ export function VisitScreen() {
     if (!id) return;
     let cancelled = false;
 
-    void apiFetch<unknown>(`/api/agent/prospects/${id}/visits`)
+    // `id` is a decoded router param; encode it back into the path segment so
+    // a value containing `/`, `?` or `#` cannot change which route this hits.
+    // In practice `prospectIdParamSchema` on the Worker rejects anything that
+    // is not a UUID with a 400, but the path should not depend on that.
+    void apiFetch<unknown>(`/api/agent/prospects/${encodeURIComponent(id)}/visits`)
       .then((body) => {
         if (cancelled) return;
         const parsed = visitHistoryResponseSchema.safeParse(body);

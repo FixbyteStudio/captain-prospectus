@@ -42,3 +42,4 @@ Start from [000-template.md](000-template.md).
 | [002](002-visit-csv-export.md) | CSV export of visits | ready (after 001) |
 | [003](003-orphan-visit-rejected-ids.md) | Orphan visits: report rejected ids so phones stop resending | needs-decision |
 | [004](004-field-bundle-budget.md) | Field entry chunk is 8 kB over its bundle budget | needs-decision |
+| [005](005-outbox-identity-stamp.md) | Stamp outbox rows with the identity that wrote them | ready |
