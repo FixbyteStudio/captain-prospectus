@@ -16,6 +16,7 @@ import type {
   ImportResult,
   ImportRow,
   MergeResult,
+  OverpassImportResponse,
   Prospect,
   ProspectsResponse,
   Question,
@@ -115,7 +116,7 @@ export function useAssign() {
  * one fails. Resending the whole file afterwards is safe — the upsert is keyed
  * on the dedupe key — which is what the failure copy tells them.
  */
-export function useImportBatches() {
+export function useImportBatches(source: "csv" | "osm" = "csv") {
   const invalidate = useInvalidateProspects();
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -136,7 +137,7 @@ export function useImportBatches() {
       for (const batch of batches) {
         const outcome = await apiFetch<ImportResult>("/api/admin/prospects/batch", {
           method: "POST",
-          body: JSON.stringify({ source: "csv", rows: batch }),
+          body: JSON.stringify({ source, rows: batch }),
         });
         totals.created += outcome.created;
         totals.updated += outcome.updated;
@@ -159,6 +160,25 @@ export function useImportBatches() {
   }
 
   return { start, reset, progress, result, error, isRunning };
+}
+
+/**
+ * Search an area for places — ADR-0008.
+ *
+ * A mutation rather than a query: it is an action the admin takes by pressing a
+ * button, not state the screen reads. That also means no automatic retry — the
+ * screen offers the admin one, because Overpass is a shared public service and
+ * a client that retries on its own is how an app gets rate-limited.
+ */
+export function useOverpassImport() {
+  return useMutation({
+    mutationFn: (polygon: [number, number][]) =>
+      apiFetch<OverpassImportResponse>("/api/admin/import/overpass", {
+        method: "POST",
+        body: JSON.stringify({ polygon }),
+      }),
+    retry: false,
+  });
 }
 
 export function usePatchProspect() {

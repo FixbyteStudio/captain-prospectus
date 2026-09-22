@@ -88,5 +88,12 @@ the field visit form needs it with no signal.
   glob names `AdminApp-*` rather than expressing "admin-only". `config.test.ts`
   asserts the ignore exists; it cannot assert that it is still sufficient. Any PR
   that adds a second admin chunk has to widen the glob.
+
+  **This was exercised in the very next change.** M4's map import imports
+  `leaflet/dist/leaflet.css` inside the admin chunk, and Vite emitted it as a
+  separate `AdminApp-*.css` that the original `.js`-only ignore did not match —
+  15 KiB back on every phone. The glob is now extension-less
+  (`**/assets/AdminApp-*`), which covers both, but the underlying weakness
+  stands: it matches a filename, not a fact about reachability.
 - Leaflet, arriving in M4, lands inside `AdminApp-*.js` and so costs a field
   phone nothing.

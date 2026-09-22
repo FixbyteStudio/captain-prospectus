@@ -51,6 +51,8 @@ describe("service worker", () => {
     // ADR-0019. Without this, every field phone downloads ~299 kB of TanStack
     // Query, Radix, sonner, PapaParse and Leaflet on install, for an app that
     // App.tsx will not render without a network anyway.
-    expect(config).toMatch(/globIgnores:\s*\[[^\]]*AdminApp-\*\.js/);
+    // Extension-less on purpose: Leaflet's stylesheet arrives as a separate
+    // `AdminApp-*.css`, which a `.js`-only ignore would keep precaching.
+    expect(config).toMatch(/globIgnores:\s*\[\s*"\*\*\/assets\/AdminApp-\*"/);
   });
 });

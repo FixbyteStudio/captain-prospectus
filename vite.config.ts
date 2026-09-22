@@ -48,9 +48,12 @@ export default defineConfig({
         // TanStack Query, Radix, sonner, PapaParse and (from M4) Leaflet that a
         // phone can never open — App.tsx refuses to render /admin/* from a
         // cached identity, so precaching it bought nothing. Vite emits the whole
-        // admin side as this one chunk, so one glob is the whole rule; a NEW
-        // admin-only chunk would need adding here. Asserted in config.test.ts.
-        globIgnores: ["**/assets/AdminApp-*.js"],
+        // admin side as one chunk per extension, so the glob is deliberately
+        // extension-less: M4's Leaflet import emitted an `AdminApp-*.css` that
+        // a `.js`-only rule silently kept precaching. A NEW admin-only chunk
+        // under a different name would still need adding here.
+        // Asserted in config.test.ts.
+        globIgnores: ["**/assets/AdminApp-*"],
         // INVARIANT 8: the service worker never caches /api/*.
         // A cached sync response would show an agent a stale today list, or
         // worse, make a failed sync look successful. navigateFallbackDenylist

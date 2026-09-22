@@ -82,8 +82,22 @@ export const copy = {
   },
 
   import: {
-    title: "Importer un CSV",
-    steps: { file: "Fichier", columns: "Colonnes", preview: "Aperçu" },
+    title: "Importer des prospects",
+    steps: {
+      source: "Source",
+      file: "Fichier",
+      columns: "Colonnes",
+      preview: "Aperçu",
+      map: "Zone",
+    },
+
+    source: {
+      lede: "D'où viennent les prospects ?",
+      csv: "Un fichier CSV",
+      csvHint: "Un export de tableur, lu dans votre navigateur.",
+      map: "Une zone sur la carte",
+      mapHint: "Les commerces qu'OpenStreetMap connaît dans la zone que vous dessinez.",
+    },
 
     file: {
       choose: "Choisir un fichier CSV",
@@ -152,6 +166,34 @@ export const copy = {
     },
     failed:
       "L'import s'est interrompu. Les lignes déjà envoyées sont enregistrées ; réimporter le même fichier est sans risque.",
+  },
+
+  map: {
+    lede: "Dessinez une zone : cliquez pour poser chaque sommet.",
+    vertices: (n: number) => (n === 1 ? "1 sommet" : `${n} sommets`),
+    needMore: "Trois sommets au minimum.",
+    full: "Nombre de sommets maximum atteint.",
+    undo: "Annuler le dernier point",
+    clear: "Effacer",
+    search: "Rechercher dans la zone",
+    searching: "Recherche en cours…",
+    // ADR-0008: Overpass is a public service that is sometimes slow or down.
+    failed: "OpenStreetMap n'a pas répondu. Réessayez dans quelques instants, ou réduisez la zone.",
+    retry: "Réessayer",
+
+    results: {
+      found: (n: number) => (n === 1 ? "1 lieu trouvé" : `${n} lieux trouvés`),
+      unnamed: (n: number) => (n === 1 ? "1 sans nom" : `${n} sans nom`),
+      empty: "Aucun commerce trouvé dans cette zone. Élargissez-la et cherchez à nouveau.",
+      // The cache is up to seven days old, so the screen says so rather than
+      // letting two identical searches look like two live ones.
+      cached: "Résultat en cache, actualisé sous 7 jours.",
+      truncated: "Zone trop vaste : seuls les premiers résultats sont affichés. Réduisez-la.",
+      // A place OSM has no name for cannot be imported: `name` is required.
+      noName: "Sans nom",
+      start: (n: number) => (n === 1 ? "Importer 1 prospect" : `Importer ${n} prospects`),
+      nothingToImport: "Aucun lieu importable dans cette zone.",
+    },
   },
 
   duplicates: {
