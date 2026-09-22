@@ -18,6 +18,9 @@ import type {
   MergeResult,
   Prospect,
   ProspectsResponse,
+  Question,
+  Script,
+  ScriptsResponse,
 } from "../../shared/schemas";
 import type { Source, Status } from "../../shared/constants";
 
@@ -33,6 +36,7 @@ export const adminKeys = {
   prospects: (filters: ProspectFilters) => ["admin", "prospects", filters] as const,
   agents: () => ["admin", "agents"] as const,
   duplicates: () => ["admin", "duplicates"] as const,
+  scripts: () => ["admin", "scripts"] as const,
 };
 
 function toQueryString(filters: ProspectFilters): string {
@@ -166,5 +170,30 @@ export function usePatchProspect() {
         body: JSON.stringify(patch),
       }),
     onSuccess: invalidate,
+  });
+}
+
+/** Every version, newest first — docs/domains/scripts.md. At most one `isActive`. */
+export function useScripts() {
+  return useQuery({
+    queryKey: adminKeys.scripts(),
+    queryFn: () => apiFetch<ScriptsResponse>("/api/admin/scripts"),
+  });
+}
+
+/**
+ * Saving a script is never an edit — it writes version N+1 of that name and
+ * activates it (docs/domains/scripts.md). The screen's confirmation dialog is
+ * what makes that unmistakable before this fires.
+ */
+export function useCreateScript() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; questions: Question[] }) =>
+      apiFetch<Script>("/api/admin/scripts", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => client.invalidateQueries({ queryKey: adminKeys.scripts() }),
   });
 }
