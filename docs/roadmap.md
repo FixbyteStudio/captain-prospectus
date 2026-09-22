@@ -96,7 +96,7 @@ the bundle budget, cited against a measurement each time.
 - [x] Precached the field app only before adding Leaflet to the admin chunk
       ([ADR-0019](adr/0019-admin-chunk-out-of-the-precache.md)) — the precache total had drifted to
       893.57 KiB, a third of it an app a phone cannot open. **Measured at the end of M4: entry chunk
-      143.90 kB against the 150 kB budget, precache 604.49 KiB across 14 entries.** None of
+      143.93 kB against the 150 kB budget, precache 604.59 KiB across 14 entries.** None of
       Leaflet's 45.7 kB reaches a phone
 
 ## M5 — Hardening

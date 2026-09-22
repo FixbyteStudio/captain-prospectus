@@ -86,8 +86,8 @@ Field canvassing of restaurants and food trucks is run from spreadsheets and mem
   entries**, a third less, and leaves the entry chunk untouched at 143.29 kB. The lesson is in the
   drift itself: both numbers are only true on the day someone runs `pnpm build` and reads them.
 
-  **Measured again after M4's map import**, which adds Leaflet: **entry chunk 143.78 kB, precache
-  603.63 KiB.** Leaflet costs 45.7 kB gzipped and all of it lands in `AdminApp-*.js` (90.87 →
+  **Measured again after M4's map import**, which adds Leaflet: **entry chunk 143.93 kB, precache
+  604.59 KiB.** Leaflet costs 45.7 kB gzipped and all of it lands in `AdminApp-*.js` (90.87 →
   136.58 kB gzipped), so a field phone pays none of it — which is the whole point of doing ADR-0019
   first. The entry chunk still moved, by 0.47 kB, and not because of the map: `copy.ts` is one object
   in the entry chunk and the map's French strings ride along with it

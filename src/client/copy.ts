@@ -182,6 +182,9 @@ export const copy = {
     retry: "Réessayer",
 
     results: {
+      // The panel before a search: an empty screen is an invitation, not a
+      // void with a stray button in it (design.md).
+      idle: "Dessinez une zone sur la carte, puis lancez la recherche pour voir ce qu'OpenStreetMap y connaît.",
       found: (n: number) => (n === 1 ? "1 lieu trouvé" : `${n} lieux trouvés`),
       unnamed: (n: number) => (n === 1 ? "1 sans nom" : `${n} sans nom`),
       empty: "Aucun commerce trouvé dans cette zone. Élargissez-la et cherchez à nouveau.",

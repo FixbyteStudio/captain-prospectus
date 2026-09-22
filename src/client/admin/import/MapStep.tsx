@@ -92,6 +92,10 @@ export function MapStep({
       </div>
 
       <div>
+        {!search.data && !search.isPending && (
+          <p className="text-muted-foreground">{copy.map.results.idle}</p>
+        )}
+
         {search.data && (
           <>
             <div className="mb-3 flex gap-6">

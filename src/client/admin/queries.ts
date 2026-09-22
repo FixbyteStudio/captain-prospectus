@@ -203,6 +203,16 @@ const FEED_POLL_MS = 15_000;
  */
 export function useVisitsFeed() {
   const since = useRef(0);
+  /**
+   * Whether a first answer has landed. Without this the opening page arrives
+   * all at once and every row highlights — the screen announces eighteen new
+   * visits when nothing is new, which is precisely the noise the ambient rule
+   * exists to avoid. A visit arriving into an empty feed while it is open is
+   * still new; a feed being filled for the first time is not.
+   */
+  const seeded = useRef(false);
+  /** The list as the effect last folded it, so the fold never reads stale state. */
+  const held = useRef<AdminVisit[]>([]);
   const [visits, setVisits] = useState<AdminVisit[]>([]);
   const [arrived, setArrived] = useState<string[]>([]);
 
@@ -216,15 +226,27 @@ export function useVisitsFeed() {
   const page = query.data;
   useEffect(() => {
     if (!page) return;
-    setVisits((held) => {
-      setArrived(arrivedIds(held, page.visits));
-      const merged = mergeVisits(held, page.visits);
-      // Advance from what we actually hold, never from the server clock: a
-      // visit written between the query and its answer is then delivered next
-      // poll rather than skipped for good.
-      since.current = nextSince(merged);
-      return merged;
-    });
+
+    /**
+     * Folded here rather than inside a `setVisits` updater, with the list
+     * mirrored in a ref.
+     *
+     * An updater must be pure, and StrictMode double-invokes it in development
+     * to prove it: doing this work in there ran the merge twice against the
+     * same stale list and marked the whole opening page as new. Running it in
+     * the effect body is safe under the same double-invocation because
+     * `mergeVisits` is idempotent — a second pass over the same answer is a
+     * no-op, which `feed.test.ts` pins.
+     */
+    const merged = mergeVisits(held.current, page.visits);
+    setArrived(seeded.current ? arrivedIds(held.current, page.visits) : []);
+    held.current = merged;
+    seeded.current = true;
+    // Advance from what we actually hold, never from the server clock: a visit
+    // written between the query and its answer is then delivered next poll
+    // rather than skipped for good.
+    since.current = nextSince(merged);
+    setVisits(merged);
   }, [page]);
 
   return { visits, arrived, isPending: query.isPending, isError: query.isError };

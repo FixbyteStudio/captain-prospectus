@@ -283,6 +283,12 @@ Eight rules this encodes:
   (ADR-0008); a result served from cache says « Résultat en cache » with its
   age, because "I searched twice and got the same 47" should be explainable
   without reading the Worker.
+- **The candidate list is bounded and scrolls, and the live feed's is not.**
+  That looks like two answers to one question; it is one answer to two. Here the
+  two halves have to stay aligned or the split stops working — a hundred results
+  in an unbounded list would push the map off screen, and "move a vertex and
+  search again" is exactly what the admin does while reading them. The feed has
+  no second column to stay level with, so it takes the page's own scrollbar.
 
 ### The live feed
 
