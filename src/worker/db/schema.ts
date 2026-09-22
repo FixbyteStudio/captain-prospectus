@@ -126,7 +126,24 @@ export const scripts = sqliteTable(
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at").notNull(),
   },
-  (t) => [index("scripts_active_idx").on(t.isActive)],
+  (t) => [
+    index("scripts_active_idx").on(t.isActive),
+    /**
+     * "Exactly one active script at a time in v1" (docs/domains/scripts.md) was
+     * a rule the schema did not hold anyone to. A partial unique index does:
+     * `is_active = 0` rows are outside it, so any number of old versions rest
+     * there, while two live ones cannot exist even if a second writer appears.
+     *
+     * It also makes `POST /api/dev/seed` idempotent, which it was not — its
+     * `onConflictDoNothing()` had nothing to conflict on, so a second seed
+     * inserted a second active script.
+     */
+    uniqueIndex("scripts_one_active_idx")
+      .on(t.isActive)
+      .where(sql`${t.isActive} = 1`),
+    /** A version is a version *of* a script, so the pair is the real identity. */
+    uniqueIndex("scripts_name_version_idx").on(t.name, t.version),
+  ],
 );
 
 /** Overpass responses, keyed by a hash of the normalised polygon. TTL 7 days. */
