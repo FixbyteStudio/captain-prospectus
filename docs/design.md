@@ -163,3 +163,34 @@ carrying `next-themes` for it.
 
 They also arrive roomier than this design wants. The ledger sets its own row
 height from `--spacing-row` and zeroes the cell padding shadcn ships.
+
+## Icons
+
+Everything in `public/` is copied verbatim to the site root by Vite, so these
+names are also the URLs. Drop the files in with exactly these names and nothing
+else needs editing:
+
+| File | Size | Why |
+|---|---|---|
+| `favicon.svg` | scalable | The browser tab. Modern browsers prefer it and it stays sharp. |
+| `favicon.ico` | 32×32 | Fallback for browsers that ignore the SVG. Optional. |
+| `apple-touch-icon.png` | 180×180 | The iOS home screen. iOS ignores the manifest's icons for this, so without it an agent's iPhone renders a screenshot of the page. |
+| `icon-192.png` | 192×192 | Android install prompt. |
+| `icon-512.png` | 512×512 | Android splash screen. |
+| `icon-maskable-512.png` | 512×512 | Android adaptive icons, which crop to a circle or squircle. |
+
+Two things to get right in the artwork:
+
+- **The maskable one needs a safe zone.** Android crops it to a shape it chooses,
+  so the mark has to sit inside the central 80% — a circle of 40% radius from the
+  centre — and the rest must be filled background, not transparency. A normal
+  icon reused here gets its edges cut off.
+- **The others should not be transparent either.** A transparent PNG on the iOS
+  home screen renders on black. Use the brand green `#1F6F4A` or white, matching
+  the manifest's `theme_color` and `background_color`.
+
+An installable PWA needs at least the 192 and the 512; a manifest with no icons
+gets no install prompt, and "agents install the PWA from the phone browser"
+(roadmap M6) fails silently. `index.html` and the manifest in `vite.config.ts`
+are wired once the files exist — until then they deliberately reference nothing,
+because a manifest pointing at a missing icon is worse than one with none.
