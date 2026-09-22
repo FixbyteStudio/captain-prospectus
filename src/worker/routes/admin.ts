@@ -6,7 +6,7 @@
  * remaining stubs answer 501 rather than pretending to succeed.
  */
 import { Hono } from "hono";
-import { and, count, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { chunk } from "../../shared/chunk";
 import {
   DUPLICATES_PAGE_SIZE,
@@ -21,6 +21,7 @@ import {
   assignSchema,
   mergeSchema,
   overpassImportSchema,
+  visitsSinceQuerySchema,
   prospectBatchSchema,
   prospectIdParamSchema,
   prospectPatchSchema,
@@ -28,6 +29,7 @@ import {
   scriptCreateSchema,
 } from "../../shared/schemas";
 import type {
+  AdminVisitsResponse,
   AgentsResponse,
   AssignResult,
   DuplicatesResponse,
@@ -55,9 +57,6 @@ import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
 
 export const adminRoutes = new Hono<AppEnv>();
-
-const notYet = (milestone: string) =>
-  ({ error: "not_implemented", message: `Arrive en ${milestone}.` }) as const;
 
 /**
  * Overpass is a public service that is sometimes slow, rate-limited or down
@@ -716,6 +715,51 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), asy
   return c.json<OverpassImportResponse>({ ...mapped, cached: false });
 });
 
-/* ------------------------------------------------------------ not yet built */
+/* ---------------------------------------------------------------- live feed */
 
-adminRoutes.get("/visits", (c) => c.json(notYet("M4"), 501));
+/**
+ * Visits as they arrive — ADR-0010, docs/design.md "The live feed".
+ *
+ * Ordered by `received_at`, not `visited_at`: the feed answers "what has
+ * reached me", and a phone that synced a three-day-old visit this minute is
+ * news. `visits_received_idx` exists for exactly this ordering.
+ *
+ * `since` is exclusive, so the client can pass back the last `receivedAt` it
+ * saw and get only what is new. Polling every 15 s makes that the difference
+ * between 500 rows and none.
+ */
+adminRoutes.get("/visits", validate("query", visitsSinceQuerySchema), async (c) => {
+  const { since, limit } = c.req.valid("query");
+  const db = getDb(c.env.DB);
+
+  /**
+   * Joined to prospects for the name — and deliberately NOT filtered on
+   * `merged_into IS NULL`, which every other admin list does.
+   *
+   * This one records what agents did, and an absorbed prospect keeps its own
+   * visits (docs/domains/prospecting.md): no visit is ever repointed, so
+   * filtering here would make a visit vanish from the feed because an admin
+   * merged a duplicate afterwards. The name shown is the one the visit was
+   * actually made against.
+   */
+  const rows = await db
+    .select({
+      id: visits.id,
+      prospectId: visits.prospectId,
+      prospectName: prospects.name,
+      agentEmail: visits.agentEmail,
+      visitedAt: visits.visitedAt,
+      receivedAt: visits.receivedAt,
+      flyerGiven: visits.flyerGiven,
+      outcome: visits.outcome,
+      followUpAt: visits.followUpAt,
+      notes: visits.notes,
+    })
+    .from(visits)
+    .innerJoin(prospects, eq(visits.prospectId, prospects.id))
+    .where(since > 0 ? gt(visits.receivedAt, since) : undefined)
+    .orderBy(desc(visits.receivedAt))
+    .limit(limit);
+
+  return c.json<AdminVisitsResponse>({ visits: rows, serverTime: Date.now() });
+});

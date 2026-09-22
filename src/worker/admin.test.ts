@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
+import { ADMIN_VISITS_PAGE_SIZE } from "../shared/constants";
 import { prospects, scripts, visits } from "./db/schema";
 import type {
+  AdminVisitsResponse,
   AgentsResponse,
   AssignResult,
   DuplicatesResponse,
@@ -839,6 +841,128 @@ describe("authorization", () => {
     env.DEV_USER_EMAIL = AGENT;
     const response = await importRows([{ name: "" }]);
     expect(response.status).toBe(403);
+  });
+});
+
+describe("GET /api/admin/visits", () => {
+  // The reset in the "authorization" block is scoped to it; the admin-only
+  // test below would otherwise leave every later test running as an agent.
+  afterEach(() => {
+    env.DEV_USER_EMAIL = ADMIN;
+  });
+
+  /**
+   * Written straight to D1 rather than through /api/agent/sync: the feed is
+   * about `received_at`, and only a direct insert lets a test place two visits
+   * on either side of a known cursor.
+   */
+  async function seedVisit(name: string, receivedAt: number, outcome = "interested") {
+    const db = getDb(env.DB);
+    const prospectId = crypto.randomUUID();
+    await db.insert(prospects).values({
+      id: prospectId,
+      name,
+      type: "restaurant",
+      source: "csv",
+      dedupeKey: `test:${name}:${receivedAt}`,
+      status: "assigned",
+      createdBy: ADMIN,
+      createdAt: receivedAt,
+      updatedAt: receivedAt,
+    });
+    await db.insert(visits).values({
+      id: crypto.randomUUID(),
+      prospectId,
+      agentEmail: AGENT,
+      visitedAt: receivedAt,
+      clientVisitedAt: receivedAt,
+      receivedAt,
+      flyerGiven: true,
+      outcome: outcome as "interested",
+      clientVersion: 1,
+    });
+    return prospectId;
+  }
+
+  async function feed(query = ""): Promise<AdminVisitsResponse> {
+    const response = await call(`/api/admin/visits${query}`);
+    expect(response.status).toBe(200);
+    return (await response.json()) as AdminVisitsResponse;
+  }
+
+  it("returns an empty list rather than an error before anyone has visited", async () => {
+    const body = await feed();
+    expect(body.visits).toEqual([]);
+    expect(body.serverTime).toBeGreaterThan(0);
+  });
+
+  it("orders by received_at, newest first — not by when the phone says it happened", async () => {
+    await seedVisit("Le Bouchon", 1_000);
+    await seedVisit("Chez Marcel", 3_000);
+    await seedVisit("Pizza Vera", 2_000);
+
+    const body = await feed();
+    expect(body.visits.map((v) => v.prospectName)).toEqual([
+      "Chez Marcel",
+      "Pizza Vera",
+      "Le Bouchon",
+    ]);
+  });
+
+  it("joins the prospect name, which is the whole point of the feed", async () => {
+    await seedVisit("Le Comptoir", 5_000, "converted");
+    const [visit] = (await feed()).visits;
+    expect(visit).toMatchObject({
+      prospectName: "Le Comptoir",
+      agentEmail: AGENT,
+      outcome: "converted",
+      flyerGiven: true,
+      receivedAt: 5_000,
+    });
+  });
+
+  it("treats `since` as exclusive, so polling returns only what is new", async () => {
+    await seedVisit("Ancienne", 1_000);
+    await seedVisit("Nouvelle", 2_000);
+
+    const body = await feed("?since=1000");
+    expect(body.visits.map((v) => v.prospectName)).toEqual(["Nouvelle"]);
+  });
+
+  it("returns everything when `since` is absent, so a fresh tab is not empty", async () => {
+    await seedVisit("Le Bouchon", 1_000);
+    expect((await feed()).visits).toHaveLength(1);
+  });
+
+  it("still shows a visit whose prospect was merged away afterwards", async () => {
+    const survivorId = await seedVisit("Le Bouchon", 1_000);
+    const mergedId = await seedVisit("Le Bouchon (ancien)", 2_000);
+
+    const merge = await post("/api/admin/prospects/merge", { survivorId, mergedId });
+    expect(merge.status).toBe(200);
+
+    // Every other admin list filters merged_into IS NULL. This one must not:
+    // no visit is ever repointed, so filtering would delete history from the
+    // feed because an admin tidied a duplicate (docs/domains/prospecting.md).
+    expect((await feed()).visits).toHaveLength(2);
+  });
+
+  it("caps the page, and refuses a limit above it", async () => {
+    await seedVisit("Le Bouchon", 1_000);
+    await seedVisit("Chez Marcel", 2_000);
+
+    expect((await feed("?limit=1")).visits).toHaveLength(1);
+    expect((await call(`/api/admin/visits?limit=${ADMIN_VISITS_PAGE_SIZE + 1}`)).status).toBe(400);
+  });
+
+  it("rejects a `since` that is not a non-negative integer", async () => {
+    expect((await call("/api/admin/visits?since=hier")).status).toBe(400);
+    expect((await call("/api/admin/visits?since=-1")).status).toBe(400);
+  });
+
+  it("is admin-only", async () => {
+    env.DEV_USER_EMAIL = AGENT;
+    expect((await call("/api/admin/visits")).status).toBe(403);
   });
 });
 

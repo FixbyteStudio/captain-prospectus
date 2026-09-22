@@ -30,7 +30,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `POST /api/admin/prospects/merge` | `{survivorId, mergedId}` → `{survivorId, mergedId, dedupeKeyUpdated}` |
 | `POST /api/admin/prospects/:id/unmerge` | Undo a merge → the restored prospect |
 | `POST /api/admin/import/overpass` | `{polygon: [lat,lng][]}` → `{candidates[], truncated, cached}`. Nothing is saved: the candidates go through the same preview and the same `POST /prospects/batch` as a CSV |
-| `GET /api/admin/visits?since=<ms>` | Visits with `received_at > since`, newest first, max 500 |
+| `GET /api/admin/visits?since=<ms>&limit=` | `{visits[], serverTime}` — visits with `received_at > since`, newest first, max 500. Each carries `prospectName` |
 | `GET /api/admin/scripts` | `{scripts[]}` — all versions, newest first, max 100. At most one has `isActive` |
 | `POST /api/admin/scripts` | `{name, questions[]}` → **201** with the created script. Writes version N+1 of that name and makes it the only active one |
 
@@ -67,6 +67,26 @@ only compared with its own cell and the eight around it.
 `POST /api/admin/prospects/merge` returns 400 `already_merged` when either side
 has already been absorbed, and 404 when either id is unknown. Repeating a merge
 that already happened is a 200 no-op (INVARIANT 4).
+
+## The live feed
+
+`GET /api/admin/visits` backs the admin's live feed, polled every 15 s while the
+tab is visible (ADR-0010).
+
+- Ordered by **`received_at`**, not `visited_at`. The feed answers "what has
+  reached me": a phone that syncs a three-day-old visit this minute is news, and
+  `visited_at` comes from a clock that can be wrong (INVARIANT 12).
+  `visits_received_idx` exists for this ordering.
+- **`since` is exclusive.** The client passes back the highest `receivedAt` it
+  has seen and gets only what is newer, which is what makes a 15 s poll cheap.
+  Omitted, it returns the most recent page — a freshly opened tab is not empty.
+- **Visits of merged prospects are included**, unlike every other admin list,
+  which filters `merged_into IS NULL`. This one records what agents did, no
+  visit is ever repointed on a merge (`prospecting.md`), and filtering here
+  would make history disappear from the feed because an admin tidied a
+  duplicate. The name shown is the one the visit was made against.
+- `serverTime` is the server's clock as it answered, so a client never has to
+  derive a cursor from its own.
 
 ## The map import
 

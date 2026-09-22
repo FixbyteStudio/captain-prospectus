@@ -433,6 +433,38 @@ export type VisitHistoryResponse = z.infer<typeof visitHistoryResponseSchema>;
 
 /* --------------------------------------------------------------------- admin */
 
+/**
+ * One visit as the live feed shows it — ADR-0010.
+ *
+ * Carries `prospectName`, so this is a join rather than a row echo: a feed that
+ * said "a visit arrived" without saying where would be useless. `receivedAt` is
+ * here and is what the feed orders by — the server's clock, because a phone's
+ * can be wrong (INVARIANT 12) and the feed's promise is "what has reached me".
+ *
+ * `clientVisitedAt` and `clientVersion` stay out, for the same reason the agent
+ * history leaves them out: they are skew and upgrade diagnostics, not content.
+ */
+export const adminVisitSchema = z.object({
+  id: uuidSchema,
+  prospectId: uuidSchema,
+  prospectName: shortTextRequired,
+  agentEmail: emailSchema,
+  visitedAt: epochMsSchema,
+  receivedAt: epochMsSchema,
+  flyerGiven: z.boolean(),
+  outcome: outcomeSchema,
+  followUpAt: z.nullable(epochMsSchema),
+  notes: z.nullable(longText),
+});
+export type AdminVisit = z.infer<typeof adminVisitSchema>;
+
+export const adminVisitsResponseSchema = z.object({
+  visits: z.array(adminVisitSchema).check(z.maxLength(ADMIN_VISITS_PAGE_SIZE)),
+  /** The server's clock as it answered, so the client never derives one. */
+  serverTime: epochMsSchema,
+});
+export type AdminVisitsResponse = z.infer<typeof adminVisitsResponseSchema>;
+
 export const visitsSinceQuerySchema = z.object({
   since: z._default(z.coerce.number().check(z.int(), z.nonnegative()), 0),
   limit: z._default(
