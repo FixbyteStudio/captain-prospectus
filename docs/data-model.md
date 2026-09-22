@@ -65,6 +65,15 @@ erDiagram
 - **Visits are append-only.** Never updated, never deleted by the app. A revisit is a new row.
 - **Answers live on the visit** as JSON, keyed by question `key`. The visit references the exact `script_id` (a specific version), so answers stay interpretable after the script changes.
 - **Scripts are immutable per version.** Editing a script creates version N+1 and makes it active.
+  Two partial/unique indexes hold the rules the domain doc states rather than trusting the route:
+  `scripts_one_active_idx` is unique on `is_active` **where `is_active = 1`**, so any number of old
+  versions rest outside it and two live ones cannot exist; `scripts_name_version_idx` makes
+  `(name, version)` the real identity of a version. A visit references the script's `id`, never its
+  version number, so renumbering a version never rewrites history.
+- **An unknown `script_id` arriving on a visit is nulled, not rejected.** It is a foreign key, so a
+  phone holding a visit answered against a script this database does not have would otherwise fail
+  the whole chunked insert. The visit is still true — only the questionnaire reference is stale — and
+  INVARIANT 5 says never lose one. See `src/worker/routes/agent.ts`.
 - **Two clocks on a visit.** `visited_at` is when it happened (phone clock), `received_at` is when the server got it. The live feed uses `received_at`; history uses `visited_at`.
 - **`visited_at` is clamped** to `min(visited_at, received_at)` on insert, because a phone's clock can
   be wrong and a future-dated visit would freeze a prospect's status forever
@@ -101,3 +110,6 @@ write on every imported row. Revisit if the base grows by an order of magnitude.
 | `visits(prospect_id, visited_at)` | visit history on a prospect |
 | `visits(received_at)` | live feed |
 | `visits(agent_email, visited_at)` | an agent's own history |
+| `scripts(is_active)` | the sync pull's "which script is live" |
+| `scripts(is_active)` unique **where `is_active = 1`** | "exactly one active script at a time" |
+| `scripts(name, version)` unique | a version is a version *of* a script |

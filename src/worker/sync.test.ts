@@ -1,8 +1,9 @@
 import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
+import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
-import { prospects, visits } from "./db/schema";
+import { prospects, scripts, visits } from "./db/schema";
 import { visitHistoryResponseSchema } from "../shared/schemas";
 import type { SyncRequest, SyncResponse } from "../shared/schemas";
 
@@ -54,8 +55,10 @@ async function seedProspect(id: string): Promise<void> {
 
 beforeEach(async () => {
   const db = getDb(env.DB);
+  // Order matters: visits reference both of the others by foreign key.
   await db.delete(visits);
   await db.delete(prospects);
+  await db.delete(scripts);
 });
 
 describe("GET /api/me", () => {
@@ -369,6 +372,128 @@ describe("POST /api/agent/sync", () => {
 
     const body = (await (await sync({})).json()) as SyncResponse;
     expect(body.prospects.map((p) => p.id)).toEqual([mine]);
+  });
+});
+
+describe("POST /api/agent/sync — the script a visit was answered with", () => {
+  async function seedScript(): Promise<number> {
+    const db = getDb(env.DB);
+    const [row] = await db
+      .insert(scripts)
+      .values({
+        name: "Questionnaire",
+        version: 1,
+        questions: [{ key: "has_delivery", label: "Livraison ?", type: "yes_no" }],
+        isActive: true,
+        createdAt: Date.now(),
+      })
+      .returning({ id: scripts.id });
+    if (!row) throw new Error("seed failed");
+    return row.id;
+  }
+
+  it("pulls the active script down on every sync", async () => {
+    const scriptId = await seedScript();
+    const body = (await (await sync({})).json()) as SyncResponse;
+
+    expect(body.script?.id).toBe(scriptId);
+    expect(body.script?.questions).toHaveLength(1);
+  });
+
+  it("pulls null when no script has been saved yet", async () => {
+    const body = (await (await sync({})).json()) as SyncResponse;
+    expect(body.script).toBeNull();
+  });
+
+  it("stores the script id and the answers a visit was given", async () => {
+    const scriptId = await seedScript();
+    const prospectId = crypto.randomUUID();
+    await seedProspect(prospectId);
+
+    const visitId = crypto.randomUUID();
+    const response = await sync({
+      visits: [
+        {
+          id: visitId,
+          prospectId,
+          visitedAt: Date.now(),
+          flyerGiven: true,
+          outcome: "interested",
+          scriptId,
+          answers: { has_delivery: true },
+        },
+      ],
+    });
+    expect(response.status).toBe(200);
+
+    const db = getDb(env.DB);
+    const [row] = await db
+      .select({ scriptId: visits.scriptId, answers: visits.answers })
+      .from(visits)
+      .where(eq(visits.id, visitId));
+
+    expect(row?.scriptId).toBe(scriptId);
+    expect(row?.answers).toEqual({ has_delivery: true });
+  });
+
+  /**
+   * INVARIANT 5. `visits.script_id` is a foreign key, so a visit naming a
+   * script this database does not have would fail the whole chunked insert and
+   * cost the agent every visit in the batch. Refusing the visit instead would
+   * strand it in the outbox for ever (docs/backlog/003). The visit is true
+   * either way — only the questionnaire reference is stale.
+   */
+  it("keeps a visit whose script id this database does not know, answers and all", async () => {
+    const prospectId = crypto.randomUUID();
+    await seedProspect(prospectId);
+
+    const visitId = crypto.randomUUID();
+    const response = await sync({
+      visits: [
+        {
+          id: visitId,
+          prospectId,
+          visitedAt: Date.now(),
+          flyerGiven: false,
+          outcome: "interested",
+          scriptId: 424_242,
+          answers: { has_delivery: false },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as SyncResponse;
+    expect(body.accepted.visits).toContain(visitId);
+
+    const db = getDb(env.DB);
+    const [row] = await db
+      .select({ scriptId: visits.scriptId, answers: visits.answers })
+      .from(visits)
+      .where(eq(visits.id, visitId));
+
+    expect(row?.scriptId).toBeNull();
+    expect(row?.answers).toEqual({ has_delivery: false });
+  });
+
+  it("does not let one unknown script id take down the rest of the batch", async () => {
+    const scriptId = await seedScript();
+    const prospectId = crypto.randomUUID();
+    await seedProspect(prospectId);
+
+    const good = crypto.randomUUID();
+    const stale = crypto.randomUUID();
+    const base = { prospectId, visitedAt: Date.now(), flyerGiven: false, outcome: "interested" };
+
+    const response = await sync({
+      visits: [
+        { ...base, id: good, scriptId, answers: {} },
+        { ...base, id: stale, scriptId: 424_242, answers: {} },
+      ] as SyncRequest["visits"],
+    });
+
+    const body = (await response.json()) as SyncResponse;
+    expect(body.accepted.visits).toEqual(expect.arrayContaining([good, stale]));
   });
 });
 

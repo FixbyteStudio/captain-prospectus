@@ -17,10 +17,11 @@ import {
 import { chunk } from "../../shared/chunk";
 import { dedupeKey } from "../../shared/dedupe";
 import { prospectIdParamSchema, syncRequestSchema } from "../../shared/schemas";
-import type { Prospect, Script, SyncResponse, VisitHistoryResponse } from "../../shared/schemas";
+import type { Prospect, SyncResponse, VisitHistoryResponse } from "../../shared/schemas";
 import { validate } from "../validate";
 import { boundParamsPerRow, getDb } from "../db/client";
 import { prospects, scripts, visits } from "../db/schema";
+import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
 import type { NewProspectRow, NewVisitRow, ProspectRow } from "../db/schema";
 
@@ -178,6 +179,36 @@ agentRoutes.post(
       );
       const insertable = rows.filter((r) => known.has(r.prospectId));
 
+      // `visits.script_id` is a foreign key too, and a phone can hold a visit
+      // answered against a script this database does not have — a build that
+      // synced from another environment, or a row restored from a backup taken
+      // before it. The prospect filter above drops the visit; doing that here
+      // would be wrong, because the visit itself is still true. So the unknown
+      // id is nulled and the answers are kept: INVARIANT 5 says never lose a
+      // visit, and losing one to a stale questionnaire reference is still
+      // losing one. Rejecting it instead would strand the row in the outbox for
+      // ever, which is docs/backlog/003.
+      const referencedScripts = [
+        ...new Set(
+          insertable.map((r) => r.scriptId).filter((id): id is number => typeof id === "number"),
+        ),
+      ];
+      if (referencedScripts.length > 0) {
+        const knownScripts = new Set(
+          (
+            await db
+              .select({ id: scripts.id })
+              .from(scripts)
+              .where(inArray(scripts.id, referencedScripts))
+          ).map((r) => r.id),
+        );
+        for (const row of insertable) {
+          if (typeof row.scriptId === "number" && !knownScripts.has(row.scriptId)) {
+            row.scriptId = null;
+          }
+        }
+      }
+
       for (const batch of chunk(insertable, boundParamsPerRow(visits))) {
         const inserted = await db
           .insert(visits)
@@ -244,23 +275,11 @@ agentRoutes.post(
       accepted: { prospects: acceptedProspects, visits: acceptedVisits },
       idMap,
       prospects: todayList.map(toWireProspect),
-      script: activeScript ? (toWireScript(activeScript) as Script) : null,
+      script: activeScript ? toWireScript(activeScript) : null,
     };
     return c.json(response);
   },
 );
-
-function toWireScript(row: typeof scripts.$inferSelect): Script {
-  return {
-    id: row.id,
-    name: row.name,
-    version: row.version,
-    // Stored as JSON; the shape is guaranteed by scriptCreateSchema on write.
-    questions: row.questions as Script["questions"],
-    isActive: row.isActive,
-    createdAt: row.createdAt,
-  };
-}
 
 /**
  * Last 20 visits of a prospect. An agent sees only prospects assigned to them.

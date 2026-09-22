@@ -70,6 +70,8 @@ the bundle budget, cited against a measurement each time.
       [backlog/004](backlog/004-field-bundle-budget.md)
 - [ ] **Design pass** with the `frontend-design` skill: the question editor is the
       most complex screen in the app
+- [x] `GET` / `POST /api/admin/scripts` — versioning server-side, "exactly one active script"
+      enforced by a partial unique index rather than by the route alone
 - [ ] Script editor (admin), versioning — shadcn `form`, `accordion`, `select`, drag to reorder
 - [ ] Script questions in the visit form, validation — one shadcn control per question type
 

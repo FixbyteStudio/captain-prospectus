@@ -31,8 +31,8 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `POST /api/admin/prospects/:id/unmerge` | Undo a merge → the restored prospect |
 | `POST /api/admin/import/overpass` | `{polygon: [lat,lng][]}` → candidates (not saved) |
 | `GET /api/admin/visits?since=<ms>` | Visits with `received_at > since`, newest first, max 500 |
-| `GET /api/admin/scripts` | All script versions |
-| `POST /api/admin/scripts` | Create new version of `{name, questions[]}` and activate it |
+| `GET /api/admin/scripts` | `{scripts[]}` — all versions, newest first, max 100. At most one has `isActive` |
+| `POST /api/admin/scripts` | `{name, questions[]}` → **201** with the created script. Writes version N+1 of that name and makes it the only active one |
 
 ## Status codes
 | Code | Meaning |

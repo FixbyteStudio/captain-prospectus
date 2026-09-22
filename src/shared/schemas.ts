@@ -75,24 +75,70 @@ export type MeResponse = z.infer<typeof meResponseSchema>;
 
 /* -------------------------------------------------------------------- scripts */
 
-export const questionSchema = z.object({
-  key: z
-    .string()
-    .check(
-      z.regex(/^[a-z][a-z0-9_]*$/, "key must be snake_case and start with a letter"),
-      z.maxLength(60),
-    ),
-  label: shortTextRequired,
-  type: z.enum(QUESTION_TYPES),
-  options: z.optional(z.array(shortTextRequired).check(z.maxLength(30))),
-  required: z.optional(z.boolean()),
-});
+/** The types whose answer is one of `options`, so `options` must be there. */
+const TYPES_WITH_OPTIONS: ReadonlySet<string> = new Set(["single", "multi"]);
+
+export const questionSchema = z
+  .object({
+    key: z
+      .string()
+      .check(
+        z.regex(/^[a-z][a-z0-9_]*$/, "key must be snake_case and start with a letter"),
+        z.maxLength(60),
+      ),
+    label: shortTextRequired,
+    type: z.enum(QUESTION_TYPES),
+    options: z.optional(z.array(shortTextRequired).check(z.maxLength(30))),
+    required: z.optional(z.boolean()),
+  })
+  .check((ctx) => {
+    // docs/domains/scripts.md: `single` answers with one of `options` and
+    // `multi` with several, so a question of either type without them cannot be
+    // answered at all. The other four take their answer from the control, and
+    // options on them would be stored, shown to nobody, and quietly confusing.
+    const { type, options } = ctx.value;
+    if (TYPES_WITH_OPTIONS.has(type)) {
+      if (!options || options.length === 0) {
+        ctx.issues.push({
+          code: "custom",
+          message: "a single or multi question needs at least one option",
+          path: ["options"],
+          input: options,
+        });
+      }
+    } else if (options !== undefined) {
+      ctx.issues.push({
+        code: "custom",
+        message: `a ${type} question takes no options`,
+        path: ["options"],
+        input: options,
+      });
+    }
+  });
 export type Question = z.infer<typeof questionSchema>;
 
-export const scriptCreateSchema = z.object({
-  name: shortTextRequired,
-  questions: z.array(questionSchema).check(z.minLength(1), z.maxLength(50)),
-});
+export const scriptCreateSchema = z
+  .object({
+    name: shortTextRequired,
+    questions: z.array(questionSchema).check(z.minLength(1), z.maxLength(50)),
+  })
+  .check((ctx) => {
+    // Answers are a record keyed by `key` (`answersSchema`), so two questions
+    // sharing one key do not produce two answers — the second silently
+    // overwrites the first, and the visit is wrong rather than rejected.
+    const seen = new Set<string>();
+    ctx.value.questions.forEach((question, index) => {
+      if (seen.has(question.key)) {
+        ctx.issues.push({
+          code: "custom",
+          message: `duplicate question key "${question.key}"`,
+          path: ["questions", index, "key"],
+          input: question.key,
+        });
+      }
+      seen.add(question.key);
+    });
+  });
 
 export const scriptSchema = z.object({
   id: z.int().check(z.positive()),
@@ -103,6 +149,12 @@ export const scriptSchema = z.object({
   createdAt: epochMsSchema,
 });
 export type Script = z.infer<typeof scriptSchema>;
+
+/** Every version, newest first. At most one of them has `isActive`. */
+export const scriptsResponseSchema = z.object({
+  scripts: z.array(scriptSchema),
+});
+export type ScriptsResponse = z.infer<typeof scriptsResponseSchema>;
 
 /** Answers are keyed by question `key`; the shape is validated against the script. */
 export const answersSchema = z.record(
