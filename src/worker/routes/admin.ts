@@ -8,7 +8,11 @@
 import { Hono } from "hono";
 import { and, count, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { chunk } from "../../shared/chunk";
-import { DUPLICATES_PAGE_SIZE, DUPLICATES_SCAN_LIMIT } from "../../shared/constants";
+import {
+  DUPLICATES_PAGE_SIZE,
+  DUPLICATES_SCAN_LIMIT,
+  SCRIPTS_PAGE_SIZE,
+} from "../../shared/constants";
 import { dedupeKey, normalize } from "../../shared/dedupe";
 import { distanceMeters } from "../../shared/geo";
 import { isProbablySamePlace } from "../../shared/similarity";
@@ -30,12 +34,15 @@ import type {
   MergeResult,
   Prospect,
   ProspectsResponse,
+  Script,
+  ScriptsResponse,
 } from "../../shared/schemas";
 import { parseEmails, roleFor } from "../auth";
 import { validate } from "../validate";
 import { boundParamsPerRow, getDb } from "../db/client";
-import { prospects, visits } from "../db/schema";
+import { prospects, scripts, visits } from "../db/schema";
 import type { NewProspectRow, ProspectRow } from "../db/schema";
+import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
 
 export const adminRoutes = new Hono<AppEnv>();
@@ -558,6 +565,67 @@ adminRoutes.post("/prospects/:id/unmerge", validate("param", prospectIdParamSche
   return c.json(toWireProspect(row));
 });
 
+/* ------------------------------------------------------------------- scripts */
+
+/**
+ * Every version, newest first — docs/domains/scripts.md.
+ *
+ * Old versions are kept and listed: a visit records the `script_id` it was
+ * answered with, so reading historical answers means reading the version that
+ * was active at the time.
+ */
+adminRoutes.get("/scripts", async (c) => {
+  const db = getDb(c.env.DB);
+  const rows = await db
+    .select()
+    .from(scripts)
+    .orderBy(desc(scripts.createdAt), desc(scripts.id))
+    .limit(SCRIPTS_PAGE_SIZE);
+
+  return c.json<ScriptsResponse>({ scripts: rows.map(toWireScript) });
+});
+
+/**
+ * Save a script: write version N+1 of that name and make it the active one.
+ *
+ * Editing never updates a row. An answer is only interpretable against the
+ * questions it was asked from, and `visits.script_id` points at a specific
+ * version, so changing one in place would silently rewrite history
+ * (docs/domains/scripts.md, docs/data-model.md).
+ */
+adminRoutes.post("/scripts", validate("json", scriptCreateSchema), async (c) => {
+  const { name, questions } = c.req.valid("json");
+  const db = getDb(c.env.DB);
+
+  const [latest] = await db
+    .select({ version: scripts.version })
+    .from(scripts)
+    .where(eq(scripts.name, name))
+    .orderBy(desc(scripts.version))
+    .limit(1);
+
+  // D1 has no interactive transaction. A batch is one atomic unit, which is
+  // what keeps "exactly one active script" true between these two statements —
+  // and `scripts_one_active_idx` refuses the write outright if it ever is not.
+  const [, inserted] = await db.batch([
+    db.update(scripts).set({ isActive: false }).where(eq(scripts.isActive, true)),
+    db
+      .insert(scripts)
+      .values({
+        name,
+        version: (latest?.version ?? 0) + 1,
+        questions,
+        isActive: true,
+        createdAt: Date.now(),
+      })
+      .returning(),
+  ]);
+
+  const row = inserted[0];
+  if (!row) return c.json({ error: "internal" }, 500);
+  return c.json<Script>(toWireScript(row), 201);
+});
+
 /* ------------------------------------------------------------ not yet built */
 
 adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), (c) =>
@@ -565,9 +633,3 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), (c)
 );
 
 adminRoutes.get("/visits", (c) => c.json(notYet("M4"), 501));
-
-adminRoutes.get("/scripts", (c) => c.json(notYet("M3"), 501));
-
-adminRoutes.post("/scripts", validate("json", scriptCreateSchema), (c) =>
-  c.json(notYet("M3"), 501),
-);

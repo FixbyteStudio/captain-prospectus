@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
-import { prospects, visits } from "./db/schema";
+import { prospects, scripts, visits } from "./db/schema";
 import type {
   AgentsResponse,
   AssignResult,
@@ -12,6 +12,8 @@ import type {
   MergeResult,
   Prospect,
   ProspectsResponse,
+  Script,
+  ScriptsResponse,
 } from "../shared/schemas";
 
 /**
@@ -63,8 +65,10 @@ function importRows(rows: Row[], source: "csv" | "osm" = "csv"): Promise<Respons
 
 beforeEach(async () => {
   const db = getDb(env.DB);
+  // Order matters: visits reference both of the others by foreign key.
   await db.delete(visits);
   await db.delete(prospects);
+  await db.delete(scripts);
 });
 
 describe("GET /api/admin/agents", () => {
@@ -675,6 +679,137 @@ describe("merging duplicates", () => {
       await call("/api/admin/prospects/duplicates")
     ).json()) as DuplicatesResponse;
     expect(body.pairs).toEqual([]);
+  });
+});
+
+describe("scripts", () => {
+  const question = (over: Partial<Script["questions"][number]> = {}) => ({
+    key: "has_delivery",
+    label: "Proposez-vous la livraison ?",
+    type: "yes_no" as const,
+    ...over,
+  });
+
+  const saveScript = (body: unknown) => post("/api/admin/scripts", body);
+
+  async function listScripts(): Promise<ScriptsResponse> {
+    const response = await call("/api/admin/scripts");
+    expect(response.status).toBe(200);
+    return (await response.json()) as ScriptsResponse;
+  }
+
+  it("saves the first script as version 1, active", async () => {
+    const response = await saveScript({ name: "Questionnaire", questions: [question()] });
+    expect(response.status).toBe(201);
+
+    const created = (await response.json()) as Script;
+    expect(created.version).toBe(1);
+    expect(created.isActive).toBe(true);
+    expect(created.questions).toHaveLength(1);
+  });
+
+  it("saving again writes version N+1 and stands the previous one down", async () => {
+    await saveScript({ name: "Questionnaire", questions: [question()] });
+    const second = await saveScript({
+      name: "Questionnaire",
+      questions: [question(), question({ key: "pos_system", type: "text" })],
+    });
+    expect(second.status).toBe(201);
+    expect(((await second.json()) as Script).version).toBe(2);
+
+    const { scripts: all } = await listScripts();
+    expect(all.map((s) => [s.version, s.isActive])).toEqual([
+      [2, true],
+      [1, false],
+    ]);
+  });
+
+  it("keeps every old version, because a visit records the one it answered", async () => {
+    await saveScript({ name: "Questionnaire", questions: [question()] });
+    await saveScript({ name: "Questionnaire", questions: [question()] });
+    await saveScript({ name: "Questionnaire", questions: [question()] });
+
+    const { scripts: all } = await listScripts();
+    expect(all).toHaveLength(3);
+    expect(all.filter((s) => s.isActive)).toHaveLength(1);
+  });
+
+  it("numbers versions per name, so a second script starts at 1", async () => {
+    await saveScript({ name: "Questionnaire", questions: [question()] });
+    const other = await saveScript({ name: "Food trucks", questions: [question()] });
+    expect(((await other.json()) as Script).version).toBe(1);
+
+    // ...and it is now the active one: there is exactly one, whatever its name.
+    const { scripts: all } = await listScripts();
+    expect(all.filter((s) => s.isActive).map((s) => s.name)).toEqual(["Food trucks"]);
+  });
+
+  it("lists newest first", async () => {
+    await saveScript({ name: "A", questions: [question()] });
+    await saveScript({ name: "B", questions: [question()] });
+
+    const { scripts: all } = await listScripts();
+    expect(all.map((s) => s.name)).toEqual(["B", "A"]);
+  });
+
+  it("returns an empty list rather than 404 when nothing is saved yet", async () => {
+    expect((await listScripts()).scripts).toEqual([]);
+  });
+
+  describe("the contract the editor has to satisfy", () => {
+    it("refuses a single or multi question with no options", async () => {
+      const response = await saveScript({
+        name: "Q",
+        questions: [question({ key: "pos_system", type: "single" })],
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it("accepts a single question that has them", async () => {
+      const response = await saveScript({
+        name: "Q",
+        questions: [question({ key: "pos_system", type: "single", options: ["Aucune", "Papier"] })],
+      });
+      expect(response.status).toBe(201);
+    });
+
+    it("refuses options on a type whose answer does not come from them", async () => {
+      const response = await saveScript({
+        name: "Q",
+        questions: [question({ key: "covers", type: "number", options: ["nope"] })],
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it("refuses two questions sharing a key, which would overwrite an answer", async () => {
+      const response = await saveScript({
+        name: "Q",
+        questions: [question(), question({ label: "Autre question" })],
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it("refuses a key that is not snake_case", async () => {
+      const response = await saveScript({
+        name: "Q",
+        questions: [question({ key: "Has Delivery" })],
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it("refuses a script with no questions at all", async () => {
+      expect((await saveScript({ name: "Q", questions: [] })).status).toBe(400);
+    });
+  });
+
+  it("is admin-only, on both verbs", async () => {
+    env.DEV_USER_EMAIL = AGENT;
+    try {
+      expect((await call("/api/admin/scripts")).status).toBe(403);
+      expect((await saveScript({ name: "Q", questions: [question()] })).status).toBe(403);
+    } finally {
+      env.DEV_USER_EMAIL = ADMIN;
+    }
   });
 });
 
