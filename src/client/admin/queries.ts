@@ -3,13 +3,16 @@
  * field client's source of truth is Dexie, and a second cache over the outbox
  * is how visits get lost.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "../api";
 import { copy } from "../copy";
 import { IMPORT_ROWS_PER_REQUEST } from "../../shared/constants";
+import { arrivedIds, mergeVisits, nextSince } from "./visits/feed";
 import { batched } from "./import/csv";
 import type {
+  AdminVisit,
+  AdminVisitsResponse,
   AgentsResponse,
   AssignResult,
   DuplicatesResponse,
@@ -37,6 +40,7 @@ export const adminKeys = {
   prospects: (filters: ProspectFilters) => ["admin", "prospects", filters] as const,
   agents: () => ["admin", "agents"] as const,
   duplicates: () => ["admin", "duplicates"] as const,
+  visitsFeed: () => ["admin", "visits", "feed"] as const,
   scripts: () => ["admin", "scripts"] as const,
 };
 
@@ -179,6 +183,51 @@ export function useOverpassImport() {
       }),
     retry: false,
   });
+}
+
+/** How often the feed asks, while the tab is visible (ADR-0010). */
+const FEED_POLL_MS = 15_000;
+
+/**
+ * Visits as they arrive — ADR-0010.
+ *
+ * The cursor lives in a ref, not in the query key. Putting a moving `since` in
+ * the key would mint a fresh cache entry every 15 s and grow without bound; a
+ * stable key means one entry that is refetched, which is what TanStack's
+ * interval is for.
+ *
+ * `refetchIntervalInBackground` stays at its default of false, which is what
+ * pauses the poll on a hidden tab. `refetchOnWindowFocus` is overridden to
+ * true: AdminApp turns it off globally, and coming back to the tab is exactly
+ * when the feed should catch up rather than wait out the interval.
+ */
+export function useVisitsFeed() {
+  const since = useRef(0);
+  const [visits, setVisits] = useState<AdminVisit[]>([]);
+  const [arrived, setArrived] = useState<string[]>([]);
+
+  const query = useQuery({
+    queryKey: adminKeys.visitsFeed(),
+    queryFn: () => apiFetch<AdminVisitsResponse>(`/api/admin/visits?since=${since.current}`),
+    refetchInterval: FEED_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+
+  const page = query.data;
+  useEffect(() => {
+    if (!page) return;
+    setVisits((held) => {
+      setArrived(arrivedIds(held, page.visits));
+      const merged = mergeVisits(held, page.visits);
+      // Advance from what we actually hold, never from the server clock: a
+      // visit written between the query and its answer is then delivered next
+      // poll rather than skipped for good.
+      since.current = nextSince(merged);
+      return merged;
+    });
+  }, [page]);
+
+  return { visits, arrived, isPending: query.isPending, isError: query.isError };
 }
 
 export function usePatchProspect() {

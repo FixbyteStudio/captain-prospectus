@@ -196,6 +196,19 @@ export const copy = {
     },
   },
 
+  visits: {
+    title: "Visites",
+    lede: "Les visites arrivent ici dès qu'un agent synchronise.",
+    count: (n: number) => (n === 1 ? "1 visite" : `${n} visites`),
+    // An empty screen is an invitation, not a shrug (design.md).
+    empty: "Aucune visite reçue. Les visites apparaissent ici dès qu'un agent synchronise.",
+    loading: "Chargement des visites…",
+    loadFailed: "Impossible de charger les visites. Réessayez.",
+    flyer: "Flyer remis",
+    /** Announced when rows arrive, for a reader that cannot see the highlight. */
+    arrived: (n: number) => (n === 1 ? "1 nouvelle visite" : `${n} nouvelles visites`),
+  },
+
   duplicates: {
     title: "Doublons",
     lede: "Ces prospects semblent désigner le même endroit. Un nom corrigé dans le fichier crée une nouvelle fiche : c'est ici qu'on les réunit.",
