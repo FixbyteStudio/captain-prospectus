@@ -392,10 +392,19 @@ Further to the list above, and for the same reason — so they do not creep back
 
 ### Native controls here
 
-`<input type="date">` for the follow-up date, and controlled inputs validated by
-the shared zod schemas rather than a form library. Both are
-[ADR-0015](adr/0015-native-controls-on-the-field-route.md), and both are
-measurements before they are preferences.
+`<input type="date">` for the follow-up date, and the choice controls in
+`src/client/ui/field-controls.tsx` rather than Radix's — a native radio group is
+not behaviour the platform lacks. That is
+[ADR-0015](adr/0015-native-controls-on-the-field-route.md), and it is a
+measurement before it is a preference.
+
+**Validation is react-hook-form, here as everywhere else**
+([ADR-0018](adr/0018-one-form-stack.md)). That reverses half of ADR-0015 —
+deliberately, with its own measurement, because M3's script questions are a
+variable list whose rules depend on the outcome. The rules themselves did not
+move into the components: the visit form's resolver *is* `toVisit` from
+`visit-draft.ts`, and the add-prospect form's is `z.pick` of the shared schema.
+What changed is who tracks which control is invalid, not who decides.
 
 The consequence to expect: **the date field looks like the operating system, not
 like the admin's controls.** That is not an inconsistency to fix later. On a
