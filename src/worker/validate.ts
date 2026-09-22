@@ -4,10 +4,10 @@
  * so the shape of a 400 is identical everywhere (docs/api.md).
  */
 import { zValidator } from "@hono/zod-validator";
-import type { ZodType } from "zod";
+import type { $ZodType } from "zod/v4/core";
 import type { ValidationTargets } from "hono";
 
-export function validate<T extends ZodType, Target extends keyof ValidationTargets>(
+export function validate<T extends $ZodType, Target extends keyof ValidationTargets>(
   target: Target,
   schema: T,
 ) {

@@ -49,9 +49,15 @@ Field canvassing of restaurants and food trucks is run from spreadsheets and mem
   and field-prospect drafts against the same shared schemas rather than a form library, which is
   cheaper than `react-hook-form` but not free.
 
-  This is a real, measured number, not a rounding error to wave off — and closing it properly (a
-  lighter validation path, or splitting `src/shared/schemas.ts` so a field screen does not pull in
-  admin-only schemas it never imports) is its own piece of work, tracked as
-  [backlog/004](backlog/004-field-bundle-budget.md) rather than rushed into this change. Re-measure
-  whenever the field screens grow; if the entry chunk crosses whatever the current budget is, split
-  further before adding to it.
+  This is a real, measured number, not a rounding error to wave off, and it was closed in M3's
+  first change rather than carried. **Measured after [ADR-0017](adr/0017-zod-mini-for-the-shared-wire-contract.md):
+  141.95 kB — under budget.** Attributing the chunk through its sourcemap found the hypothesis above
+  half wrong: splitting `src/shared/schemas.ts` was worth about 1 kB, because rolldown already
+  tree-shakes the schemas a field screen never imports — all of them together are 3.2 kB raw. The
+  overage was zod's *runtime*, 27.8 kB gzipped of it, including 17 kB raw of JSON-Schema conversion
+  the app never calls. Writing the contract in `zod/mini` — same core, same `issues`, one definition
+  still serving both sides — takes that to 9.6 kB and the entry chunk to 141.95 kB. The Worker bundle
+  fell 110.26 → 83.93 kB in the same change, and the PWA now precaches 782 KiB rather than 842 KiB.
+
+  Re-measure whenever the field screens grow; if the entry chunk crosses whatever the current budget
+  is, settle it before adding to it. The headroom is 8 kB, which is not much.

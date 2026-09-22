@@ -27,6 +27,8 @@ Fix it in the current change only when the task cannot be finished or verified w
 4. **Every write is idempotent.** Client ids are `crypto.randomUUID()`. Inserts use `onConflictDoNothing` unless the doc says upsert.
 5. **Never lose a visit.** Outbox rows are deleted only after the server lists them in `accepted`. Auth errors and 426 never clear the outbox.
 6. **Validate every request body** with a zod schema from `src/shared/schemas.ts`. No inline ad-hoc validation in routes.
+   That file is written in **`zod/mini`** (`.check(...)`, `z.optional(x)`, `z._default(x, v)`), not the classic chained
+   API — it is reachable from the field entry chunk and the classic runtime costs 17 kB gzipped more (ADR-0017).
 7. **D1: ≤100 bound parameters per statement.** Use the `chunk()` helper for multi-row inserts.
 8. **Service worker never caches `/api/*`.**
 9. **Sync contract changes are additive.** Breaking changes bump `clientVersion` and follow the api.md process.
