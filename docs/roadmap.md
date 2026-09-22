@@ -9,7 +9,10 @@ any app is, and only meets production once it is worth deploying.
 run the `frontend-design` skill to decide the screen's design *before* building
 it, and compose it from **shadcn/ui** elements vendored into `src/client/ui/`.
 Do not hand-roll an element shadcn provides, and replace every English string a
-vendored component ships with the French one from `src/client/copy.ts`.
+vendored component ships with the French one from `src/client/copy.ts`. **On
+the field route**, [ADR-0015](adr/0015-native-controls-on-the-field-route.md)
+narrows this: a native element replaces a shadcn one whose dependencies breach
+the bundle budget, cited against a measurement each time.
 
 ## M0 — Foundations ✅
 - [x] Docs, ADRs, rules, agents, skills
@@ -35,18 +38,30 @@ vendored component ships with the French one from `src/client/copy.ts`.
       @tanstack/react-table, and this screen filters and sorts server-side
 
 ## M2 — Field PWA
-- [x] Offline outbox + sync engine and endpoint
-- [ ] **Design pass** with the `frontend-design` skill: the field screens are a
+- [x] Offline outbox + sync engine and endpoint — wired to the app; `runSync` was
+      dead code until this milestone (see the bundle note below)
+- [x] **Design pass** with the `frontend-design` skill: the field screens are a
       separate problem from the admin ones — one thumb, outdoors, in a hurry.
       Keep the 48px minimum touch target in the shadcn variants, not per screen
-- [ ] Installable PWA, app shell offline
-- [ ] Today list ordered by distance (`orderByNearestNext`)
-- [ ] Visit form (flyer, outcome, follow-up, notes) writing to the outbox — shadcn `form`, `radio-group`, `calendar`, `textarea`
-- [ ] Add field prospect — shadcn `form`, `select`
-- [ ] Sync triggers wired: app start, `online`, after each visit, every 60 s, with a shadcn `sonner` toast on failure
+      — written up in [design.md](design.md#the-field-side)
+- [x] Installable PWA, app shell offline — service worker registered
+      (`registerType: "prompt"`, an owned update banner), identity falls back to
+      a cached copy so the shell itself never blocks on the network
+- [x] Today list ordered by distance (`orderByNearestNext`) — plus unsynced field
+      prospects shown alongside the pulled list, and a "Plus tard" group for
+      follow-ups not yet due
+- [x] Visit form (flyer, outcome, follow-up, notes) writing to the outbox —
+      radio-group + textarea + `<input type="date">`, not shadcn `form`/`calendar`
+      ([ADR-0015](adr/0015-native-controls-on-the-field-route.md))
+- [x] Add field prospect — radio-group, not shadcn `form`/`select` (ADR-0015)
+- [x] Sync triggers wired: app start, `online`, after each visit, every 60 s —
+      an ambient sync strip in the band, not a `sonner` toast: a pending count
+      is a standing fact for hours, not a four-second event (design.md)
 - [x] Measure the field route's JS bundle against the ADR-0014 budget note — the admin
-      side is a lazy chunk, the budget is in [vision.md](vision.md); re-measure once the
-      real field screens exist
+      side is a lazy chunk, the budget is in [vision.md](vision.md); re-measured at the
+      end of M2: **158 kB, over the 150 kB budget** — `zod` becoming reachable for the
+      first time once the sync engine is actually wired, tracked as
+      [backlog/004](backlog/004-field-bundle-budget.md)
 
 ## M3 — Scripts
 - [ ] **Design pass** with the `frontend-design` skill: the question editor is the

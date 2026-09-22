@@ -19,13 +19,28 @@ Agents add places not in the base: name and type required, position defaults to 
 ## Offline sync
 See [ADR-0007](../adr/0007-offline-first-insert-only-sync.md).
 
+**Identity has an offline fallback too.** The app shell calls `GET /api/me` on
+load; if that fails, it falls back to the last identity `meta.identity` cached,
+so an agent standing where `/api/me` cannot be reached still gets their round
+instead of a blocked shell. The cached copy proves nothing by itself — the
+Worker re-derives identity from the verified Access JWT on every request
+(INVARIANT 10) — so a stale or tampered copy unlocks no admin route; a cached
+identity opens the field screens only, never `/admin/*`.
+
 ### Local store (Dexie)
 | Table | Content |
 |---|---|
 | `prospects` | Last pulled today list (replaced on each successful sync) |
 | `outboxProspects` | Field prospects not yet accepted |
 | `outboxVisits` | Visits not yet accepted |
-| `meta` | active script, last sync time, agent email |
+| `visitHistory` | Cached `GET /api/agent/prospects/:id/visits` results, one prospect's cache replaced per pull, so the visit form's « Visites précédentes » still shows something with no signal |
+| `meta` | active script, last sync time, the last identity `/api/me` returned |
+
+The today list itself is built from `prospects` **and** `outboxProspects`
+together: a field prospect the server has not accepted yet still has to be
+walkable and visitable in the same offline session that created it, so it is
+shown — with no status, since the server has not derived one — until the
+outbox row it came from is deleted.
 
 ### Protocol
 `POST /api/agent/sync`

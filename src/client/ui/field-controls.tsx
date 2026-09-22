@@ -55,23 +55,25 @@ export function FieldCheckbox({
         className,
       )}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onCheckedChange(e.target.checked)}
-        className={cn(
-          "peer border-input size-5 shrink-0 appearance-none rounded-[4px] border shadow-xs",
-          "checked:border-primary-edge checked:bg-primary transition-colors",
-          "focus-visible:border-ring focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px]",
-        )}
-        {...props}
-      />
-      {/* Drawn over the box rather than inside it: an input cannot have
-          children, so the tick is a sibling positioned back on top. */}
-      <span className="text-primary-foreground pointer-events-none -ml-8 w-5 opacity-0 peer-checked:opacity-100">
-        <CheckMark />
+      {/* An input cannot have children, so the tick is a sibling stacked over
+          it. Both sit in one relative box so the label keeps normal spacing. */}
+      <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onCheckedChange(e.target.checked)}
+          className={cn(
+            "peer border-input absolute inset-0 appearance-none rounded-[4px] border shadow-xs",
+            "checked:border-primary-edge checked:bg-primary transition-colors",
+            "focus-visible:border-ring focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px]",
+          )}
+          {...props}
+        />
+        <span className="text-primary-foreground pointer-events-none relative opacity-0 peer-checked:opacity-100">
+          <CheckMark />
+        </span>
       </span>
-      <span className="pl-3">{children}</span>
+      <span>{children}</span>
     </label>
   );
 }

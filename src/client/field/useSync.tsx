@@ -13,7 +13,7 @@
  */
 import { createContext, use, useCallback, useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { fieldDb, pendingCount, setMeta } from "./db";
+import { fieldDb, pendingCount } from "./db";
 import { runSync, type SyncStatus } from "./sync";
 import { nextDelayMs, nextFailureCount, shouldDrain } from "./sync-schedule";
 
@@ -37,13 +37,7 @@ export function useSyncState(): SyncState {
   return value;
 }
 
-export function SyncProvider({
-  children,
-  agentEmail,
-}: {
-  children: React.ReactNode;
-  agentEmail: string;
-}) {
+export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<SyncStatus>("ok");
   const [running, setRunning] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
@@ -89,12 +83,6 @@ export function SyncProvider({
       setRunning(false);
     }
   }, []);
-
-  // The agent's identity, so a phone knows whose outbox it is holding after a
-  // reload. Declared in MetaValues since M1 and never written until now.
-  useEffect(() => {
-    void setMeta(fieldDb, "agentEmail", agentEmail);
-  }, [agentEmail]);
 
   // Trigger 1: app start.
   useEffect(() => {

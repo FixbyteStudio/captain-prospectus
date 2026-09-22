@@ -260,6 +260,9 @@ export const copy = {
 
   errors: {
     generic: "Une erreur est survenue. Réessayez.",
+    /** First run with no network: there is no cached identity to fall back on. */
+    offlineFirstRun:
+      "Impossible de vous identifier hors ligne. Connectez-vous une fois avec du réseau.",
     forbidden: "Vous n'avez pas accès à cette page.",
     notFound: "Page introuvable.",
   },

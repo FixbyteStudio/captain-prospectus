@@ -36,8 +36,11 @@ function Distance({ item }: { item: TodayItem }) {
 function NextStop({ item, index }: { item: TodayItem; index: number }) {
   const url = navigationUrl(item);
 
+  // No card, no shadow, no radius: design.md's "Not this" rejects boxes around
+  // rows, and the field section says the next stop is set apart by space and by
+  // being the only thing carrying actions.
   return (
-    <article className={cn("bg-card rounded-md py-4 pr-4 pl-5", edgeFor(item))}>
+    <article className={cn("border-border border-b py-5 pr-4 pl-5", edgeFor(item))}>
       <div className="flex items-baseline gap-3">
         <span className="tnum text-muted-foreground shrink-0 text-sm">{index}</span>
         <h3 className="text-display flex-1 font-semibold">{item.name}</h3>

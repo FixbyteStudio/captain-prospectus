@@ -7,10 +7,9 @@ import type { MeResponse } from "../shared/schemas";
 import { buttonVariants } from "@/ui/button-variants";
 import { usePwa } from "./pwa";
 import { TodayScreen } from "./field/TodayScreen";
-import { VisitScreen } from "./field/VisitScreen";
-import { AddProspectScreen } from "./field/AddProspectScreen";
 import { SyncDot, SyncStrip } from "./field/SyncIndicator";
 import { SyncProvider } from "./field/useSync";
+import { fieldDb, getMeta, setMeta } from "./field/db";
 
 /**
  * The admin side is a separate chunk, fetched only when an admin opens one of
@@ -25,6 +24,26 @@ import { SyncProvider } from "./field/useSync";
  */
 const AdminApp = lazy(() =>
   import("./admin/AdminApp").then((module) => ({ default: module.AdminApp })),
+);
+
+/**
+ * The round is what an agent needs the moment the app opens; the visit form
+ * and add-prospect form are one tap away from it. Splitting them out is what
+ * ADR-0014's own consequence asks for when the entry chunk crosses its budget
+ * ("split further before adding to it") — measured at the end of M2, this is
+ * that split.
+ *
+ * The service worker precaches every chunk regardless (workbox `generateSW`
+ * globs `**\/*.js`), so this does not change what an agent downloads on
+ * install or how the app behaves with no signal — VisitScreen is still
+ * reachable offline the instant the round loads. It changes only how much JS
+ * runs before the first paint of the list itself.
+ */
+const VisitScreen = lazy(() =>
+  import("./field/VisitScreen").then((module) => ({ default: module.VisitScreen })),
+);
+const AddProspectScreen = lazy(() =>
+  import("./field/AddProspectScreen").then((module) => ({ default: module.AddProspectScreen })),
 );
 
 function BandLink({ to, children }: { to: string; children: string }) {
@@ -82,8 +101,22 @@ function FieldRoutes() {
       {/* Relative to the parent's /tournee/*. "nouveau" comes before ":id" so
           it is never read as a prospect id. */}
       <Route index element={<TodayScreen />} />
-      <Route path="nouveau" element={<AddProspectScreen />} />
-      <Route path=":id" element={<VisitScreen />} />
+      <Route
+        path="nouveau"
+        element={
+          <Suspense fallback={<p className="text-muted-foreground" aria-busy="true" />}>
+            <AddProspectScreen />
+          </Suspense>
+        }
+      />
+      <Route
+        path=":id"
+        element={
+          <Suspense fallback={<p className="text-muted-foreground" aria-busy="true" />}>
+            <VisitScreen />
+          </Suspense>
+        }
+      />
     </Routes>
   );
 }
@@ -91,18 +124,59 @@ function FieldRoutes() {
 export function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** True when the identity came from the cache rather than from the server. */
+  const [offline, setOffline] = useState(false);
 
+  /**
+   * Identity, with an offline fallback.
+   *
+   * The whole product is "an agent can log a visit with no network", so the
+   * shell must not be the thing that blocks on one. `/api/me` is tried first;
+   * if it cannot be reached, the last identity the phone saw opens the field
+   * screens anyway.
+   *
+   * The cached copy is never treated as proof. The Worker re-derives identity
+   * from the verified Access JWT on every request (INVARIANT 10), so a
+   * tampered value unlocks nothing — and `offline` below keeps the admin nav
+   * hidden, because every admin screen needs the network regardless.
+   */
   useEffect(() => {
+    let cancelled = false;
+
     apiFetch<MeResponse>("/api/me")
-      .then(setMe)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : copy.errors.generic));
+      .then((identity) => {
+        if (cancelled) return;
+        setMe(identity);
+        void setMeta(fieldDb, "identity", identity);
+      })
+      .catch(() => {
+        void getMeta(fieldDb, "identity").then((cached) => {
+          if (cancelled) return;
+          if (cached) {
+            setMe(cached);
+            setOffline(true);
+          } else {
+            // Nothing cached: this phone has never reached the server, so
+            // there is no round to show and no identity to assume.
+            setError(copy.errors.offlineFirstRun);
+          }
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (error) return <main className="safe-top px-4 py-6">{error}</main>;
   if (!me) return <main className="safe-top px-4 py-6" aria-busy="true" />;
 
+  // Admin screens are useless without the network, so a cached identity opens
+  // the field side only, whatever role it happens to record.
+  const isAdmin = me.role === "admin" && !offline;
+
   return (
-    <SyncProvider agentEmail={me.email}>
+    <SyncProvider>
       <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
         <img src="/mark.svg" alt="" className="h-7 w-auto shrink-0" />
         <span className="shrink-0 text-[0.9375rem] font-semibold tracking-[0.01em] whitespace-nowrap">
@@ -113,10 +187,10 @@ export function App() {
             one, and the space goes to the sync state instead. */}
         <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
           <BandLink to="/tournee">{copy.nav.today}</BandLink>
-          {me.role === "admin" && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
-          {me.role === "admin" && <BandLink to="/admin/import">{copy.nav.import}</BandLink>}
-          {me.role === "admin" && <BandLink to="/admin/doublons">{copy.nav.duplicates}</BandLink>}
-          {me.role === "admin" && <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>}
+          {isAdmin && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
+          {isAdmin && <BandLink to="/admin/import">{copy.nav.import}</BandLink>}
+          {isAdmin && <BandLink to="/admin/doublons">{copy.nav.duplicates}</BandLink>}
+          {isAdmin && <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>}
         </nav>
         <SyncDot />
       </header>
@@ -128,15 +202,13 @@ export function App() {
         <Routes>
           <Route
             path="/"
-            element={
-              <Navigate to={me.role === "admin" ? "/admin/prospects" : "/tournee"} replace />
-            }
+            element={<Navigate to={isAdmin ? "/admin/prospects" : "/tournee"} replace />}
           />
           <Route path="/tournee/*" element={<FieldRoutes />} />
           <Route
             path="/admin/*"
             element={
-              me.role === "admin" ? (
+              isAdmin ? (
                 <Suspense fallback={<p className="text-muted-foreground" aria-busy="true" />}>
                   <AdminApp />
                 </Suspense>

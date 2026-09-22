@@ -8,6 +8,7 @@
 import Dexie, { type Table } from "dexie";
 import type {
   FieldProspect,
+  MeResponse,
   Prospect,
   Script,
   Visit,
@@ -17,7 +18,16 @@ import type {
 export type MetaValues = {
   script: Script | null;
   lastSyncAt: number;
-  agentEmail: string;
+  /**
+   * The last identity `/api/me` returned.
+   *
+   * Cached because the shell cannot reach the network on a pavement with no
+   * signal, and an agent opening the app there must still get their round.
+   * It is a convenience for rendering, never proof of anything: the Worker
+   * re-derives identity from the verified Access JWT on every request
+   * (INVARIANT 10), so a tampered copy of this unlocks nothing.
+   */
+  identity: MeResponse;
 };
 export type MetaKey = keyof MetaValues;
 export type MetaRow = { key: MetaKey; value: MetaValues[MetaKey] };
