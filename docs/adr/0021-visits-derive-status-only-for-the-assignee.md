@@ -1,6 +1,6 @@
 # ADR-0021: A visit derives prospect status only when its author is the assignee
 
-- Status: proposed
+- Status: superseded by [ADR-0022](0022-quarantine-visits-the-server-cannot-take.md)
 - Date: 2026-09-23
 - Deciders: owner
 
@@ -34,6 +34,11 @@ agent choosing to sabotage a colleague's round; it is a phone changing hands
 (`docs/backlog/005`) or a bug, with the server accepting the result either way.
 
 ## Decision
+
+> **Superseded by [ADR-0022](0022-quarantine-visits-the-server-cannot-take.md).** The
+> rule below shipped and closed #33's damage, but a non-assignee visit is now
+> quarantined rather than stored inertly, so the derivation gate it describes no longer
+> has anything to gate. Kept for the reasoning, which ADR-0022 builds on.
 
 We will **store and accept every visit exactly as today, and apply
 `OUTCOME_TO_STATUS` only when the visit that would drive the change was written by
@@ -73,8 +78,11 @@ so this case is already anomalous when it appears.
 - It does **not** close #33 completely. A rogue client can still write visit rows
   against prospects it does not own; they are attributed and visible, and they no
   longer change anything an agent or the admin acts on.
-- Orphan visits (`docs/backlog/003`) stay a separate problem with a separate decision.
-  Refusing this ADR's option 2 means the two no longer share a mechanism.
+- ~~Orphan visits (`docs/backlog/003`) stay a separate problem with a separate
+  decision.~~ **This turned out to be wrong, and is why ADR-0022 supersedes this one.**
+  An unowned visit and an orphan visit are the same shape — the server cannot take it as
+  sent — and answering them separately meant two rules for one question, while leaving
+  the cost below unpaid. ADR-0022 quarantines both.
 - `docs/backlog/005` stays necessary. This ADR stops a wrong-hands visit from moving a
   prospect; only the client-side identity stamp stops it being written under the wrong
   name in the first place.
