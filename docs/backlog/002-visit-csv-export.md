@@ -1,6 +1,6 @@
 ---
 id: 002
-status: ready
+status: done
 implements: roadmap M5 "CSV export of prospects and visits"
 depends_on: [001]
 ---

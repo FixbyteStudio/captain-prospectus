@@ -26,6 +26,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `POST /api/admin/prospects/batch` | Upsert `{source: "csv" \| "osm", rows[]}` by dedupe key → `{created, updated}` |
 | `PATCH /api/admin/prospects/:id` | Edit fields, `assignedTo`, `status`, `nextVisitAt` → the updated prospect |
 | `POST /api/admin/prospects/assign` | Bulk `{ids[], assignedTo}` → `{assigned}`; `assignedTo: null` unassigns |
+| `GET /api/admin/prospects/export.csv?status=&assignedTo=&source=` | The ledger as CSV, same three filters as the list, merged prospects excluded. `text/csv` attachment, max 500 rows, `x-truncated: true` when capped |
 | `GET /api/admin/prospects/duplicates` | `{pairs[], truncated}` — prospects that are probably the same place |
 | `POST /api/admin/prospects/merge` | `{survivorId, mergedId}` → `{survivorId, mergedId, dedupeKeyUpdated}` |
 | `POST /api/admin/prospects/:id/unmerge` | Undo a merge → the restored prospect |
@@ -35,6 +36,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `GET /api/admin/visits/orphaned` | `{visits[], remaining}` — the repair queue, newest quarantined first, max 200. Each row carries its `reason`, the `prospectName` when the id still resolves, and up to 5 `candidates` ranked by distance from where the visit happened |
 | `POST /api/admin/visits/orphaned/:id/repair` | `{prospectId}` → `{visitId, prospectId, repaired}`. Inserts the visit into `visits`, removes the queue row, derives status. Follows `mergedInto`, so the returned `prospectId` is where it actually landed. `repaired: false` means it was already done (INVARIANT 4). **400** `unknown_prospect` if the target is gone, and the queue row survives |
 | `POST /api/admin/visits/orphaned/:id/discard` | Deletes the row for good → `{discarded}`. Idempotent. The one place a visit is deliberately lost, behind a confirmation in the UI |
+| `GET /api/admin/visits/export.csv?from=<ms>&to=<ms>` | Visits as CSV for a range, defaulting to the last 30 days. Filtered on `received_at`, not `visited_at`. **400** when `from > to`. Max 500 rows, `x-truncated` when capped |
 | `GET /api/admin/scripts` | `{scripts[]}` — all versions, newest first, max 100. At most one has `isActive` |
 | `POST /api/admin/scripts` | `{name, questions[]}` → **201** with the created script. Writes version N+1 of that name and makes it the only active one |
 
@@ -79,6 +81,27 @@ only compared with its own cell and the eight around it.
 `POST /api/admin/prospects/merge` returns 400 `already_merged` when either side
 has already been absorbed, and 404 when either id is unknown. Repeating a merge
 that already happened is a 200 no-op (INVARIANT 4).
+
+## CSV exports
+
+Two endpoints, one serialiser (`src/shared/csv.ts`, unit-tested away from D1).
+
+- **Timestamps are ISO-8601 UTC**, not the epoch milliseconds every other
+  response uses. A spreadsheet shows epoch ms as a 13-digit number and makes the
+  reader write a formula. This is the one place the convention is deliberately
+  broken, and only on the way out.
+- Headers are **snake_case**, like the columns — the reader is a spreadsheet, not
+  the client.
+- A field containing `,`, `"` or a newline is quoted and embedded quotes are
+  doubled, so a visit note written outdoors still parses as one record. A null is
+  an empty field, never the text `null`.
+- The last line is `# © OpenStreetMap contributors` (INVARIANT 11), a comment
+  rather than a data row so a parser does not read it as a prospect.
+- Capped at `EXPORT_ROWS` (500) with `x-truncated: true` when hit. That is a CPU
+  and rows-scanned cap (INVARIANT 13), not a page: an export is not paged.
+- A leading `=` is **not** escaped. Excel reads it as a formula; changing that is
+  a decision about who the reader is, not a fix, and a test pins the current
+  behaviour so the decision stays visible.
 
 ## The repair queue
 

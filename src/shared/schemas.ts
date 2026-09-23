@@ -21,6 +21,7 @@
 import * as z from "zod/mini";
 import {
   ADMIN_VISITS_PAGE_SIZE,
+  EXPORT_DEFAULT_WINDOW_MS,
   IMPORT_ROWS_PER_REQUEST,
   ORPHAN_CANDIDATES,
   ORPHAN_REASONS,
@@ -548,6 +549,44 @@ export const areaSearchResponseSchema = z.object({
   cached: z.boolean(),
 });
 export type AreaSearchResponse = z.infer<typeof areaSearchResponseSchema>;
+
+/* ------------------------------------------------------------------ exports */
+
+/**
+ * `GET /api/admin/prospects/export.csv`.
+ *
+ * The same three filters as the list screen, reusing its enums rather than
+ * writing them again — an export that filtered differently from the screen it
+ * was launched from would be a quiet lie. No `limit` or `offset`: an export is
+ * not paged, it is capped, and the cap is EXPORT_ROWS.
+ */
+export const prospectsExportQuerySchema = z.object({
+  status: z.optional(statusSchema),
+  assignedTo: z.optional(emailSchema),
+  source: z.optional(sourceSchema),
+});
+
+/**
+ * `GET /api/admin/visits/export.csv?from=&to=`.
+ *
+ * Both optional; omitted, the window is the last 30 days ending now. The
+ * refinement is what makes a reversed range a 400 rather than an empty file
+ * that looks like "no visits happened".
+ */
+export const visitsExportQuerySchema = z
+  .object({
+    from: z._default(
+      z.coerce.number().check(z.int(), z.nonnegative()),
+      () => Date.now() - EXPORT_DEFAULT_WINDOW_MS,
+    ),
+    to: z._default(z.coerce.number().check(z.int(), z.nonnegative()), () => Date.now()),
+  })
+  .check(
+    z.refine((v) => v.from <= v.to, {
+      error: "from must not be after to",
+      path: ["from"],
+    }),
+  );
 
 /* ------------------------------------------- orphaned visits (ADR-0022) */
 

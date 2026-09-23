@@ -38,8 +38,8 @@ Start from [000-template.md](000-template.md).
 
 | id | Task | Status |
 |---|---|---|
-| [001](001-prospect-csv-export.md) | CSV export of the prospect ledger | ready |
-| [002](002-visit-csv-export.md) | CSV export of visits | ready (after 001) |
+| [001](001-prospect-csv-export.md) | CSV export of the prospect ledger | done |
+| [002](002-visit-csv-export.md) | CSV export of visits | done |
 | [003](003-orphan-visit-rejected-ids.md) | Orphan and unowned visits: quarantine, then repair | done (ADR-0022) |
 | [004](004-field-bundle-budget.md) | Field entry chunk is 8 kB over its bundle budget | needs-decision |
 | [005](005-outbox-identity-stamp.md) | Stamp outbox rows with the identity that wrote them | ready |
