@@ -26,5 +26,6 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0020](0020-google-places-as-a-second-map-provider.md) | Google Places as a second map-import provider | proposed |
 | [0021](0021-visits-derive-status-only-for-the-assignee.md) | A visit derives prospect status only when its author is the assignee | superseded by 0022 |
 | [0022](0022-quarantine-visits-the-server-cannot-take.md) | Quarantine a visit the server cannot take, and let the admin repair it | proposed |
+| [0023](0023-retention-by-redaction.md) | Keep the visit, drop the personal parts after 90 days | proposed |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.

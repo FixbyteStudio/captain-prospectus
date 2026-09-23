@@ -11,11 +11,13 @@ import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { MAX_REQUEST_BYTES } from "../shared/constants";
 import { requireAdmin, requireIdentity } from "./auth";
+import { getDb } from "./db/client";
+import { describeSweep, runRetention } from "./retention";
 import { adminRoutes } from "./routes/admin";
 import { agentRoutes } from "./routes/agent";
 import { devRoutes } from "./routes/dev";
 import { meRoutes } from "./routes/me";
-import type { AppEnv } from "./types";
+import type { AppEnv, Bindings } from "./types";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -86,4 +88,33 @@ app.onError((err, c) => {
   return c.json({ error: "internal", message: "Une erreur est survenue. Réessayez." }, 500);
 });
 
-export default app;
+/**
+ * Two entry points, one Worker.
+ *
+ * `fetch` is the API above. `scheduled` is the daily retention sweep (ADR-0023)
+ * — the one thing in this app that writes to `visits`, and the reason that
+ * table's append-only rule now carries an exception.
+ *
+ * It fails quietly by nature: if the cron stops firing nothing breaks and
+ * nobody notices, so it logs what it did on every run and the release
+ * checklist looks for that line.
+ */
+export default {
+  fetch: app.fetch,
+
+  async scheduled(_event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const result = await runRetention(getDb(env.DB), Date.now());
+          console.log(describeSweep(result));
+        } catch (err) {
+          // Never throw out of a cron: a failed sweep must not retry in a loop
+          // against the D1 daily quota. Tomorrow's run picks up the same rows,
+          // because the sweep is idempotent and the backlog is still there.
+          console.error("retention sweep failed", err instanceof Error ? err.message : String(err));
+        }
+      })(),
+    );
+  },
+} satisfies ExportedHandler<Bindings>;

@@ -146,7 +146,16 @@ the bundle budget, cited against a measurement each time.
       145.01 kB against the 150 kB budget, precache 607.93 KiB** — the +0.41 kB is French
       copy the field route ships but never renders, which is
       [#20](https://github.com/FixbyteStudio/captain-prospectus/issues/20)
-- [ ] Data retention decided and written down (visit notes, agent positions)
+- [x] Data retention decided and written down —
+      [ADR-0023](adr/0023-retention-by-redaction.md). A visit is kept **for ever**; its
+      `lat`, `lng` and `notes` are nulled after 90 days by a daily Cron Trigger, measured
+      on `received_at` because a phone's clock can be wrong. Deleting the row instead
+      would have destroyed business history and broken the `last_visit_at` ADR-0011
+      derives. This is the **first and only exception** to `visits` being append-only, and
+      the rule now says so in the d1-migration skill, `schema.ts` and
+      [data-model.md](data-model.md). Backups move to R2, closing
+      [#34](https://github.com/FixbyteStudio/captain-prospectus/issues/34) — the bucket and
+      the token scope are one-time setup in [deployment.md](deployment.md)
 - [x] CSV export of prospects and visits — [backlog/001](backlog/001-prospect-csv-export.md)
       and [002](backlog/002-visit-csv-export.md). One serialiser in `src/shared/csv.ts`,
       unit-tested away from D1, and two admin routes. Timestamps go out as ISO-8601

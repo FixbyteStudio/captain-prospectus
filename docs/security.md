@@ -35,8 +35,13 @@ it — a payload the server always refuses is an outbox that never drains (INVAR
 ## Personal data
 - **Prospect data** is mostly public business info, but may include a contact person's name or phone. Keep it to what the business needs.
 - **Agent location** is personal data. One reading (`getCurrentPosition`, never `watchPosition`) is written to the visit at check-in and to a field prospect when it is added — that reading is what reaches the server and is stored. The today list also takes a reading to order the round by distance; that one stays in memory for the ordering only and is never persisted or sent. Neither case tracks in the background. Agents are told this.
-- **Retention**: define before go-live how long visit notes and positions are kept.
-- No third-party analytics. Data stays in the Cloudflare account **except** the backup workflow, which uploads a full database export to a GitHub artifact for 90 days — [#34](https://github.com/FixbyteStudio/captain-prospectus/issues/34).
+- **Retention**: a visit is kept for ever; its **position and notes are nulled after
+  90 days** (`RETENTION_DAYS`), measured on `received_at` because a phone's clock can be
+  wrong. A daily Cron Trigger runs the sweep
+  ([ADR-0023](adr/0023-retention-by-redaction.md), `src/worker/retention.ts`). The fact of
+  a visit is business history; where the agent was standing is not. A consequence worth
+  knowing: a visit older than 90 days can no longer be checked against where it was made.
+- No third-party analytics, and the data stays in the Cloudflare account. Backups go to R2, not to a GitHub artifact (ADR-0023, [#34](https://github.com/FixbyteStudio/captain-prospectus/issues/34)); the bucket is one-time setup in [deployment.md](deployment.md).
 
 ## Secrets
 - No secrets in `wrangler.jsonc` beyond non-sensitive vars. If a real secret is ever needed: `wrangler secret put`.

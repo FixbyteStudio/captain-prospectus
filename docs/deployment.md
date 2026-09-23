@@ -29,7 +29,24 @@ A staging environment is not planned for v1 (two agents, low risk). If added: a 
    **Domains & Routes** panel (they share one account-wide "Cloudflare Workers Preview URLs"
    policy); enable it, or disable preview URLs. Verify no other route reaches the Worker unprotected.
 8. **GitHub secrets** for CI deploys: `CLOUDFLARE_API_TOKEN` (scoped: Workers Scripts Edit, D1 Edit, on this account only) and `CLOUDFLARE_ACCOUNT_ID`.
-9. **Optional — the Google map provider** ([ADR-0020](adr/0020-google-places-as-a-second-map-provider.md)):
+9. **The backup bucket** ([ADR-0023](adr/0023-retention-by-redaction.md), closing
+   [#34](https://github.com/FixbyteStudio/captain-prospectus/issues/34)):
+   `npx wrangler r2 bucket create captain-prospectus-backups`. Backups used to land in a
+   GitHub artifact, which put a full copy of every visit note and agent position on a
+   third party for 90 days; they go to R2 so `docs/security.md`'s "data stays in the
+   Cloudflare account" is true. R2's free tier is 10 GB against a database measured in
+   megabytes ([ADR-0002](adr/0002-zero-cost-constraint.md)).
+   - Add **R2 Storage: Edit** to `CLOUDFLARE_API_TOKEN`, or `backup.yml` fails at the
+     upload step with the export already taken.
+   - Set a lifecycle rule on the bucket to expire objects after 90 days, matching
+     `RETENTION_DAYS` — a backup that outlives the retention window puts the data back.
+   - The workflow runs in the `production` environment, so create it in GitHub with the
+     same reviewers as the deploy.
+10. **The retention sweep** runs from a Cron Trigger declared in `wrangler.jsonc`
+    (`40 3 * * *`); it needs no setup beyond deploying. It fails quietly by nature, so
+    after the first night check the Workers log for the `retention: redacted N visit(s)`
+    line. No line means the cron is not firing.
+11. **Optional — the Google map provider** ([ADR-0020](adr/0020-google-places-as-a-second-map-provider.md)):
    `npx wrangler secret put GOOGLE_PLACES_KEY` with a key that has the Places API (New) enabled.
    A secret, never a var in `wrangler.jsonc`. Skip this and the map import still works on
    OpenStreetMap; the Google option answers 503 and the screen says it is not configured.

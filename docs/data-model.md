@@ -103,6 +103,7 @@ here in one batch, or discarded by an admin. Once a visit is quarantined the pho
 been told it is `accepted` and has dropped it, so this table is the only copy.
 
 ## Rules
+- **A visit is kept for ever; its personal fields are not.** `lat`, `lng` and `notes` are nulled once `received_at` is older than `RETENTION_DAYS` (90), by a daily Cron Trigger ([ADR-0023](adr/0023-retention-by-redaction.md)). This is the single exception to `visits` being append-only: no row is deleted and nothing sync or the derived status reads is touched.
 - **`accepted` means the server has durably taken a visit, not that a row is in `visits`.** A quarantined visit is reported in `accepted` so the phone's outbox drains, which is what stops an orphan being resent for ever (ADR-0022, INVARIANT 5). A quarantined visit is not in the prospect's history or the live feed until it is repaired.
 
 - **Visits are append-only.** Never updated, never deleted by the app. A revisit is a new row.

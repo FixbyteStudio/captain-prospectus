@@ -71,7 +71,11 @@ export const prospects = sqliteTable(
 );
 
 /**
- * Append-only. Never updated, never deleted by the app; a revisit is a new row.
+ * Append-only. A revisit is a new row, and nothing here is ever deleted.
+ *
+ * One exception, ADR-0023: the retention sweep nulls `lat`, `lng` and `notes`
+ * once a visit is older than RETENTION_DAYS. It writes nothing else, so
+ * idempotent sync (INVARIANT 4) and derived status (INVARIANT 3) are unaffected.
  */
 export const visits = sqliteTable(
   "visits",
