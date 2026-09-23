@@ -25,6 +25,8 @@ import type {
   Question,
   Script,
   ScriptsResponse,
+  OrphansResponse,
+  OrphanRepairResult,
 } from "../../shared/schemas";
 import type { Source, Status } from "../../shared/constants";
 
@@ -42,6 +44,7 @@ export const adminKeys = {
   duplicates: () => ["admin", "duplicates"] as const,
   visitsFeed: () => ["admin", "visits", "feed"] as const,
   scripts: () => ["admin", "scripts"] as const,
+  orphans: () => ["admin", "visits", "orphans"] as const,
 };
 
 function toQueryString(filters: ProspectFilters): string {
@@ -305,5 +308,54 @@ export function useCreateScript() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => client.invalidateQueries({ queryKey: adminKeys.scripts() }),
+  });
+}
+
+/**
+ * The repair queue (ADR-0022).
+ *
+ * No polling, unlike the live feed: a visit lands here when a sync fails to
+ * place it, which is rare and is not something the admin sits watching. It is
+ * refetched when the tab regains focus and after every repair or discard.
+ */
+export function useOrphans() {
+  return useQuery({
+    queryKey: adminKeys.orphans(),
+    queryFn: () => apiFetch<OrphansResponse>("/api/admin/visits/orphaned"),
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** Invalidates the queue and the prospect list — a repair moves a status. */
+function useInvalidateAfterRepair() {
+  const client = useQueryClient();
+  return async () => {
+    await client.invalidateQueries({ queryKey: adminKeys.orphans() });
+    await client.invalidateQueries({ queryKey: ["admin", "prospects"] });
+  };
+}
+
+export function useRepairOrphan() {
+  const invalidate = useInvalidateAfterRepair();
+  return useMutation({
+    mutationFn: (input: { visitId: string; prospectId: string }) =>
+      apiFetch<OrphanRepairResult>(`/api/admin/visits/orphaned/${input.visitId}/repair`, {
+        method: "POST",
+        body: JSON.stringify({ prospectId: input.prospectId }),
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDiscardOrphan() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (visitId: string) =>
+      apiFetch<{ discarded: string }>(`/api/admin/visits/orphaned/${visitId}/discard`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    // Only the queue: a discarded visit never counted, so no status moved.
+    onSuccess: () => client.invalidateQueries({ queryKey: adminKeys.orphans() }),
   });
 }
