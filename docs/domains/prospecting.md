@@ -85,3 +85,11 @@ A rename slips past the dedupe key, so the same place ends up as two prospects a
 - Merging the same pair twice is a no-op. Merging a prospect that is already absorbed is refused: unmerge it first.
 
 **What a merge does not do.** It does not combine two prospects' visit histories into one record. The survivor's history is its own. Reading the full history of a place that was merged means reading both prospects.
+
+## Export
+
+`GET /api/admin/prospects/export.csv` hands the ledger to a spreadsheet, filtered
+exactly as the list screen filters it and excluding merged prospects like every
+other list. Timestamps become ISO-8601 and the file carries the OSM attribution
+on its last line (`docs/api.md`). There is no download button yet — the endpoint
+ships first, the screen needs a design pass.

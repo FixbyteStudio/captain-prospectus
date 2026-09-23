@@ -1,6 +1,6 @@
 ---
 id: 001
-status: ready
+status: done
 implements: roadmap M5 "CSV export of prospects and visits", docs/domains/ingestion.md#attribution
 depends_on: []
 ---

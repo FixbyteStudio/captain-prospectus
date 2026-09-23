@@ -147,7 +147,13 @@ the bundle budget, cited against a measurement each time.
       copy the field route ships but never renders, which is
       [#20](https://github.com/FixbyteStudio/captain-prospectus/issues/20)
 - [ ] Data retention decided and written down (visit notes, agent positions)
-- [ ] CSV export of prospects and visits
+- [x] CSV export of prospects and visits — [backlog/001](backlog/001-prospect-csv-export.md)
+      and [002](backlog/002-visit-csv-export.md). One serialiser in `src/shared/csv.ts`,
+      unit-tested away from D1, and two admin routes. Timestamps go out as ISO-8601
+      because a spreadsheet shows epoch ms as a 13-digit number; the visits range reads
+      `received_at`, not `visited_at`, so a phone that syncs days late is not silently
+      dropped (INVARIANT 12). **No download button** — that needs a design pass, so the
+      endpoints ship first and add no French copy
 - [x] Manual prospect merge (dedupe misses) — see [prospecting](domains/prospecting.md#merging)
 
 ## M6 — Go live

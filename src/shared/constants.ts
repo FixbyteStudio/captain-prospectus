@@ -165,6 +165,20 @@ export const PROSPECTS_MAX_OFFSET = PROSPECTS_PAGE_SIZE * 100;
 export const ORPHANS_PAGE_SIZE = 200;
 export const ORPHAN_CANDIDATES = 5;
 
+/**
+ * Rows in one CSV export.
+ *
+ * A CPU cap, not a payload one (INVARIANT 13): waiting on D1 is free, building
+ * and escaping 500 rows of text is not, and D1 bills rows *scanned*. Past it the
+ * response sets `x-truncated: true` rather than silently handing back a prefix
+ * that looks complete. 500 is roughly two full pages of the admin list, which is
+ * more than anyone opens a spreadsheet to read.
+ */
+export const EXPORT_ROWS = 500;
+
+/** Default window for the visits export: the last 30 days. */
+export const EXPORT_DEFAULT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 /** Candidate duplicate pairs returned in one sweep. */
 export const DUPLICATES_PAGE_SIZE = 100;
 

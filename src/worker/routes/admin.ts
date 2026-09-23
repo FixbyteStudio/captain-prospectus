@@ -6,17 +6,38 @@
  * remaining stubs answer 501 rather than pretending to succeed.
  */
 import { Hono } from "hono";
-import { and, count, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  sql,
+} from "drizzle-orm";
 import { chunk } from "../../shared/chunk";
 import {
   DUPLICATES_PAGE_SIZE,
   DUPLICATES_SCAN_LIMIT,
+  EXPORT_ROWS,
   ORPHAN_CANDIDATES,
   ORPHANS_PAGE_SIZE,
   OVERPASS_CACHE_TTL_MS,
   PLACES_CACHE_TTL_MS,
   SCRIPTS_PAGE_SIZE,
 } from "../../shared/constants";
+import {
+  CSV_ATTRIBUTION,
+  csvDisposition,
+  csvFile,
+  csvFilename,
+  csvTimestamp,
+} from "../../shared/csv";
 import { dedupeKey, normalize } from "../../shared/dedupe";
 import { distanceMeters } from "../../shared/geo";
 import { isProbablySamePlace } from "../../shared/similarity";
@@ -30,8 +51,10 @@ import {
   prospectBatchSchema,
   prospectIdParamSchema,
   prospectPatchSchema,
+  prospectsExportQuerySchema,
   prospectsQuerySchema,
   scriptCreateSchema,
+  visitsExportQuerySchema,
   visitIdParamSchema,
 } from "../../shared/schemas";
 import type {
@@ -336,6 +359,88 @@ adminRoutes.post("/prospects/batch", validate("json", prospectBatchSchema), asyn
 
   return c.json<ImportResult>({ created, updated });
 });
+
+/**
+ * The prospect ledger as a CSV file.
+ *
+ * Registered **above** `/prospects/:id`, so the literal path is never read as
+ * an id. Filtered exactly as the list screen filters, reusing its schema's
+ * enums — an export that filtered differently from the screen it was launched
+ * from would be a quiet lie.
+ *
+ * Merged prospects are excluded like every other list: the survivor is the row
+ * that still means something (prospecting.md).
+ */
+adminRoutes.get(
+  "/prospects/export.csv",
+  validate("query", prospectsExportQuerySchema),
+  async (c) => {
+    const { status, assignedTo, source } = c.req.valid("query");
+    const db = getDb(c.env.DB);
+    const now = Date.now();
+
+    const filters = [isNull(prospects.mergedInto)];
+    if (status) filters.push(eq(prospects.status, status));
+    if (assignedTo) filters.push(eq(prospects.assignedTo, assignedTo));
+    if (source) filters.push(eq(prospects.source, source));
+
+    // One row over the cap, so "was there more?" needs no second COUNT query —
+    // D1 bills rows scanned, and the answer is one row's worth of scan.
+    const rows = await db
+      .select()
+      .from(prospects)
+      .where(and(...filters))
+      .orderBy(desc(prospects.updatedAt))
+      .limit(EXPORT_ROWS + 1);
+
+    const truncated = rows.length > EXPORT_ROWS;
+    const page = truncated ? rows.slice(0, EXPORT_ROWS) : rows;
+
+    // snake_case like the columns, not the wire's camelCase: the reader here is
+    // a spreadsheet and whoever opens it, not the client.
+    const body = csvFile(
+      [
+        "name",
+        "type",
+        "address",
+        "phone",
+        "website",
+        "cuisine",
+        "status",
+        "assigned_to",
+        "source",
+        "lat",
+        "lng",
+        "last_visit_at",
+        "next_visit_at",
+      ],
+      page.map((p) => [
+        p.name,
+        p.type,
+        p.address,
+        p.phone,
+        p.website,
+        p.cuisine,
+        p.status,
+        p.assignedTo,
+        p.source,
+        p.lat,
+        p.lng,
+        csvTimestamp(p.lastVisitAt),
+        csvTimestamp(p.nextVisitAt),
+      ]),
+      CSV_ATTRIBUTION,
+    );
+
+    return new Response(body, {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": csvDisposition(csvFilename("prospects", now)),
+        ...(truncated ? { "x-truncated": "true" } : {}),
+      },
+    });
+  },
+);
 
 /**
  * Admin edit. `status` is accepted here (prospecting.md: an admin may reopen or
@@ -875,6 +980,79 @@ adminRoutes.get("/visits", validate("query", visitsSinceQuerySchema), async (c) 
     .limit(limit);
 
   return c.json<AdminVisitsResponse>({ visits: rows, serverTime: Date.now() });
+});
+
+/**
+ * Visits as a CSV file, for a date range.
+ *
+ * Filtered on `received_at`, not `visited_at` (INVARIANT 12). A phone can sync
+ * days late, and a range read against the phone's clock would silently drop
+ * exactly those visits — the ones most worth looking at.
+ *
+ * Registered above `/visits/orphaned` and `/visits/:id`-shaped routes for the
+ * same reason the prospect export is: a literal path must never be read as an
+ * id. Joined to prospects for the name, and NOT filtered on `merged_into`,
+ * matching the live feed — this records what agents did, and an absorbed
+ * prospect keeps its visits.
+ */
+adminRoutes.get("/visits/export.csv", validate("query", visitsExportQuerySchema), async (c) => {
+  const { from, to } = c.req.valid("query");
+  const db = getDb(c.env.DB);
+  const now = Date.now();
+
+  const rows = await db
+    .select({
+      visitedAt: visits.visitedAt,
+      receivedAt: visits.receivedAt,
+      agentEmail: visits.agentEmail,
+      prospectName: prospects.name,
+      outcome: visits.outcome,
+      flyerGiven: visits.flyerGiven,
+      followUpAt: visits.followUpAt,
+      notes: visits.notes,
+    })
+    .from(visits)
+    .innerJoin(prospects, eq(visits.prospectId, prospects.id))
+    .where(and(gte(visits.receivedAt, from), lte(visits.receivedAt, to)))
+    .orderBy(desc(visits.receivedAt))
+    .limit(EXPORT_ROWS + 1);
+
+  const truncated = rows.length > EXPORT_ROWS;
+  const page = truncated ? rows.slice(0, EXPORT_ROWS) : rows;
+
+  const body = csvFile(
+    [
+      "visited_at",
+      "received_at",
+      "agent_email",
+      "prospect_name",
+      "outcome",
+      "flyer_given",
+      "follow_up_at",
+      "notes",
+    ],
+    page.map((v) => [
+      csvTimestamp(v.visitedAt),
+      csvTimestamp(v.receivedAt),
+      v.agentEmail,
+      v.prospectName,
+      v.outcome,
+      v.flyerGiven,
+      csvTimestamp(v.followUpAt),
+      // Free text typed outdoors: commas, quotes and newlines all turn up, and
+      // csvField is what keeps such a note inside one record.
+      v.notes,
+    ]),
+    CSV_ATTRIBUTION,
+  );
+
+  return new Response(body, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": csvDisposition(csvFilename("visits", now)),
+      ...(truncated ? { "x-truncated": "true" } : {}),
+    },
+  });
 });
 
 /* ------------------------------------------------- orphan repairs (ADR-0022) */

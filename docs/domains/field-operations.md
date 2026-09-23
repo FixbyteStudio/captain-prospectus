@@ -112,3 +112,12 @@ Response
 
 ### Triggers
 App start · `online` event · immediately after saving a visit · every 60 s while the app is open.
+
+## Export
+
+`GET /api/admin/visits/export.csv?from=&to=` hands visits to a spreadsheet for a
+date range, defaulting to the last 30 days. The range reads **`received_at`, not
+`visited_at`**: a phone can sync days late, and a range on the phone's clock
+would silently drop exactly those visits (INVARIANT 12). Script answers are not
+included — a nested shape in a flat CSV is a decision, not an implementation
+detail — and neither are agent positions, whose retention is still undecided.
