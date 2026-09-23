@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "../ui/sonner";
 import { DuplicatesScreen } from "./DuplicatesScreen";
+import { OrphansScreen } from "./OrphansScreen";
 import { ProspectsScreen } from "./ProspectsScreen";
 import { VisitsScreen } from "./VisitsScreen";
 import { ImportScreen } from "./import/ImportScreen";
@@ -31,6 +32,7 @@ export function AdminApp() {
         <Route path="import" element={<ImportScreen />} />
         <Route path="doublons" element={<DuplicatesScreen />} />
         <Route path="visites" element={<VisitsScreen />} />
+        <Route path="a-rattacher" element={<OrphansScreen />} />
         <Route path="scripts" element={<ScriptsScreen />} />
       </Routes>
       {/* Admin-side only: the field client reports sync state inline. */}

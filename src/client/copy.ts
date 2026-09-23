@@ -8,7 +8,14 @@
  * Enum labels must match the tables in docs/glossary.md. Copy style follows
  * CLAUDE.md: sentence case, active verbs, errors say what happened and what to do.
  */
-import type { Outcome, ProspectType, QuestionType, Source, Status } from "../shared/constants";
+import type {
+  OrphanReason,
+  Outcome,
+  ProspectType,
+  QuestionType,
+  Source,
+  Status,
+} from "../shared/constants";
 
 export const copy = {
   appName: "Captain Prospectus",
@@ -23,6 +30,7 @@ export const copy = {
     scripts: "Scripts",
     import: "Import",
     duplicates: "Doublons",
+    orphans: "À rattacher",
   },
 
   prospects: {
@@ -249,6 +257,47 @@ export const copy = {
     flyer: "Flyer remis",
     /** Announced when rows arrive, for a reader that cannot see the highlight. */
     arrived: (n: number) => (n === 1 ? "1 nouvelle visite" : `${n} nouvelles visites`),
+  },
+
+  orphans: {
+    title: "Visites à rattacher",
+    // The lede carries the correction for every row at once: the edge colour
+    // forecasts what repairing would do, and none of it has happened yet
+    // (design.md, "The repair queue").
+    lede: "Ces visites sont conservées, mais elles ne comptent pas encore. Rattachez chacune au bon prospect.",
+    count: (n: number) => (n === 1 ? "1 visite" : `${n} visites`),
+    // An empty queue is the healthy state, so it reassures rather than shrugs.
+    empty: "Aucune visite à rattacher. Tout ce que les agents ont envoyé est arrivé à destination.",
+    loading: "Chargement des visites à rattacher…",
+    loadFailed: "Impossible de charger les visites à rattacher. Réessayez.",
+    flyer: "Flyer remis",
+    reason: {
+      unknown_prospect: "Prospect introuvable",
+      not_assigned: "Prospect d'un autre agent",
+    } as Readonly<Record<OrphanReason, string>>,
+    attachTo: "Rattacher à",
+    attachHere: (name: string) => `Rattacher à ${name}`,
+    attachAria: (name: string, distance: string) => `Rattacher cette visite à ${name}, ${distance}`,
+    metres: (m: number) => (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`),
+    noCandidates:
+      "Cette visite n'a pas enregistré de position : aucun prospect à proposer. Choisissez-la depuis la liste des prospects ou supprimez-la.",
+    attached: (name: string) => `Visite rattachée à ${name}.`,
+    attachFailed: "Impossible de rattacher cette visite. Réessayez.",
+    // The row count the page could not show. Non-zero means look upstream.
+    overflow: (n: number) =>
+      n === 1
+        ? "1 visite de plus n'est pas affichée."
+        : `${n} visites de plus ne sont pas affichées.`,
+    discard: "Supprimer",
+    discarded: "Visite supprimée.",
+    discardFailed: "Impossible de supprimer cette visite. Réessayez.",
+    confirm: {
+      title: "Supprimer cette visite ?",
+      // Names the consequence, like copy.scripts.confirm.body does.
+      body: "C'est la seule copie : le téléphone de l'agent ne l'a plus. Elle sera définitivement perdue.",
+      cancel: "Annuler",
+      confirm: "Supprimer définitivement",
+    },
   },
 
   duplicates: {

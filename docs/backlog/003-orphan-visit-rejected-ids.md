@@ -1,6 +1,6 @@
 ---
 id: 003
-status: ready
+status: done
 implements: docs/adr/0022-quarantine-visits-the-server-cannot-take.md, docs/domains/field-operations.md#rules, roadmap M5 "Orphan visits"
 depends_on: []
 ---

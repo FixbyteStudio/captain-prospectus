@@ -135,7 +135,17 @@ the bundle budget, cited against a measurement each time.
       [#35](https://github.com/FixbyteStudio/captain-prospectus/issues/35), [#36](https://github.com/FixbyteStudio/captain-prospectus/issues/36), [#37](https://github.com/FixbyteStudio/captain-prospectus/issues/37), [#38](https://github.com/FixbyteStudio/captain-prospectus/issues/38), [#31](https://github.com/FixbyteStudio/captain-prospectus/issues/31),
       [#32](https://github.com/FixbyteStudio/captain-prospectus/issues/32), and [backlog/005](backlog/005-outbox-identity-stamp.md), which stays
       a task of its own because it needs a Dexie migration
-- [ ] Orphan visits: report ids the server could not store in a `rejected` field so a phone stops resending for ever (see [field-operations](domains/field-operations.md#rules))
+- [x] Orphan visits — solved as a **quarantine**, not the `rejected` field this line used to
+      ask for ([ADR-0022](adr/0022-quarantine-visits-the-server-cannot-take.md)). A
+      `rejected` array would have destroyed a visit on the phone with no copy anywhere,
+      which is the exact failure INVARIANT 5 exists to prevent. Instead a visit the server
+      cannot take — unknown prospect, **or a prospect not assigned to the sender**, which
+      folded #33 into the same mechanism — is stored in `visits_orphaned` and reported in
+      `accepted`, so the outbox drains and nothing is lost. The admin repairs or discards
+      it from « À rattacher » ([design.md](design.md#the-repair-queue)). **Entry chunk
+      145.01 kB against the 150 kB budget, precache 607.93 KiB** — the +0.41 kB is French
+      copy the field route ships but never renders, which is
+      [#20](https://github.com/FixbyteStudio/captain-prospectus/issues/20)
 - [ ] Data retention decided and written down (visit notes, agent positions)
 - [ ] CSV export of prospects and visits
 - [x] Manual prospect merge (dedupe misses) — see [prospecting](domains/prospecting.md#merging)

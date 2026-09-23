@@ -395,6 +395,59 @@ Six rules this encodes:
 Empty, it is an invitation like every other empty screen: « Aucune visite reçue.
 Les visites apparaissent ici dès qu'un agent synchronise. »
 
+### The repair queue
+
+Visits the server took but could not place
+([ADR-0022](adr/0022-quarantine-visits-the-server-cannot-take.md)). The screen
+asks one question and only one: **where does this visit belong?** Everything
+else on the row is evidence for answering it.
+
+```
+│ Visites à rattacher                             3 visites      │
+│ Conservées, mais elles ne comptent pas encore.                 │
+├────────────────────────────────────────────────────────────────┤
+│ 16:42  Converti        flyer   agent@…      Prospect introuvable│
+│        « patron absent, repasser jeudi »                        │
+│        Rattacher à   [Le Bistrot · 12 m] [Chez Marcel · 48 m]  │
+│                      [Pizza Vera · 130 m]         [Supprimer]   │
+├────────────────────────────────────────────────────────────────┤
+│ 15:12  Pas intéressé           agent@…      Prospect d'un autre │
+│        Le Comptoir                                              │
+│        [Rattacher à Le Comptoir]                  [Supprimer]   │
+└────────────────────────────────────────────────────────────────┘
+```
+
+Five rules this encodes:
+
+- **The edge previews what repairing would do, and the lede says it has not
+  happened.** A row uses `STATUS_EDGE[OUTCOME_TO_STATUS[outcome]]` like the live
+  feed, so a `Converti` waiting to be attached already reads green. That is the
+  one thing on the row that could mislead — the outcome has *not* taken effect —
+  so the screen's lede carries the correction for every row at once rather than
+  repeating a badge on each. The edge is a forecast here, not a record.
+- **Two reasons, two different asks, one row shape.** `Prospect introuvable`
+  needs a choice between candidates; `Prospect d'un autre` needs a nod, because
+  the visit already names its prospect. Both stay one dense row with its actions
+  inline: a dialog per row would turn a queue of five decisions into five
+  journeys, and the evidence the admin needs — time, outcome, note, agent — is
+  what the row already shows.
+- **The server proposes; the admin does not search.** Candidates are the nearest
+  live prospects to where the visit was recorded, distance shown on each button,
+  nearest first. This is the `DuplicatesScreen` bargain: there is no prospect
+  picker in this app and this screen does not earn one. A visit with no recorded
+  position offers no candidates and says so — an arbitrary list would invite a
+  wrong answer rather than no answer.
+- **Distance is on the button, not in a column.** It is the reason to press
+  *that* button, so it belongs inside the target, not three columns away.
+- **Discard is confirmed and named for what it does.** It is the one place this
+  app deliberately loses a visit, so it takes the `ScriptsScreen` dialog pattern
+  and its body names the consequence. It sits right of the row, away from the
+  attach buttons, because a misclick here is unrecoverable.
+
+Empty is the healthy state, so it reads as reassurance rather than a failure:
+« Aucune visite à rattacher. Tout ce que les agents ont envoyé est arrivé à
+destination. »
+
 ## Principles
 
 1. The list is the product. Chrome yields to rows.
