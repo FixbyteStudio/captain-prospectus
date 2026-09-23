@@ -27,6 +27,12 @@ stateDiagram-v2
 
 - Status transitions caused by visits are **computed by the server** when a visit is received ([ADR-0011](../adr/0011-server-derived-prospect-status.md)).
 - Only the **latest visit by `visited_at`** moves the status. A late-syncing older visit is stored but does not overwrite a newer outcome.
+- Only the **assignee's** visit moves the status. A visit written by any other agent is
+  stored, attributed and accepted, but does not derive anything
+  ([ADR-0021](../adr/0021-visits-derive-status-only-for-the-assignee.md)) — otherwise
+  either agent could reject a prospect out of the other's round. The honest cost is a
+  prospect reassigned while a visit for it was queued offline: that visit is real, is
+  kept, and needs a manual status change below.
 - **`visited_at` is clamped on insert** to `min(visited_at, received_at)`. It comes from the phone's
   clock, which can be wrong. Without the clamp, one phone set days ahead writes a future-dated visit
   that wins every subsequent comparison and freezes that prospect's status permanently. The raw

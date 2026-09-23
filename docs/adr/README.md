@@ -24,5 +24,6 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0018](0018-one-form-stack.md) | One form stack — react-hook-form everywhere, the field route included | proposed |
 | [0019](0019-admin-chunk-out-of-the-precache.md) | Keep the admin chunk out of the service worker precache | proposed |
 | [0020](0020-google-places-as-a-second-map-provider.md) | Google Places as a second map-import provider | proposed |
+| [0021](0021-visits-derive-status-only-for-the-assignee.md) | A visit derives prospect status only when its author is the assignee | proposed |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.

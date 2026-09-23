@@ -15,7 +15,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Agent
 | Route | Purpose |
 |---|---|
-| `POST /api/agent/sync` | Push outbox, pull today list + active script. See [field-operations](domains/field-operations.md#protocol) |
+| `POST /api/agent/sync` | Push outbox, pull today list + active script. Every visit is stored and accepted, but only the **assignee's** visit derives the prospect's status ([ADR-0021](adr/0021-visits-derive-status-only-for-the-assignee.md)). See [field-operations](domains/field-operations.md#protocol) |
 | `GET /api/agent/prospects/:id/visits` | Last `VISIT_HISTORY_LIMIT` (20) visits of a prospect, newest first, `visitHistoryResponseSchema`. Agent: only if assigned to them; a non-UUID `:id` is 400, an unknown one 404. Narrower than the row — `clientVisitedAt`, `receivedAt` and `clientVersion` are clock-skew and upgrade diagnostics, not shown to an agent at a doorstep. Cached in Dexie `visitHistory` so the visit form still shows it offline |
 
 ## Admin

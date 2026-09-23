@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
 import { prospects, scripts, visits } from "./db/schema";
 import { visitHistoryResponseSchema } from "../shared/schemas";
+import type { Outcome } from "../shared/constants";
 import {
   MAX_REQUEST_BYTES,
   SYNC_PROSPECTS_PER_REQUEST,
@@ -35,7 +36,7 @@ async function sync(body: Partial<SyncRequest>): Promise<Response> {
   });
 }
 
-async function seedProspect(id: string): Promise<void> {
+async function seedProspect(id: string, owner: string | null = AGENT): Promise<void> {
   const db = getDb(env.DB);
   await db.insert(prospects).values({
     id,
@@ -51,7 +52,7 @@ async function seedProspect(id: string): Promise<void> {
     sourceRef: null,
     dedupeKey: `test:${id}`,
     status: "assigned",
-    assignedTo: AGENT,
+    assignedTo: owner,
     createdBy: AGENT,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -616,5 +617,104 @@ describe("GET /api/agent/prospects/:id/visits", () => {
     expect(entry).not.toHaveProperty("clientVisitedAt");
     expect(entry).not.toHaveProperty("receivedAt");
     expect(entry).not.toHaveProperty("clientVersion");
+  });
+});
+
+/**
+ * ADR-0021 and #33.
+ *
+ * Sync used to check only that a visit's prospect *existed*, so any agent past
+ * Access could post a visit against any prospect id and — because the server
+ * derives status from the newest visit — change it. The visit is still stored
+ * and still accepted, because INVARIANT 5 outranks this; it just no longer
+ * moves a prospect it does not belong to.
+ */
+describe("POST /api/agent/sync — only the assignee's visit moves the prospect", () => {
+  const OTHER = "agent@example.com";
+
+  const visitOf = (prospectId: string, outcome: Outcome) => ({
+    id: crypto.randomUUID(),
+    prospectId,
+    visitedAt: Date.now(),
+    flyerGiven: false,
+    outcome,
+    answers: {},
+  });
+
+  /** Runs one sync as somebody else, then restores the ambient identity. */
+  async function asOtherAgent(body: Partial<SyncRequest>): Promise<Response> {
+    const saved = env.DEV_USER_EMAIL;
+    try {
+      env.DEV_USER_EMAIL = OTHER;
+      return await sync(body);
+    } finally {
+      env.DEV_USER_EMAIL = saved;
+    }
+  }
+
+  it("does not let another agent reject a prospect out of its owner's round", async () => {
+    const db = getDb(env.DB);
+    const id = crypto.randomUUID();
+    await seedProspect(id, AGENT);
+
+    const response = await asOtherAgent({ visits: [visitOf(id, "not_interested")] });
+    expect(response.status).toBe(200);
+
+    const [row] = await db.select().from(prospects).where(eq(prospects.id, id));
+    // "rejected" is outside OPEN_STATUSES, which is what would have dropped it
+    // off the owner's today list.
+    expect(row?.status).toBe("assigned");
+    expect(row?.lastVisitAt).toBeNull();
+  });
+
+  it("stores and accepts that visit all the same — INVARIANT 5 outranks the rule", async () => {
+    const db = getDb(env.DB);
+    const id = crypto.randomUUID();
+    await seedProspect(id, AGENT);
+    const visit = visitOf(id, "not_interested");
+
+    const response = await asOtherAgent({ visits: [visit] });
+    const body = (await response.json()) as SyncResponse;
+
+    // Accepted, so the phone clears its outbox instead of resending for ever.
+    expect(body.accepted.visits).toContain(visit.id);
+    const [stored] = await db.select().from(visits);
+    expect(stored?.id).toBe(visit.id);
+    // Attributed to whoever really wrote it (INVARIANT 10), never the assignee.
+    expect(stored?.agentEmail).toBe(OTHER);
+  });
+
+  it("still derives status from the assignee's own visit", async () => {
+    const db = getDb(env.DB);
+    const id = crypto.randomUUID();
+    await seedProspect(id, AGENT);
+
+    await sync({ visits: [visitOf(id, "not_interested")] });
+
+    const [row] = await db.select().from(prospects).where(eq(prospects.id, id));
+    expect(row?.status).toBe("rejected");
+  });
+
+  it("does not let a later outsider visit undo the assignee's outcome", async () => {
+    const db = getDb(env.DB);
+    const id = crypto.randomUUID();
+    await seedProspect(id, AGENT);
+
+    await sync({ visits: [visitOf(id, "converted")] });
+    await asOtherAgent({ visits: [visitOf(id, "not_interested")] });
+
+    const [row] = await db.select().from(prospects).where(eq(prospects.id, id));
+    expect(row?.status).toBe("converted");
+  });
+
+  it("derives nothing for an unassigned prospect", async () => {
+    const db = getDb(env.DB);
+    const id = crypto.randomUUID();
+    await seedProspect(id, null);
+
+    await sync({ visits: [visitOf(id, "converted")] });
+
+    const [row] = await db.select().from(prospects).where(eq(prospects.id, id));
+    expect(row?.status).toBe("assigned");
   });
 });
