@@ -26,7 +26,8 @@ Fix it in the current change only when the task cannot be finished or verified w
    limits and our usage (ADR-0002, amended by ADR-0020). Google Places is the one exception, and it stays
    inert until `GOOGLE_PLACES_KEY` is configured.
 2. **Agents only insert** visits and field prospects. Never add an agent-side update of shared data.
-3. **Prospect status from visits is computed by the server** (`OUTCOME_TO_STATUS`). Clients never send a derived status.
+3. **Prospect status from visits is computed by the server** (`OUTCOME_TO_STATUS`). Clients never send a derived status,
+   and only the **assignee's** visit derives one — another agent's visit is stored and accepted but moves nothing (ADR-0021).
 4. **Every write is idempotent.** Client ids are `crypto.randomUUID()`. Inserts use `onConflictDoNothing` unless the doc says upsert.
 5. **Never lose a visit.** Outbox rows are deleted only after the server lists them in `accepted`. Auth errors and 426 never clear the outbox.
 6. **Validate every request body** with a zod schema from `src/shared/schemas.ts`. No inline ad-hoc validation in routes.

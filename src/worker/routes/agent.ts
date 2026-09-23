@@ -141,6 +141,8 @@ agentRoutes.post(
     // ---- 2. Visits, with the collision map applied.
     const acceptedVisits: string[] = [];
     const touchedProspectIds = new Set<string>();
+    /** prospect id -> its assignee, for the status rule in step 3 (ADR-0021). */
+    const assigneeById = new Map<string, string | null>();
 
     if (body.visits.length > 0) {
       const rows: NewVisitRow[] = body.visits.map((v) => {
@@ -169,15 +171,16 @@ agentRoutes.post(
       // Only insert visits whose prospect exists: a foreign-key failure would
       // reject the whole statement and cost the agent every visit in the batch.
       const referenced = [...new Set(rows.map((r) => r.prospectId))];
-      const known = new Set(
-        (
-          await db
-            .select({ id: prospects.id })
-            .from(prospects)
-            .where(inArray(prospects.id, referenced))
-        ).map((r) => r.id),
-      );
-      const insertable = rows.filter((r) => known.has(r.prospectId));
+      // assigned_to comes back with the id because step 3 needs it: a visit only
+      // moves a prospect it belongs to (ADR-0021). Reading it here costs nothing
+      // — it is the same row — and saves a query per prospect below.
+      for (const row of await db
+        .select({ id: prospects.id, assignedTo: prospects.assignedTo })
+        .from(prospects)
+        .where(inArray(prospects.id, referenced))) {
+        assigneeById.set(row.id, row.assignedTo);
+      }
+      const insertable = rows.filter((r) => assigneeById.has(r.prospectId));
 
       // `visits.script_id` is a foreign key too, and a phone can hold a visit
       // answered against a script this database does not have — a build that
@@ -230,12 +233,30 @@ agentRoutes.post(
           outcome: visits.outcome,
           visitedAt: visits.visitedAt,
           followUpAt: visits.followUpAt,
+          agentEmail: visits.agentEmail,
         })
         .from(visits)
         .where(eq(visits.prospectId, prospectId))
         .orderBy(desc(visits.visitedAt))
         .limit(1);
       if (!latest) continue;
+
+      // ADR-0021: a visit is stored and accepted whoever wrote it, but only the
+      // assignee's visit moves the prospect. Without this, any agent past Access
+      // could post `not_interested` against any prospect id and drop it out of
+      // OPEN_STATUSES — off the other agent's today list and out of the admin's
+      // open workload (#33).
+      //
+      // The honest cost is the reassignment race: an agent visits, the admin
+      // reassigns while the phone is offline, and that real visit then does not
+      // move the prospect. It is still stored and still attributed, and the live
+      // feed shows agent_email beside assigned_to, so the admin can set the
+      // status by hand (ADR-0011 allows that). Losing the visit instead would
+      // breach INVARIANT 5, which is the trade the ADR makes deliberately.
+      //
+      // An unassigned prospect has no assignee, so nothing derives. Agents never
+      // pull one — the today list filters on assigned_to = email.
+      if (latest.agentEmail !== assigneeById.get(prospectId)) continue;
 
       // Only the latest visit moves the status; a late-syncing older visit is
       // stored but does not overwrite a newer outcome.

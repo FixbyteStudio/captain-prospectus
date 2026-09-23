@@ -11,7 +11,7 @@ a mitigation nobody has verified is worse than one nobody claimed.
 | Access bypass (Worker reached without Access) | JWT verified in the Worker (`src/worker/auth.ts`), fail-closed when Access is misconfigured. **Preview URLs are a manual dashboard step with no repo-side control** — [#38](https://github.com/FixbyteStudio/captain-prospectus/issues/38) |
 | Header spoofing | Email taken from the verified JWT only |
 | Dev impersonation leaking to prod | `DEV_USER_EMAIL` ignored unless host is localhost; `/api/dev/*` needs both that variable and a localhost host, and it is the one route mounted before auth |
-| Agent reading other agents' data | Agent **reads** filter by the verified email. **Writes do not**: sync accepts a visit against any prospect that exists, and the derived status follows — [#33](https://github.com/FixbyteStudio/captain-prospectus/issues/33) |
+| Agent reading other agents' data | Agent **reads** filter by the verified email. A **write** is still accepted against any prospect that exists — INVARIANT 5 outranks the rule — but only the assignee's visit derives status, so an outsider's visit changes nothing anyone acts on ([ADR-0021](adr/0021-visits-derive-status-only-for-the-assignee.md), [#33](https://github.com/FixbyteStudio/captain-prospectus/issues/33)) |
 | Malformed or oversized payloads | zod validation, array size caps, and a `MAX_REQUEST_BYTES` body cap enforced Worker-wide in `src/worker/index.ts` before anything parses the body |
 | SQL injection | Drizzle parameterised queries only; no string-built SQL |
 | XSS through imported data (names, notes) | React escaping; no `dangerouslySetInnerHTML` |
