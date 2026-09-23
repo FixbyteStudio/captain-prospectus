@@ -15,7 +15,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Agent
 | Route | Purpose |
 |---|---|
-| `POST /api/agent/sync` | Push outbox, pull today list + active script. Every visit is stored and accepted, but only the **assignee's** visit derives the prospect's status ([ADR-0021](adr/0021-visits-derive-status-only-for-the-assignee.md)). See [field-operations](domains/field-operations.md#protocol) |
+| `POST /api/agent/sync` | Push outbox, pull today list + active script. A visit the server cannot take — unknown prospect, or a prospect not assigned to the sender — is quarantined and still reported in `accepted` ([ADR-0022](adr/0022-quarantine-visits-the-server-cannot-take.md)). See [field-operations](domains/field-operations.md#protocol) |
 | `GET /api/agent/prospects/:id/visits` | Last `VISIT_HISTORY_LIMIT` (20) visits of a prospect, newest first, `visitHistoryResponseSchema`. Agent: only if assigned to them; a non-UUID `:id` is 400, an unknown one 404. Narrower than the row — `clientVisitedAt`, `receivedAt` and `clientVersion` are clock-skew and upgrade diagnostics, not shown to an agent at a doorstep. Cached in Dexie `visitHistory` so the visit form still shows it offline |
 
 ## Admin
@@ -32,6 +32,9 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `POST /api/admin/import/overpass` | `{polygon: [lat,lng][]}` → `{candidates[], truncated, cached}`. Nothing is saved: the candidates go through the same preview and the same `POST /prospects/batch` as a CSV |
 | `POST /api/admin/import/places` | `{center: [lat,lng], radius}` → the same `{candidates[], truncated, cached}`. Google Places (ADR-0020); a circle because Nearby Search has no polygon search. **503** when no key is configured |
 | `GET /api/admin/visits?since=<ms>&limit=` | `{visits[], serverTime}` — visits with `received_at > since`, newest first, max 500. Each carries `prospectName` |
+| `GET /api/admin/visits/orphaned` | `{visits[], remaining}` — the repair queue, newest quarantined first, max 200. Each row carries its `reason`, the `prospectName` when the id still resolves, and up to 5 `candidates` ranked by distance from where the visit happened |
+| `POST /api/admin/visits/orphaned/:id/repair` | `{prospectId}` → `{visitId, prospectId, repaired}`. Inserts the visit into `visits`, removes the queue row, derives status. Follows `mergedInto`, so the returned `prospectId` is where it actually landed. `repaired: false` means it was already done (INVARIANT 4). **400** `unknown_prospect` if the target is gone, and the queue row survives |
+| `POST /api/admin/visits/orphaned/:id/discard` | Deletes the row for good → `{discarded}`. Idempotent. The one place a visit is deliberately lost, behind a confirmation in the UI |
 | `GET /api/admin/scripts` | `{scripts[]}` — all versions, newest first, max 100. At most one has `isActive` |
 | `POST /api/admin/scripts` | `{name, questions[]}` → **201** with the created script. Writes version N+1 of that name and makes it the only active one |
 
@@ -76,6 +79,24 @@ only compared with its own cell and the eight around it.
 `POST /api/admin/prospects/merge` returns 400 `already_merged` when either side
 has already been absorbed, and 404 when either id is unknown. Repeating a merge
 that already happened is a 200 no-op (INVARIANT 4).
+
+## The repair queue
+
+A visit the server cannot take is written to `visits_orphaned` rather than `visits`, and
+is **still reported in `accepted`** — `accepted` means the server has durably taken the
+visit, not that a row exists in `visits`
+([ADR-0022](adr/0022-quarantine-visits-the-server-cannot-take.md)). That is what lets a
+phone drop a visit whose prospect will never arrive, instead of resending it for ever.
+
+- Two reasons: `unknown_prospect` (the id resolves to nothing) and `not_assigned` (it is
+  somebody else's prospect). They differ only in what the admin has to decide — a
+  `not_assigned` row is approved by repairing it against the prospect it already names.
+- A quarantined visit is **not** in the prospect's history or the live feed. It has no
+  settled prospect to belong to until it is repaired.
+- Candidates are ranked by distance from the visit's own position, and are empty when the
+  visit recorded none — an arbitrary ranking would be worse than offering nothing.
+- An empty queue is the healthy state. `remaining` is a smoke alarm: non-zero means look
+  upstream, not at the page size.
 
 ## The live feed
 

@@ -6,6 +6,7 @@ Source of truth: `src/worker/db/schema.ts`. This page explains it. Timestamps ar
 erDiagram
   PROSPECTS ||--o{ VISITS : "visited in"
   SCRIPTS ||--o{ VISITS : "answered with"
+  VISITS_ORPHANED }o..o| PROSPECTS : "repaired onto (no FK)"
   PROSPECTS {
     text id PK "UUID"
     text name
@@ -45,6 +46,25 @@ erDiagram
     int client_version "sync contract version of the sending build"
     int received_at "server clock"
   }
+  VISITS_ORPHANED {
+    text id PK "the phone's UUID, kept through a repair"
+    text prospect_id "NOT a FK: may resolve to nothing"
+    text reason "unknown_prospect|not_assigned"
+    int quarantined_at "server clock"
+    text agent_email
+    int visited_at "clamped when quarantined"
+    real lat
+    real lng
+    int flyer_given
+    text outcome
+    int follow_up_at
+    text notes
+    int script_id "NOT a FK either"
+    text answers "JSON"
+    int client_visited_at "raw phone clock, unclamped"
+    int client_version
+    int received_at
+  }
   SCRIPTS {
     int id PK
     text name
@@ -71,7 +91,19 @@ freshness and in `source_ref` format, and because the same restaurant found thro
 both imports twice: tier 1 of the dedupe key is the source's own id, and `node/4711`
 is not `google/ChIJ…`. The duplicates sweep is what resolves that pair.
 
+`visits_orphaned` holds visits the server took but could not place
+([ADR-0022](adr/0022-quarantine-visits-the-server-cannot-take.md)): the prospect does not
+exist, or it belongs to another agent. It mirrors `visits` so a repair is a straight
+copy, and carries no foreign keys at all — `prospect_id` pointing at nothing is the
+state the table exists to hold, and `script_id` follows the same rule sync already
+applies, where an unknown questionnaire is nulled rather than costing the visit.
+
+Rows leave it in exactly two ways: repaired, which inserts into `visits` and deletes
+here in one batch, or discarded by an admin. Once a visit is quarantined the phone has
+been told it is `accepted` and has dropped it, so this table is the only copy.
+
 ## Rules
+- **`accepted` means the server has durably taken a visit, not that a row is in `visits`.** A quarantined visit is reported in `accepted` so the phone's outbox drains, which is what stops an orphan being resent for ever (ADR-0022, INVARIANT 5). A quarantined visit is not in the prospect's history or the live feed until it is repaired.
 
 - **Visits are append-only.** Never updated, never deleted by the app. A revisit is a new row.
 - **Answers live on the visit** as JSON, keyed by question `key`. The visit references the exact `script_id` (a specific version), so answers stay interpretable after the script changes.
@@ -124,3 +156,8 @@ write on every imported row. Revisit if the base grows by an order of magnitude.
 | `scripts(is_active)` | the sync pull's "which script is live" |
 | `scripts(is_active)` unique **where `is_active = 1`** | "exactly one active script at a time" |
 | `scripts(name, version)` unique | a version is a version *of* a script |
+| `visits_orphaned(quarantined_at)` | the repair queue's only ordering |
+
+No index on `visits_orphaned(reason)`. An empty queue is the healthy state and the page
+is capped at 200, so filtering it is a scan over a handful of rows; an index would cost a
+write on every quarantined visit to save nothing measurable.

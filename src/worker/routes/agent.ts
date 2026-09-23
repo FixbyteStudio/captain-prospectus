@@ -8,22 +8,19 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import {
-  MIN_CLIENT_VERSION,
-  OPEN_STATUSES,
-  OUTCOME_TO_STATUS,
-  VISIT_HISTORY_LIMIT,
-} from "../../shared/constants";
+import { MIN_CLIENT_VERSION, OPEN_STATUSES, VISIT_HISTORY_LIMIT } from "../../shared/constants";
 import { chunk } from "../../shared/chunk";
 import { dedupeKey } from "../../shared/dedupe";
 import { prospectIdParamSchema, syncRequestSchema } from "../../shared/schemas";
 import type { Prospect, SyncResponse, VisitHistoryResponse } from "../../shared/schemas";
+import type { OrphanReason } from "../../shared/constants";
 import { validate } from "../validate";
 import { boundParamsPerRow, getDb } from "../db/client";
-import { prospects, scripts, visits } from "../db/schema";
+import { prospects, scripts, visits, visitsOrphaned } from "../db/schema";
+import { deriveProspectStatus } from "./status";
 import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
-import type { NewProspectRow, NewVisitRow, ProspectRow } from "../db/schema";
+import type { NewOrphanedVisitRow, NewProspectRow, NewVisitRow, ProspectRow } from "../db/schema";
 
 export const agentRoutes = new Hono<AppEnv>();
 
@@ -168,19 +165,40 @@ agentRoutes.post(
         };
       });
 
-      // Only insert visits whose prospect exists: a foreign-key failure would
-      // reject the whole statement and cost the agent every visit in the batch.
+      // One read answers both questions the partition below asks: does the
+      // prospect exist, and whose is it.
       const referenced = [...new Set(rows.map((r) => r.prospectId))];
-      // assigned_to comes back with the id because step 3 needs it: a visit only
-      // moves a prospect it belongs to (ADR-0021). Reading it here costs nothing
-      // — it is the same row — and saves a query per prospect below.
       for (const row of await db
         .select({ id: prospects.id, assignedTo: prospects.assignedTo })
         .from(prospects)
         .where(inArray(prospects.id, referenced))) {
         assigneeById.set(row.id, row.assignedTo);
       }
-      const insertable = rows.filter((r) => assigneeById.has(r.prospectId));
+
+      // ADR-0022: a visit the server cannot take as sent is quarantined rather
+      // than dropped or refused.
+      //
+      //   unknown_prospect — prospect_id resolves to nothing. It cannot go in
+      //     `visits` at all; the foreign key would fail and take the whole
+      //     statement, costing the agent every visit in the batch.
+      //   not_assigned — the prospect exists but is somebody else's. Letting it
+      //     through let either agent flip any prospect's status (#33).
+      //
+      // Both are still reported in `accepted`, because the server really has
+      // taken them. That is what stops the phone resending for ever, which is
+      // the half of this INVARIANT 5 used to make impossible to fix.
+      const insertable: NewVisitRow[] = [];
+      const quarantined: NewOrphanedVisitRow[] = [];
+      for (const row of rows) {
+        const assignee = assigneeById.get(row.prospectId);
+        const reason: OrphanReason | null = !assigneeById.has(row.prospectId)
+          ? "unknown_prospect"
+          : assignee !== email
+            ? "not_assigned"
+            : null;
+        if (reason) quarantined.push({ ...row, reason, quarantinedAt: now });
+        else insertable.push(row);
+      }
 
       // `visits.script_id` is a foreign key too, and a phone can hold a visit
       // answered against a script this database does not have — a build that
@@ -221,54 +239,23 @@ agentRoutes.post(
         for (const row of inserted) touchedProspectIds.add(row.prospectId);
       }
 
+      for (const batch of chunk(quarantined, boundParamsPerRow(visitsOrphaned))) {
+        await db.insert(visitsOrphaned).values(batch).onConflictDoNothing();
+      }
+
       // Idempotency: a visit already stored counts as accepted, so a retry lets
-      // the client clear its outbox instead of resending forever.
+      // the client clear its outbox instead of resending forever. A quarantined
+      // one counts too — `accepted` means the server has durably taken the
+      // visit, not that a row exists in `visits` (ADR-0022).
       for (const row of insertable) acceptedVisits.push(row.id);
+      for (const row of quarantined) acceptedVisits.push(row.id);
     }
 
     // ---- 3. Derive prospect status from the newly stored visits (INVARIANT 3).
+    // Quarantined visits are deliberately absent from touchedProspectIds: they
+    // have no settled prospect yet, and derive nothing until repaired.
     for (const prospectId of touchedProspectIds) {
-      const [latest] = await db
-        .select({
-          outcome: visits.outcome,
-          visitedAt: visits.visitedAt,
-          followUpAt: visits.followUpAt,
-          agentEmail: visits.agentEmail,
-        })
-        .from(visits)
-        .where(eq(visits.prospectId, prospectId))
-        .orderBy(desc(visits.visitedAt))
-        .limit(1);
-      if (!latest) continue;
-
-      // ADR-0021: a visit is stored and accepted whoever wrote it, but only the
-      // assignee's visit moves the prospect. Without this, any agent past Access
-      // could post `not_interested` against any prospect id and drop it out of
-      // OPEN_STATUSES — off the other agent's today list and out of the admin's
-      // open workload (#33).
-      //
-      // The honest cost is the reassignment race: an agent visits, the admin
-      // reassigns while the phone is offline, and that real visit then does not
-      // move the prospect. It is still stored and still attributed, and the live
-      // feed shows agent_email beside assigned_to, so the admin can set the
-      // status by hand (ADR-0011 allows that). Losing the visit instead would
-      // breach INVARIANT 5, which is the trade the ADR makes deliberately.
-      //
-      // An unassigned prospect has no assignee, so nothing derives. Agents never
-      // pull one — the today list filters on assigned_to = email.
-      if (latest.agentEmail !== assigneeById.get(prospectId)) continue;
-
-      // Only the latest visit moves the status; a late-syncing older visit is
-      // stored but does not overwrite a newer outcome.
-      await db
-        .update(prospects)
-        .set({
-          status: OUTCOME_TO_STATUS[latest.outcome],
-          lastVisitAt: latest.visitedAt,
-          nextVisitAt: latest.followUpAt,
-          updatedAt: now,
-        })
-        .where(eq(prospects.id, prospectId));
+      await deriveProspectStatus(db, prospectId, now);
     }
 
     // ---- 4. Pull: the agent's open, live prospects and the active script.
