@@ -41,6 +41,16 @@ export type Source = (typeof SOURCES)[number];
 export const ROLES = ["admin", "agent"] as const;
 export type Role = (typeof ROLES)[number];
 
+/**
+ * Why a visit is in `visits_orphaned` rather than `visits` (ADR-0022).
+ *
+ * The admin screen affords different actions per reason: an `unknown_prospect`
+ * row has no target and needs one chosen, a `not_assigned` row already names
+ * the prospect and only needs approving.
+ */
+export const ORPHAN_REASONS = ["unknown_prospect", "not_assigned"] as const;
+export type OrphanReason = (typeof ORPHAN_REASONS)[number];
+
 export const QUESTION_TYPES = ["yes_no", "single", "multi", "text", "number", "rating"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
@@ -142,6 +152,18 @@ export const PROSPECTS_PAGE_SIZE = 200;
  * the few thousand prospects this project plans for (vision.md).
  */
 export const PROSPECTS_MAX_OFFSET = PROSPECTS_PAGE_SIZE * 100;
+
+/**
+ * The orphan repair queue, and how many prospects it offers per row.
+ *
+ * A healthy database has an empty queue, so the page size is a safety rail
+ * rather than a working limit — if it is ever hit, something is wrong upstream
+ * and the number is not what needs raising. The candidate count is small on
+ * purpose: the admin is picking the right door from a ranked shortlist, and a
+ * long list is a worse decision, not a better-informed one.
+ */
+export const ORPHANS_PAGE_SIZE = 200;
+export const ORPHAN_CANDIDATES = 5;
 
 /** Candidate duplicate pairs returned in one sweep. */
 export const DUPLICATES_PAGE_SIZE = 100;

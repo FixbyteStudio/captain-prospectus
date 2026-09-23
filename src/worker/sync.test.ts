@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
-import { prospects, scripts, visits } from "./db/schema";
+import { prospects, scripts, visits, visitsOrphaned } from "./db/schema";
 import { visitHistoryResponseSchema } from "../shared/schemas";
 import type { Outcome } from "../shared/constants";
 import {
@@ -63,6 +63,8 @@ beforeEach(async () => {
   const db = getDb(env.DB);
   // Order matters: visits reference both of the others by foreign key.
   await db.delete(visits);
+  // No foreign keys of its own, but it holds rows across tests just the same.
+  await db.delete(visitsOrphaned);
   await db.delete(prospects);
   await db.delete(scripts);
 });
@@ -335,19 +337,18 @@ describe("POST /api/agent/sync", () => {
     expect(await db.select().from(prospects)).toHaveLength(30);
   });
 
-  it("neither stores nor accepts a visit whose prospect is unknown", async () => {
-    // Deliberate: accepting it would tell the phone to delete a visit the
-    // server never stored, which is exactly the loss INVARIANT 5 forbids.
-    //
-    // KNOWN GAP: the phone therefore keeps retrying it. That self-heals when
-    // the prospect is simply in a later outbox page, but not when the prospect
-    // genuinely no longer exists — then the outbox never drains and the phone
-    // resends on every sync. Closing it needs an additive `rejected` field in
-    // the response plus client handling; see the sync-contract-change skill.
+  it("quarantines a visit whose prospect is unknown, and accepts it", async () => {
+    // ADR-0022. This used to be neither stored nor accepted, which kept the
+    // visit safe but left the phone resending it for ever whenever the prospect
+    // genuinely was not coming. It is now stored in visits_orphaned, where it
+    // is just as safe, and reported in `accepted` so the outbox drains —
+    // `accepted` means the server has durably taken the visit, not that a row
+    // exists in `visits`.
+    const id = crypto.randomUUID();
     const response = await sync({
       visits: [
         {
-          id: crypto.randomUUID(),
+          id,
           prospectId: crypto.randomUUID(), // never inserted
           visitedAt: Date.now(),
           flyerGiven: false,
@@ -359,10 +360,13 @@ describe("POST /api/agent/sync", () => {
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as SyncResponse;
-    expect(body.accepted.visits).toHaveLength(0);
+    expect(body.accepted.visits).toContain(id);
 
     const db = getDb(env.DB);
     expect(await db.select().from(visits)).toHaveLength(0);
+    const [held] = await db.select().from(visitsOrphaned);
+    expect(held?.id).toBe(id);
+    expect(held?.reason).toBe("unknown_prospect");
   });
 
   it("accepts a visit against a field prospect created in the same payload", async () => {
@@ -621,15 +625,15 @@ describe("GET /api/agent/prospects/:id/visits", () => {
 });
 
 /**
- * ADR-0021 and #33.
+ * ADR-0022 and #33.
  *
  * Sync used to check only that a visit's prospect *existed*, so any agent past
  * Access could post a visit against any prospect id and — because the server
- * derives status from the newest visit — change it. The visit is still stored
- * and still accepted, because INVARIANT 5 outranks this; it just no longer
- * moves a prospect it does not belong to.
+ * derives status from the newest visit — change it. Such a visit is now
+ * quarantined: kept, attributed, accepted, and inert until an admin decides
+ * where it belongs.
  */
-describe("POST /api/agent/sync — only the assignee's visit moves the prospect", () => {
+describe("POST /api/agent/sync — a visit for someone else's prospect", () => {
   const OTHER = "agent@example.com";
 
   const visitOf = (prospectId: string, outcome: Outcome) => ({
@@ -667,7 +671,7 @@ describe("POST /api/agent/sync — only the assignee's visit moves the prospect"
     expect(row?.lastVisitAt).toBeNull();
   });
 
-  it("stores and accepts that visit all the same — INVARIANT 5 outranks the rule", async () => {
+  it("quarantines it rather than storing it, and accepts it all the same", async () => {
     const db = getDb(env.DB);
     const id = crypto.randomUUID();
     await seedProspect(id, AGENT);
@@ -678,10 +682,16 @@ describe("POST /api/agent/sync — only the assignee's visit moves the prospect"
 
     // Accepted, so the phone clears its outbox instead of resending for ever.
     expect(body.accepted.visits).toContain(visit.id);
-    const [stored] = await db.select().from(visits);
-    expect(stored?.id).toBe(visit.id);
+    expect(await db.select().from(visits)).toHaveLength(0);
+
+    const [held] = await db.select().from(visitsOrphaned);
+    expect(held?.id).toBe(visit.id);
+    expect(held?.reason).toBe("not_assigned");
+    // It keeps the prospect it named, so approving it is just a repair against
+    // that same id.
+    expect(held?.prospectId).toBe(id);
     // Attributed to whoever really wrote it (INVARIANT 10), never the assignee.
-    expect(stored?.agentEmail).toBe(OTHER);
+    expect(held?.agentEmail).toBe(OTHER);
   });
 
   it("still derives status from the assignee's own visit", async () => {
@@ -693,6 +703,7 @@ describe("POST /api/agent/sync — only the assignee's visit moves the prospect"
 
     const [row] = await db.select().from(prospects).where(eq(prospects.id, id));
     expect(row?.status).toBe("rejected");
+    expect(await db.select().from(visitsOrphaned)).toHaveLength(0);
   });
 
   it("does not let a later outsider visit undo the assignee's outcome", async () => {
@@ -707,7 +718,7 @@ describe("POST /api/agent/sync — only the assignee's visit moves the prospect"
     expect(row?.status).toBe("converted");
   });
 
-  it("derives nothing for an unassigned prospect", async () => {
+  it("quarantines a visit for an unassigned prospect", async () => {
     const db = getDb(env.DB);
     const id = crypto.randomUUID();
     await seedProspect(id, null);
@@ -716,5 +727,18 @@ describe("POST /api/agent/sync — only the assignee's visit moves the prospect"
 
     const [row] = await db.select().from(prospects).where(eq(prospects.id, id));
     expect(row?.status).toBe("assigned");
+    expect((await db.select().from(visitsOrphaned))[0]?.reason).toBe("not_assigned");
+  });
+
+  it("replaying a quarantined payload stays a no-op", async () => {
+    const db = getDb(env.DB);
+    const id = crypto.randomUUID();
+    await seedProspect(id, AGENT);
+    const visit = visitOf(id, "interested");
+
+    await asOtherAgent({ visits: [visit] });
+    await asOtherAgent({ visits: [visit] });
+
+    expect(await db.select().from(visitsOrphaned)).toHaveLength(1);
   });
 });

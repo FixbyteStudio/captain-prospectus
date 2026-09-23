@@ -22,6 +22,9 @@ import * as z from "zod/mini";
 import {
   ADMIN_VISITS_PAGE_SIZE,
   IMPORT_ROWS_PER_REQUEST,
+  ORPHAN_CANDIDATES,
+  ORPHAN_REASONS,
+  ORPHANS_PAGE_SIZE,
   OVERPASS_CANDIDATES_LIMIT,
   PLACES_RADIUS_MAX_M,
   PLACES_RADIUS_MIN_M,
@@ -283,6 +286,9 @@ export type AssignResult = z.infer<typeof assignResultSchema>;
 /** Route params are strings; an id that is not a UUID must 400, not 404. */
 export const prospectIdParamSchema = z.object({ id: uuidSchema });
 
+/** Same shape, different subject — the `:id` of a visit, not of a prospect. */
+export const visitIdParamSchema = z.object({ id: uuidSchema });
+
 /* ---------------------------------------------------------------- merging */
 
 /**
@@ -542,6 +548,66 @@ export const areaSearchResponseSchema = z.object({
   cached: z.boolean(),
 });
 export type AreaSearchResponse = z.infer<typeof areaSearchResponseSchema>;
+
+/* ------------------------------------------- orphaned visits (ADR-0022) */
+
+export const orphanReasonSchema = z.enum(ORPHAN_REASONS);
+
+/**
+ * A prospect the admin could attach an orphan to.
+ *
+ * `distanceM` is null when either side has no coordinates — the screen shows a
+ * dash, never a misleading zero, the same rule the duplicates sweep follows.
+ */
+export const orphanCandidateSchema = z.object({
+  id: uuidSchema,
+  name: shortTextRequired,
+  address: z.nullable(shortText),
+  status: statusSchema,
+  assignedTo: z.nullable(emailSchema),
+  distanceM: z.nullable(z.int()),
+});
+export type OrphanCandidate = z.infer<typeof orphanCandidateSchema>;
+
+export const orphanedVisitSchema = z.object({
+  id: uuidSchema,
+  prospectId: uuidSchema,
+  agentEmail: emailSchema,
+  visitedAt: epochMsSchema,
+  receivedAt: epochMsSchema,
+  quarantinedAt: epochMsSchema,
+  reason: orphanReasonSchema,
+  flyerGiven: z.boolean(),
+  outcome: outcomeSchema,
+  followUpAt: z.nullable(epochMsSchema),
+  notes: z.nullable(longText),
+  /**
+   * The prospect the visit named, when it still resolves. Null for an
+   * `unknown_prospect` row, which is the whole reason that row is here.
+   */
+  prospectName: z.nullable(shortTextRequired),
+  /** Ranked nearest-first. Empty when the visit carries no coordinates. */
+  candidates: z.array(orphanCandidateSchema).check(z.maxLength(ORPHAN_CANDIDATES)),
+});
+export type OrphanedVisit = z.infer<typeof orphanedVisitSchema>;
+
+export const orphansResponseSchema = z.object({
+  visits: z.array(orphanedVisitSchema).check(z.maxLength(ORPHANS_PAGE_SIZE)),
+  /** Rows past the page. A non-zero value means look upstream, not at the page size. */
+  remaining: z.int().check(z.nonnegative()),
+});
+export type OrphansResponse = z.infer<typeof orphansResponseSchema>;
+
+/** For a `not_assigned` row the admin sends the prospect the visit already named. */
+export const orphanRepairSchema = z.object({ prospectId: uuidSchema });
+
+export const orphanRepairResultSchema = z.object({
+  visitId: uuidSchema,
+  prospectId: uuidSchema,
+  /** False when the row was already repaired — a replay, not an error (INVARIANT 4). */
+  repaired: z.boolean(),
+});
+export type OrphanRepairResult = z.infer<typeof orphanRepairResultSchema>;
 
 /* ------------------------------------------------------ local dev seeding */
 

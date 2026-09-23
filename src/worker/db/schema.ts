@@ -8,7 +8,13 @@
 import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
-import { OUTCOMES, PROSPECT_TYPES, SOURCES, STATUSES } from "../../shared/constants";
+import {
+  ORPHAN_REASONS,
+  OUTCOMES,
+  PROSPECT_TYPES,
+  SOURCES,
+  STATUSES,
+} from "../../shared/constants";
 
 export const prospects = sqliteTable(
   "prospects",
@@ -115,6 +121,65 @@ export const visits = sqliteTable(
   ],
 );
 
+/**
+ * Visits the server could not take as sent (ADR-0022).
+ *
+ * Two cases land here: the prospect does not exist, or it is not assigned to
+ * the agent who sent the visit. Both are reported in `accepted` all the same,
+ * so the phone lets go of the row — `accepted` means the server has durably
+ * taken the visit, not that a row exists in `visits`.
+ *
+ * It mirrors `visits` so a repair is a straight copy, with three differences:
+ * `prospect_id` carries no foreign key (the whole point is that it may not
+ * resolve), and `reason` and `quarantined_at` say why it is here and since
+ * when. Append-only like `visits` until an admin repairs or discards the row,
+ * which is the one place rows leave this table.
+ */
+export const visitsOrphaned = sqliteTable(
+  "visits_orphaned",
+  {
+    /** The phone's UUID, unchanged, so a repair keeps the visit's identity. */
+    id: text("id").primaryKey(),
+    /**
+     * Deliberately NOT a foreign key. For `unknown_prospect` it points at
+     * nothing, which is exactly the state this table exists to hold.
+     */
+    prospectId: text("prospect_id").notNull(),
+    agentEmail: text("agent_email").notNull(),
+
+    visitedAt: integer("visited_at").notNull(),
+    clientVisitedAt: integer("client_visited_at").notNull(),
+    receivedAt: integer("received_at").notNull(),
+
+    lat: real("lat"),
+    lng: real("lng"),
+    flyerGiven: integer("flyer_given", { mode: "boolean" }).notNull().default(false),
+    outcome: text("outcome", { enum: OUTCOMES }).notNull(),
+    followUpAt: integer("follow_up_at"),
+    notes: text("notes"),
+
+    /**
+     * Kept as sent, with no foreign key for the same reason as prospect_id: a
+     * phone can hold a visit answered against a script this database does not
+     * have, and the repair path nulls an unknown id exactly as sync does.
+     */
+    scriptId: integer("script_id"),
+    answers: text("answers", { mode: "json" })
+      .notNull()
+      .default(sql`'{}'`),
+
+    clientVersion: integer("client_version").notNull(),
+
+    /** Why the server could not take it. See ORPHAN_REASONS. */
+    reason: text("reason", { enum: ORPHAN_REASONS }).notNull(),
+    /** Server clock when it was quarantined. The repair queue orders by this. */
+    quarantinedAt: integer("quarantined_at").notNull(),
+  },
+  // The queue is the only read: newest first. No index on `reason` — the queue
+  // is small by nature and a filter over a handful of rows does not earn one.
+  (t) => [index("visits_orphaned_quarantined_idx").on(t.quarantinedAt)],
+);
+
 /** Immutable per version. Editing a script creates version N+1 and activates it. */
 export const scripts = sqliteTable(
   "scripts",
@@ -157,5 +222,7 @@ export type ProspectRow = typeof prospects.$inferSelect;
 export type NewProspectRow = typeof prospects.$inferInsert;
 export type VisitRow = typeof visits.$inferSelect;
 export type NewVisitRow = typeof visits.$inferInsert;
+export type OrphanedVisitRow = typeof visitsOrphaned.$inferSelect;
+export type NewOrphanedVisitRow = typeof visitsOrphaned.$inferInsert;
 export type ScriptRow = typeof scripts.$inferSelect;
 export type OverpassCacheRow = typeof overpassCache.$inferSelect;

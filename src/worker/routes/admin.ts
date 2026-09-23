@@ -11,6 +11,8 @@ import { chunk } from "../../shared/chunk";
 import {
   DUPLICATES_PAGE_SIZE,
   DUPLICATES_SCAN_LIMIT,
+  ORPHAN_CANDIDATES,
+  ORPHANS_PAGE_SIZE,
   OVERPASS_CACHE_TTL_MS,
   PLACES_CACHE_TTL_MS,
   SCRIPTS_PAGE_SIZE,
@@ -21,6 +23,7 @@ import { isProbablySamePlace } from "../../shared/similarity";
 import {
   assignSchema,
   mergeSchema,
+  orphanRepairSchema,
   overpassImportSchema,
   placesImportSchema,
   visitsSinceQuerySchema,
@@ -29,9 +32,14 @@ import {
   prospectPatchSchema,
   prospectsQuerySchema,
   scriptCreateSchema,
+  visitIdParamSchema,
 } from "../../shared/schemas";
 import type {
   AdminVisitsResponse,
+  OrphanCandidate,
+  OrphanedVisit,
+  OrphanRepairResult,
+  OrphansResponse,
   AgentsResponse,
   AssignResult,
   DuplicatesResponse,
@@ -46,7 +54,7 @@ import type {
 import { parseEmails, roleFor } from "../auth";
 import { validate } from "../validate";
 import { boundParamsPerRow, getDb } from "../db/client";
-import { overpassCache, prospects, scripts, visits } from "../db/schema";
+import { overpassCache, prospects, scripts, visits, visitsOrphaned } from "../db/schema";
 import {
   OVERPASS_ENDPOINT,
   OVERPASS_USER_AGENT,
@@ -62,6 +70,7 @@ import {
   toCandidates as toPlaceCandidates,
 } from "../places";
 import type { NewProspectRow, ProspectRow } from "../db/schema";
+import { deriveProspectStatus } from "./status";
 import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
 
@@ -867,3 +876,221 @@ adminRoutes.get("/visits", validate("query", visitsSinceQuerySchema), async (c) 
 
   return c.json<AdminVisitsResponse>({ visits: rows, serverTime: Date.now() });
 });
+
+/* ------------------------------------------------- orphan repairs (ADR-0022) */
+
+/**
+ * The repair queue: visits the server took but could not place.
+ *
+ * Two reasons land a visit here (ADR-0022): its prospect does not exist, or it
+ * belongs to another agent. Either way the phone has already been told the
+ * visit is `accepted` and has dropped it, so this table is now the only copy —
+ * which is why nothing in here is ever deleted except by an explicit admin act.
+ *
+ * Ordered newest first. An empty queue is the healthy state, so `remaining` is
+ * a smoke alarm rather than a paging cursor: if it is ever non-zero, the answer
+ * is upstream, not a bigger page.
+ */
+adminRoutes.get("/visits/orphaned", async (c) => {
+  const db = getDb(c.env.DB);
+
+  const held = await db
+    .select()
+    .from(visitsOrphaned)
+    .orderBy(desc(visitsOrphaned.quarantinedAt))
+    .limit(ORPHANS_PAGE_SIZE);
+
+  const [tally] = await db.select({ total: count() }).from(visitsOrphaned);
+  const remaining = Math.max(0, (tally?.total ?? 0) - held.length);
+
+  // Candidates are drawn from every live prospect, scored in memory. The queue
+  // is small by nature, but this is still a scan per request, so it is bounded
+  // by the same DUPLICATES_SCAN_LIMIT the duplicate sweep uses — D1 bills rows
+  // read, and an unbounded scan here would be the expensive page in the app.
+  const live = held.length
+    ? await db
+        .select({
+          id: prospects.id,
+          name: prospects.name,
+          address: prospects.address,
+          status: prospects.status,
+          assignedTo: prospects.assignedTo,
+          lat: prospects.lat,
+          lng: prospects.lng,
+        })
+        .from(prospects)
+        .where(isNull(prospects.mergedInto))
+        .limit(DUPLICATES_SCAN_LIMIT)
+    : [];
+  const byId = new Map(live.map((p) => [p.id, p]));
+
+  const visitsOut: OrphanedVisit[] = held.map((row) => {
+    const named = byId.get(row.prospectId);
+
+    // Nearest first, and only when the visit recorded where it happened. A
+    // visit with no position offers no evidence, and ranking a list in
+    // arbitrary order would be worse than offering nothing.
+    const at =
+      typeof row.lat === "number" && typeof row.lng === "number"
+        ? { lat: row.lat, lng: row.lng }
+        : null;
+    const candidates: OrphanCandidate[] = at
+      ? live
+          .flatMap((p) =>
+            typeof p.lat === "number" && typeof p.lng === "number"
+              ? [{ p, d: Math.round(distanceMeters(at, { lat: p.lat, lng: p.lng })) }]
+              : [],
+          )
+          .sort((a, b) => a.d - b.d)
+          .slice(0, ORPHAN_CANDIDATES)
+          .map(({ p, d }) => ({
+            id: p.id,
+            name: p.name,
+            address: p.address,
+            status: p.status,
+            assignedTo: p.assignedTo,
+            distanceM: d,
+          }))
+      : [];
+
+    return {
+      id: row.id,
+      prospectId: row.prospectId,
+      agentEmail: row.agentEmail,
+      visitedAt: row.visitedAt,
+      receivedAt: row.receivedAt,
+      quarantinedAt: row.quarantinedAt,
+      reason: row.reason,
+      flyerGiven: row.flyerGiven,
+      outcome: row.outcome,
+      followUpAt: row.followUpAt,
+      notes: row.notes,
+      prospectName: named?.name ?? null,
+      candidates,
+    };
+  });
+
+  const response: OrphansResponse = { visits: visitsOut, remaining };
+  return c.json(response);
+});
+
+/**
+ * Attach a quarantined visit to a prospect and let it count.
+ *
+ * One endpoint covers both reasons, because they differ only in which id the
+ * admin sends: a `not_assigned` row is approved by repairing it against the
+ * prospect it already named, an `unknown_prospect` row by choosing one.
+ *
+ * The visit keeps its original id, so a phone that somehow still holds the row
+ * and resends it hits `onConflictDoNothing` and changes nothing (INVARIANT 4).
+ */
+adminRoutes.post(
+  "/visits/orphaned/:id/repair",
+  validate("param", visitIdParamSchema),
+  validate("json", orphanRepairSchema),
+  async (c) => {
+    const db = getDb(c.env.DB);
+    const { id } = c.req.valid("param");
+    const { prospectId } = c.req.valid("json");
+    const now = Date.now();
+
+    const [held] = await db.select().from(visitsOrphaned).where(eq(visitsOrphaned.id, id)).limit(1);
+
+    if (!held) {
+      // Already repaired is a replay, not an error — the same reading merge
+      // takes (INVARIANT 4). Distinguish it from an id that never existed.
+      const [already] = await db.select({ id: visits.id }).from(visits).where(eq(visits.id, id));
+      if (already) {
+        const result: OrphanRepairResult = { visitId: id, prospectId, repaired: false };
+        return c.json(result);
+      }
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    const [target] = await db
+      .select({ id: prospects.id, mergedInto: prospects.mergedInto })
+      .from(prospects)
+      .where(eq(prospects.id, prospectId))
+      .limit(1);
+    if (!target) {
+      return c.json(
+        { error: "unknown_prospect", message: "Ce prospect n'existe pas ou a été supprimé." },
+        400,
+      );
+    }
+
+    // Follow a merge, exactly as sync does for a dedupe collision. A prospect
+    // can be absorbed in the window between a visit being quarantined and an
+    // admin repairing it, and attaching the visit to the retired row would pile
+    // it up on a prospect nobody looks at any more. The response reports where
+    // it actually landed, so the screen is not left claiming otherwise.
+    const attachTo = target.mergedInto ?? target.id;
+
+    // The same reason sync nulls an unknown script id rather than refusing the
+    // visit: the answers are still true, and a stale questionnaire reference is
+    // not worth losing them over.
+    let scriptId = held.scriptId;
+    if (typeof scriptId === "number") {
+      const [known] = await db
+        .select({ id: scripts.id })
+        .from(scripts)
+        .where(eq(scripts.id, scriptId))
+        .limit(1);
+      if (!known) scriptId = null;
+    }
+
+    // D1 has no interactive transaction; a batch is one atomic unit, which is
+    // what stops a crash between these two statements leaving the visit in both
+    // tables or in neither.
+    await db.batch([
+      db
+        .insert(visits)
+        .values({
+          id: held.id,
+          prospectId: attachTo,
+          agentEmail: held.agentEmail,
+          // Already clamped when it was quarantined (INVARIANT 12); clamping
+          // again against today's clock would rewrite history at repair time.
+          visitedAt: held.visitedAt,
+          clientVisitedAt: held.clientVisitedAt,
+          receivedAt: held.receivedAt,
+          lat: held.lat,
+          lng: held.lng,
+          flyerGiven: held.flyerGiven,
+          outcome: held.outcome,
+          followUpAt: held.followUpAt,
+          notes: held.notes,
+          scriptId,
+          answers: held.answers,
+          clientVersion: held.clientVersion,
+        })
+        .onConflictDoNothing(),
+      db.delete(visitsOrphaned).where(eq(visitsOrphaned.id, id)),
+    ]);
+
+    await deriveProspectStatus(db, attachTo, now);
+
+    const result: OrphanRepairResult = { visitId: id, prospectId: attachTo, repaired: true };
+    return c.json(result);
+  },
+);
+
+/**
+ * Drop a quarantined visit for good.
+ *
+ * This is the one place the app deletes a visit, and it is deliberate: a row
+ * whose prospect genuinely no longer exists has nowhere to go, and a queue that
+ * can only grow is a queue nobody reads. INVARIANT 5 is written against
+ * *silent* loss — an admin choosing this, behind a confirmation, is the
+ * opposite of that. It is idempotent: discarding twice is a no-op, not a 404.
+ */
+adminRoutes.post(
+  "/visits/orphaned/:id/discard",
+  validate("param", prospectIdParamSchema),
+  async (c) => {
+    const db = getDb(c.env.DB);
+    const { id } = c.req.valid("param");
+    await db.delete(visitsOrphaned).where(eq(visitsOrphaned.id, id));
+    return c.json({ discarded: id });
+  },
+);
