@@ -38,7 +38,12 @@ function getJwks(teamDomain: string) {
   return jwks;
 }
 
-function isLocalHost(hostname: string): boolean {
+/**
+ * Exported so the dev routes gate on the same list. Two copies of it, in a repo
+ * whose threat model has a row named "Dev impersonation leaking to prod", is
+ * exactly the drift that row is about.
+ */
+export function isLocalHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 

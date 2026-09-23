@@ -10,7 +10,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Local development only
 | Route | Purpose |
 |---|---|
-| `POST /api/dev/seed` | Fills the local database with sample prospects and a script. Answers 404 unless the request host is localhost. Run through `pnpm db:seed:local` |
+| `POST /api/dev/seed` | Fills the local database with sample prospects and a script, validated by `devSeedSchema`. Answers 404 unless the request host is localhost **and** `DEV_USER_EMAIL` is set — on localhost the 404 says which is missing. Run through `pnpm db:seed:local` |
 
 ## Agent
 | Route | Purpose |
@@ -42,6 +42,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | 401 | No or invalid Access token |
 | 403 | Authenticated but wrong role |
 | 404 | Unknown resource |
+| 413 | Body over `MAX_REQUEST_BYTES`, refused before it is parsed — so before the 426 check and before validation. `error: "too_large"` |
 | 426 | `clientVersion` no longer supported: update the app. Checked **before** body validation, so an old build is told to update rather than that its data is invalid |
 | 501 | Route declared but not implemented yet (see the roadmap) |
 | 503 | Either D1's daily free-tier limit (`d1_limit`) or a map provider with no key (`places_unconfigured`). Nothing was lost; the `error` code says which |
@@ -54,6 +55,12 @@ Every array is bounded, because one request must stay inside the Workers Free
 per sync, 500 ids per bulk assign, 500 visits per live-feed page, 200 prospects
 per list page, 1000 candidates per Overpass import. A Google import is capped at 20 by
 Google itself.
+
+Those cap **rows**. `MAX_REQUEST_BYTES` (2 MiB) caps **bytes**, Worker-wide, and is
+checked before any body is parsed — the two are not the same thing, because
+`answersSchema` does not bound how many answers a visit carries. The field client trims
+a sync batch that would exceed it rather than sending one the server must refuse; see
+`docs/security.md`.
 
 `GET /api/admin/prospects` returns at most `PROSPECTS_PAGE_SIZE` rows; `total`
 counts every row matching the filters, so the list header can say "412

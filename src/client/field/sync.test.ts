@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { CLIENT_VERSION } from "../../shared/constants";
-import type { Script, SyncResponse, Visit } from "../../shared/schemas";
+import { CLIENT_VERSION, MAX_REQUEST_BYTES, SYNC_VISITS_PER_REQUEST } from "../../shared/constants";
+import type { FieldProspect, Script, SyncRequest, SyncResponse, Visit } from "../../shared/schemas";
 import { FieldDb, getMeta, setMeta } from "./db";
 import { backoffDelayMs, runSync } from "./sync";
 
@@ -112,6 +112,7 @@ describe("runSync — failures must never clear the outbox", () => {
     ["a build too old (426)", 426],
     ["a server error (500)", 500],
     ["a D1 quota error (503)", 503],
+    ["a payload too large (413)", 413],
   ])("keeps the outbox on %s", async (_label, status) => {
     await db.outboxVisits.add(visit());
     const result = await runSync({ db, fetchFn: failWith(status) });
@@ -256,5 +257,83 @@ describe("backoffDelayMs", () => {
     expect(backoffDelayMs(2)).toBe(10_000);
     expect(backoffDelayMs(3)).toBe(20_000);
     expect(backoffDelayMs(50)).toBe(300_000);
+  });
+});
+
+/**
+ * The byte cap (MAX_REQUEST_BYTES) is enforced by the Worker, which answers 413
+ * — and a 413 keeps the outbox, so a payload that is always too large is an
+ * outbox that never drains. The client's job is never to build one.
+ */
+describe("runSync — staying under MAX_REQUEST_BYTES", () => {
+  /** A visit with 50 answers of 2000 characters: ~100 kB, and schema-valid. */
+  const hugeVisit = () =>
+    visit({
+      notes: "n".repeat(2000),
+      answers: Object.fromEntries(
+        Array.from({ length: 50 }, (_, q) => [`question_${q}`, "a".repeat(2000)]),
+      ),
+    });
+
+  const captureBody = () => {
+    const sent: string[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      sent.push(init.body as string);
+      return new Response(JSON.stringify(okResponse()), { status: 200 });
+    }) as unknown as typeof fetch;
+    /** The one request runSync made. Fails loudly rather than yielding undefined. */
+    const only = (): string => {
+      expect(sent).toHaveLength(1);
+      const [body] = sent;
+      if (body === undefined) throw new Error("runSync sent no request");
+      return body;
+    };
+    return { only, fetchFn };
+  };
+
+  it("trims a batch that would exceed the cap, and sends every field prospect", async () => {
+    const prospect: FieldProspect = {
+      id: crypto.randomUUID(),
+      name: "Le Bistrot",
+      type: "restaurant",
+      lat: null,
+      lng: null,
+      address: null,
+      phone: null,
+      createdAt: 1_700_000_000_000,
+    };
+    await db.outboxProspects.add(prospect);
+    for (let i = 0; i < SYNC_VISITS_PER_REQUEST; i++) await db.outboxVisits.add(hugeVisit());
+
+    const { only, fetchFn } = captureBody();
+    await runSync({ db, fetchFn });
+
+    const body = only();
+    expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(MAX_REQUEST_BYTES);
+
+    const parsed = JSON.parse(body) as SyncRequest;
+    expect(parsed.visits.length).toBeLessThan(SYNC_VISITS_PER_REQUEST);
+    expect(parsed.visits.length).toBeGreaterThan(0);
+    // A visit may reference a prospect created in the same payload, so prospects
+    // are never what gets dropped.
+    expect(parsed.prospects).toHaveLength(1);
+  });
+
+  it("still sends a single visit that is near the cap on its own", async () => {
+    await db.outboxVisits.add(hugeVisit());
+
+    const { only, fetchFn } = captureBody();
+    await runSync({ db, fetchFn });
+
+    expect((JSON.parse(only()) as SyncRequest).visits).toHaveLength(1);
+  });
+
+  it("does not trim, or re-serialize, an ordinary batch", async () => {
+    for (let i = 0; i < 20; i++) await db.outboxVisits.add(visit());
+
+    const { only, fetchFn } = captureBody();
+    await runSync({ db, fetchFn });
+
+    expect((JSON.parse(only()) as SyncRequest).visits).toHaveLength(20);
   });
 });

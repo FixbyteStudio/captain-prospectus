@@ -89,6 +89,37 @@ export const SYNC_PROSPECTS_PER_REQUEST = 100;
 export const ADMIN_VISITS_PAGE_SIZE = 500;
 
 /**
+ * Largest request body the Worker will read, in bytes.
+ *
+ * Measured, not guessed. The biggest request a real client can build is a full
+ * sync: 100 field prospects with every field at its cap, plus 200 visits each
+ * carrying a 2000-character note and an answer to every question of a
+ * 50-question script — **1060 KiB**. Nothing else is close: 250 import rows are
+ * 325 KiB, the largest script 310 KiB, 500 assign ids 19 KiB, a 200-vertex
+ * polygon 5 KiB. A sync carrying notes but no answers is 514 KiB, and a real
+ * day's sync is well under 100 KiB.
+ *
+ * So the floor is 1060 KiB and this is roughly twice it. What the cap is for is
+ * the other end: `answersSchema` does not bound how many answers a visit
+ * carries, so a payload of 200 visits each holding 50 answers of 2000
+ * characters is 19.7 MiB and still schema-valid. That is what gets refused
+ * before JSON.parse ever sees it (docs/security.md, "Malformed or oversized
+ * payloads").
+ *
+ * This caps *reading*, and is not a second array cap — the per-request caps
+ * above are what protect the 10 ms CPU budget (INVARIANT 13).
+ *
+ * The headroom is deliberate, because the two failure directions are not
+ * symmetric. Too high costs one integer comparison. Too low answers 413 to a
+ * payload the outbox rebuilds identically for ever — sync.ts keeps every row on
+ * any non-auth error, so a cap under what a phone can build is a loop with no
+ * exit, which is INVARIANT 5's failure mode. Raise SYNC_VISITS_PER_REQUEST,
+ * IMPORT_ROWS_PER_REQUEST or longText and the budget tests in constants.test.ts
+ * will tell you to raise this too.
+ */
+export const MAX_REQUEST_BYTES = 2_097_152;
+
+/**
  * Script versions returned by `GET /api/admin/scripts`. Editing a script writes
  * a new row rather than updating one (docs/domains/scripts.md), so this table
  * only ever grows — slowly, by hand, but it grows.

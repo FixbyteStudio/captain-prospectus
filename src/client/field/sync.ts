@@ -14,6 +14,7 @@
  */
 import {
   CLIENT_VERSION,
+  MAX_REQUEST_BYTES,
   SYNC_PROSPECTS_PER_REQUEST,
   SYNC_VISITS_PER_REQUEST,
 } from "../../shared/constants";
@@ -48,6 +49,46 @@ export type SyncDeps = {
 
 const EMPTY = { acceptedProspects: 0, acceptedVisits: 0 };
 
+/**
+ * Serialize the payload, dropping visits off the end until it fits
+ * MAX_REQUEST_BYTES.
+ *
+ * The count caps above bound how many rows go out; they cannot bound how many
+ * bytes, because `answersSchema` does not limit how many answers a visit
+ * carries. A full batch of ordinary visits is about 1 MB and fits; a batch of
+ * 200 visits each holding 50 answers of 2000 characters is 19.7 MB and does
+ * not, and it is schema-valid all the same.
+ *
+ * The server refuses what it cannot read (INVARIANT 13), and a payload the
+ * server always refuses is a payload the outbox rebuilds identically for ever,
+ * because every non-auth failure keeps every row (INVARIANT 5). So the client
+ * makes sure it never builds one.
+ *
+ * Field prospects are never dropped: 100 of them at every field's cap is 74 kB,
+ * so they alone cannot exceed the cap, and a visit may reference one created in
+ * the same payload — they have to travel together or earlier. At least one visit
+ * always survives, so the outbox drains one round trip at a time through the
+ * existing `remaining` path rather than stalling.
+ *
+ * Costs one `JSON.stringify` in the common case, and returns that same string.
+ */
+function serializeWithinCap(payload: SyncRequest): string {
+  let visits = payload.visits;
+  let serialized = JSON.stringify({ ...payload, visits });
+
+  // Bytes, not characters: MAX_REQUEST_BYTES is what the Worker counts, and a
+  // note written outdoors is full of accented characters worth two of them.
+  const bytes = (value: string) => new TextEncoder().encode(value).length;
+
+  // Halve rather than drop one at a time: the loop ends in at most log2(200)
+  // passes instead of 200 stringifies of a near-megabyte payload.
+  while (visits.length > 1 && bytes(serialized) > MAX_REQUEST_BYTES) {
+    visits = visits.slice(0, Math.max(1, Math.floor(visits.length / 2)));
+    serialized = JSON.stringify({ ...payload, visits });
+  }
+  return serialized;
+}
+
 export async function runSync(deps: SyncDeps): Promise<SyncResult> {
   const { db } = deps;
   const doFetch = deps.fetchFn ?? fetch;
@@ -58,18 +99,18 @@ export async function runSync(deps: SyncDeps): Promise<SyncResult> {
   const outboxProspects = await db.outboxProspects.limit(SYNC_PROSPECTS_PER_REQUEST).toArray();
   const outboxVisits = await db.outboxVisits.limit(SYNC_VISITS_PER_REQUEST).toArray();
 
-  const payload: SyncRequest = {
+  const requestBody = serializeWithinCap({
     clientVersion: CLIENT_VERSION,
     prospects: outboxProspects,
     visits: outboxVisits,
-  };
+  });
 
   let response: Response;
   try {
     response = await doFetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: requestBody,
       // An expired Access session answers with a redirect to the login page.
       // "manual" turns that into an opaque response instead of following it and
       // parsing an HTML page as JSON.
