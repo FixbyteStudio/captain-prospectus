@@ -5,6 +5,9 @@ name: Backup
 # window; this covers everything outside it.
 # Manual only until M6: there is no database to export yet, and a weekly
 # scheduled failure is noise nobody reads. Uncomment the schedule at M6.
+#
+# The artifact this used to upload was a full copy of the database on GitHub,
+# for 90 days, which contradicted docs/security.md. It goes to R2 now (ADR-0023).
 on:
   # schedule:
   #   - cron: "17 3 * * 1" # Mondays, 03:17 UTC
@@ -13,6 +16,10 @@ on:
 jobs:
   export:
     runs-on: ubuntu-latest
+    # Gated like deploy.yml. The token here can read the whole database, so it
+    # should not be available at plain repo-secret level to anyone with write
+    # access (#34).
+    environment: production
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
@@ -27,9 +34,20 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: d1 export captain-prospectus --remote --output=backup.sql
-      - uses: actions/upload-artifact@v7
+      # Into R2, not a GitHub artifact (ADR-0023, #34). docs/security.md says
+      # the data stays in the Cloudflare account, and this is what makes that
+      # true: a GitHub artifact is a third-party copy of every visit note and
+      # agent position, readable by anyone with repo access.
+      #
+      # The bucket and its lifecycle rule are one-time account setup; see
+      # docs/deployment.md. R2's free tier is 10 GB against a database measured
+      # in megabytes, so ADR-0002 still holds.
+      - name: Upload to R2
+        uses: cloudflare/wrangler-action@v4
         with:
-          name: d1-backup-${{ github.run_id }}
-          path: backup.sql
-          # Visit notes and agent positions are personal data (docs/security.md).
-          retention-days: 90
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            r2 object put
+            captain-prospectus-backups/d1/${{ github.run_id }}-backup.sql
+            --file=backup.sql --remote

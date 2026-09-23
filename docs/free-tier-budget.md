@@ -47,3 +47,16 @@ Checked: 2026-09-22 (from public sources, to be confirmed on official pricing pa
 - **Keep `run_worker_first` as `["/api/*"]`, never `true`.** Static asset requests are free only
   while they do not invoke the Worker. Setting it to `true` puts the whole app shell on the
   100,000/day meter ([ADR-0003](adr/0003-single-cloudflare-worker.md)).
+
+## Cron Triggers and R2 (ADR-0023)
+
+The retention sweep is one scheduled invocation a day. Cron Triggers are included on the
+Workers free plan, and one invocation against a 100,000/day request budget is noise. The
+sweep is bounded to `RETENTION_BATCH` (500) rows written per run, which keeps it inside
+the D1 daily write quota even on the first run after a backlog — the backlog drains over a
+few days rather than in one statement.
+
+Backups go to an R2 bucket. The free tier is 10 GB of storage and 1 million Class A
+operations a month; a weekly export of a database measured in megabytes uses one operation
+and a rounding error of the storage. The bucket's lifecycle rule expires objects after 90
+days, so the total never grows.

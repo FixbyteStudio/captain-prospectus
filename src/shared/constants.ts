@@ -179,6 +179,31 @@ export const EXPORT_ROWS = 500;
 /** Default window for the visits export: the last 30 days. */
 export const EXPORT_DEFAULT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * How long a visit keeps its personal fields (ADR-0023).
+ *
+ * After this, `lat`, `lng` and `notes` are nulled by the retention sweep; the
+ * visit itself — date, outcome, agent, answers — is kept for ever, because the
+ * fact of the visit is business history and the position is not.
+ *
+ * Measured against `received_at`, never `visited_at`: a phone's clock can be
+ * wrong (INVARIANT 12), and retention read against it could redact a visit the
+ * day it arrives, or never redact one at all.
+ */
+export const RETENTION_DAYS = 90;
+export const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Rows the sweep redacts per run.
+ *
+ * The first run after this ships may have a backlog; every run after it matches
+ * almost nothing, because a redacted row no longer qualifies. Bounding the
+ * statement keeps one cron invocation inside the CPU budget and the D1 daily
+ * write quota (INVARIANT 13, docs/free-tier-budget.md), and a backlog simply
+ * drains over a few days.
+ */
+export const RETENTION_BATCH = 500;
+
 /** Candidate duplicate pairs returned in one sweep. */
 export const DUPLICATES_PAGE_SIZE = 100;
 

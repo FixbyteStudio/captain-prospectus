@@ -28,5 +28,8 @@ Migrations run in CI **before** the new Worker deploys. The old Worker must surv
 
 ## Never
 - Edit a migration already merged to `main`.
-- Update or delete rows in `visits` (append-only).
+- Update or delete rows in `visits` (append-only). **One exception, ADR-0023:** the
+  retention sweep nulls `lat`, `lng` and `notes` on visits older than
+  `RETENTION_DAYS`. It never deletes a row and never touches anything sync or the
+  derived status reads. Do not read it as permission for a second exception.
 - Run `db:migrate:remote` yourself.

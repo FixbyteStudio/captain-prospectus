@@ -21,6 +21,11 @@
   // Free; the release checklist ("Workers logs show no new errors") depends on it.
   "observability": { "enabled": true },
 
+  // The daily retention sweep (ADR-0023). Cron Triggers are free on the Workers
+  // free plan and one invocation a day is nothing against the request quota.
+  // 03:40 UTC: outside any canvassing round, so it never competes with a sync.
+  "triggers": { "crons": ["40 3 * * *"] },
+
   "d1_databases": [
     {
       "binding": "DB",
