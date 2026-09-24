@@ -51,7 +51,7 @@ Each is one line; its reasons live behind the link.
 - Forms: shadcn `form` over react-hook-form, everywhere including the field route (ADR-0018). The resolver reuses an
   existing pure validator or a `z.pick` of the shared schema — never a second copy of the rules. `FormMessage` takes a
   French string from `copy.ts` as children; it never renders zod's English `error.message`. Use `useWatch`, not `watch()`.
-- UI: run the `frontend-design` skill to decide a screen before building it, and compose it from shadcn/ui elements vendored into `src/client/ui/`. Never hand-roll an element shadcn provides; translate the English strings a vendored component ships with into `copy.ts` French (ADR-0014). **On the field route only**, a native element may replace a shadcn one whose dependencies breach the 150 kB budget — cite the measurement (ADR-0015).
+- UI: decide a screen against `docs/design.md` before building it, then compose it from shadcn/ui elements vendored into `src/client/ui/`. Never hand-roll an element shadcn provides; translate the English strings a vendored component ships with into `copy.ts` French (ADR-0014). **On the field route only**, a native element may replace a shadcn one whose dependencies breach the 150 kB budget — cite the measurement (ADR-0015).
 
 ## Database
 - Change `src/worker/db/schema.ts`, then `pnpm db:generate`. Never hand-edit a migration that is already on `main`.
@@ -78,6 +78,6 @@ Each is one line; its reasons live behind the link.
 
 ## Subagents and skills
 - Subagents in `.claude/agents/`: `architect`, `api-engineer`, `pwa-engineer`, `migration-guard`, `security-reviewer`, `docs-keeper`.
-- Skills in `.claude/skills/`: `frontend-design`, `new-adr`, `add-api-route`, `d1-migration`, `sync-contract-change`, `overpass-import`, `release-checklist`, `night-shift`.
+- Skills in `.claude/skills/`: `new-adr`, `add-api-route`, `d1-migration`, `sync-contract-change`, `overpass-import`, `release-checklist`, `night-shift`.
 - The queue for unattended work is `docs/backlog/` — one file per task. A scheduled run implements exactly
   one of them and stops at a pull request: never a merge, never a deploy (ADR-0016, `night-shift`).
