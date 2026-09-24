@@ -1,6 +1,6 @@
 # ADR-0014: Tailwind CSS and shadcn/ui for the interface
 
-- Status: accepted — decision 2 amended by [ADR-0015](0015-native-controls-on-the-field-route.md) for the field route only, where a shadcn component's dependencies breach the bundle budget. Decisions 1, 3, 4 and 5 stand, and decision 2 stands in full on the admin route.
+- Status: accepted — decision 2 amended by [ADR-0015](0015-native-controls-on-the-field-route.md) and [ADR-0026](0026-budget-the-field-precache-not-the-entry-chunk.md) for the field route only: its date input, radios, checkboxes and labels stay native. Decisions 1, 3, 4 and 5 stand, and decision 2 stands in full on the admin route.
 - Date: 2026-09-21
 - Deciders: owner
 

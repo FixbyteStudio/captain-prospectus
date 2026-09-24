@@ -36,10 +36,11 @@ is tied to a city — moving is changing those three places, not a migration.
 - An agent can complete a visit with zero network in under 60 seconds.
 - A visit logged offline reaches the admin within 1 minute of the phone regaining signal.
 - Monthly infrastructure bill: 0.
-- **The field route's JavaScript stays under 150 kB gzipped.** The budget
-  [ADR-0014](adr/0014-tailwind-and-shadcn-ui.md) asks for. An agent loads this app outdoors on a bad
-  connection, so the admin side — TanStack Query, Radix, sonner, PapaParse — is a separate chunk that
-  a phone never fetches.
+- **The field route's precache stays under 1,000 KiB**, as `pnpm build` prints it
+  ([ADR-0026](adr/0026-budget-the-field-precache-not-the-entry-chunk.md)). That is what an agent's phone downloads, on a bad connection, when it
+  installs the app or takes an update. The entry chunk has no cap but is recorded beside it. The
+  history below is how the budget got here: until ADR-0026 it was **the entry chunk under 150 kB
+  gzipped**, the budget [ADR-0014](adr/0014-tailwind-and-shadcn-ui.md) asked for.
 
   Measured at the end of M1: 126 kB gzipped for the entry chunk, 100 kB more for the admin chunk that
   only an admin loads. **Measured at the end of M2: 158 kB — over budget**, after the split ADR-0014's
@@ -100,3 +101,9 @@ is tied to a city — moving is changing those three places, not a migration.
   in the entry chunk and the map's French strings ride along with it
   ([issue #20](https://github.com/FixbyteStudio/captain-prospectus/issues/20)). Headroom is now
   **6.2 kB**. That issue stops being cosmetic the next time a screen adds copy.
+
+  **Measured on 2026-09-24 for [ADR-0026](adr/0026-budget-the-field-precache-not-the-entry-chunk.md),
+  which retires the 150 kB entry-chunk budget: entry chunk 145.33 kB, precache 609.58 KiB.** A spike
+  of the dashboard redesign (a lazy Carte tab with Leaflet, shadcn Dialog in the visit chunk, four
+  tab-bar icons) measured **144.49 kB and 811.75 KiB**. The entry chunk would have passed, while the
+  phone downloaded 202 KiB more, so the budget now caps the precache at 1,000 KiB instead.

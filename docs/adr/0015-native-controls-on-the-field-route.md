@@ -1,6 +1,6 @@
 # ADR-0015: Native form controls on the field route where shadcn's cost breaches the bundle budget
 
-- Status: accepted — validation decision superseded by [ADR-0018](0018-one-form-stack.md)
+- Status: accepted — validation decision superseded by [ADR-0018](0018-one-form-stack.md); the 150 kB budget superseded by [ADR-0026](0026-budget-the-field-precache-not-the-entry-chunk.md), and the native controls stand on their own merit
 - Date: 2026-09-22
 - Deciders: owner
 
