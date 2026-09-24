@@ -36,6 +36,13 @@
       "when": 1790158807824,
       "tag": "0004_visit_quarantine",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790210656835,
+      "tag": "0005_admin_status_set_at",
+      "breakpoints": true
     }
   ]
 }

@@ -38,7 +38,7 @@ stateDiagram-v2
   that wins every subsequent comparison and freezes that prospect's status permanently. The raw
   client value is kept in `visits.client_visited_at` so the skew stays visible.
 - `next_visit_at` = `follow_up_at` of the latest visit, if any.
-- Admin can override status manually (reopen, close). Last write wins; this is acceptable because admin edits are rare and deliberate.
+- Admin can override status manually (reopen, close). The admin's status holds against any visit made at or before the change, however late that visit syncs; only a visit made after it moves the status again. The visit still updates `last_visit_at` ([ADR-0025](../adr/0025-admin-status-outlives-older-visits.md)).
 
 ## Open vs closed
 Open (appear on an agent's list): `new`, `assigned`, `follow_up`. Closed: `converted`, `rejected`.

@@ -6,7 +6,7 @@
  * (ADR-0022). They have to agree, and the way two copies of this stop agreeing
  * is that only one of them gets fixed.
  */
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { OUTCOME_TO_STATUS } from "../../shared/constants";
 import { prospects, visits } from "../db/schema";
 import type { Db } from "../db/client";
@@ -18,6 +18,11 @@ import type { Db } from "../db/client";
  * is stored without overwriting a newer outcome (ADR-0011). `visited_at` is
  * already clamped to the server clock on insert, so a phone ahead by a week
  * cannot win this comparison for ever (INVARIANT 12).
+ *
+ * Nor does it overwrite a newer decision: when an admin set the status by hand
+ * at or after that visit, the status and `next_visit_at` stay theirs and only
+ * `last_visit_at` moves (ADR-0025). One conditional UPDATE rather than a read
+ * then a write, so an admin edit landing in between cannot be lost.
  *
  * `now` is passed in rather than read here so every row a single request
  * touches carries the same `updated_at`, which is what makes the admin list's
@@ -36,12 +41,14 @@ export async function deriveProspectStatus(db: Db, prospectId: string, now: numb
     .limit(1);
   if (!latest) return;
 
+  const visitWins = sql`(${prospects.statusSetAt} IS NULL OR ${prospects.statusSetAt} < ${latest.visitedAt})`;
+
   await db
     .update(prospects)
     .set({
-      status: OUTCOME_TO_STATUS[latest.outcome],
+      status: sql`CASE WHEN ${visitWins} THEN ${OUTCOME_TO_STATUS[latest.outcome]} ELSE ${prospects.status} END`,
       lastVisitAt: latest.visitedAt,
-      nextVisitAt: latest.followUpAt,
+      nextVisitAt: sql`CASE WHEN ${visitWins} THEN ${latest.followUpAt} ELSE ${prospects.nextVisitAt} END`,
       updatedAt: now,
     })
     .where(eq(prospects.id, prospectId));

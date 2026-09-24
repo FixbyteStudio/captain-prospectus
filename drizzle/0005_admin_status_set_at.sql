@@ -1,0 +1,1 @@
+ALTER TABLE `prospects` ADD `status_set_at` integer;
