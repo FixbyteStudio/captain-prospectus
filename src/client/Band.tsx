@@ -6,8 +6,8 @@ import { buttonVariants } from "@/ui/button-variants";
 import type { PwaState } from "./pwa";
 
 /**
- * A link in the field band or the admin nav. The admin nav reuses the band
- * look until it becomes the sidebar.
+ * A link in the field band. The admin side has its own navy sidebar
+ * (`AdminSidebar.tsx`, GH #63) rather than reusing this.
  */
 export function BandLink({ to, children }: { to: string; children: string }) {
   return (
@@ -28,9 +28,9 @@ export function BandLink({ to, children }: { to: string; children: string }) {
 }
 
 /**
- * The mark and wordmark, shared by the field band and the admin nav.
+ * The mark and wordmark, shared by the field band and the admin sidebar header.
  * `subtitle` is the field band's meta line naming the current tab; the admin
- * nav leaves it unset.
+ * sidebar leaves it unset.
  */
 export function BandBrand({ subtitle }: { subtitle?: string }) {
   return (

@@ -40,6 +40,13 @@ Checked: 2026-09-22 (from public sources, to be confirmed on official pricing pa
   and there is no index on `lat`/`lng`, so each search scans the whole table. At 3,000 prospects and 30
   searches a day that is 90 k rows, about 2 % of the daily limit. An index on `lat` is the fix if it ever
   is not.
+- **The sidebar's badges run the duplicate sweep on every admin page, not just Doublons** (GH #63):
+  `AdminSidebar` calls the same `useDuplicates()` the screen does, to keep its count identical. The sweep
+  reads ≤ 5,000 rows; at 3,000 prospects and about 20 admin loads a day that is roughly 60 k rows, 1.2 % of
+  the daily limit. `useOrphans()` runs the same way and also refetches on every tab focus
+  (`refetchOnWindowFocus: true`, no `staleTime`); a non-empty queue additionally scans up to
+  `DUPLICATES_SCAN_LIMIT` live prospects for repair candidates, so a busy admin tab with visits waiting to be
+  rattached reads meaningfully more than the healthy empty-queue case, which costs only a `count(*)`.
 - **CPU, not wall time, is the binding limit.** Waiting on D1 or Overpass is free; `JSON.parse`,
   zod validation, dedupe-key normalisation and crypto are not. This is why the CSV batch is capped
   at 250 rows per request ([ingestion](domains/ingestion.md)) and why the Access JWKS is cached in

@@ -40,6 +40,19 @@ export const copy = {
 
     /** The band avatar has no menu; this is its only accessible name. */
     avatar: (email: string) => `Connecté en tant que ${email}`,
+
+    /** Admin sidebar group labels, rendered uppercase through CSS (GH #63). */
+    groups: {
+      prospects: "Prospects",
+      terrain: "Terrain",
+    },
+    /** The toggle button's aria-label names the action it performs. */
+    openMenu: "Ouvrir le menu",
+    collapseMenu: "Réduire le menu",
+    /** The mobile drawer's dialog description — distinct from the toggle's action label. */
+    drawerDescription: "Navigation de l'administration",
+    /** A nav item's accessible name carries its pending count, in every mode. */
+    withCount: (label: string, count: number) => `${label} (${count})`,
   },
 
   prospects: {

@@ -102,6 +102,20 @@
      the strip sits directly under the band and needs to read as a step down. */
   --color-band-strip: var(--band-strip);
 
+  /* shadcn Sidebar's own token names (GH #63), aliased onto the band above:
+     no new hex values, just names so the vendored component's classes
+     (bg-sidebar, text-sidebar-foreground…) match upstream. Item text stays
+     band-foreground in every state — including the hover wash and the
+     current item — per the #62 note: band-muted is for group labels only. */
+  --color-sidebar: var(--band);
+  --color-sidebar-foreground: var(--band-foreground);
+  --color-sidebar-primary: var(--primary);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-accent: var(--band-accent);
+  --color-sidebar-accent-foreground: var(--band-foreground);
+  --color-sidebar-border: var(--band-border);
+  --color-sidebar-ring: var(--ring);
+
   /* follow_up. Neither success nor failure — someone owes this place a visit. */
   --color-warn: var(--warn);
   /* converted. Its own token now: the brand colour is gold, and a gold
