@@ -6,7 +6,7 @@ first deploy are deliberately last (M6) — the app is built and reviewed the wa
 any app is, and only meets production once it is worth deploying.
 
 **Every UI item below follows the same rule** ([ADR-0014](adr/0014-tailwind-and-shadcn-ui.md)):
-run the `frontend-design` skill to decide the screen's design *before* building
+decide the screen's design against [design.md](design.md) *before* building
 it, and compose it from **shadcn/ui** elements vendored into `src/client/ui/`.
 Do not hand-roll an element shadcn provides, and replace every English string a
 vendored component ships with the French one from `src/client/copy.ts`. **On
@@ -25,7 +25,7 @@ the bundle budget, cited against a measurement each time.
 - [x] Auth middleware (Access JWT), `/api/me`
 - [x] **UI foundation**: Tailwind v4 via `@tailwindcss/vite`, `shadcn init`, design
       tokens moved from `tokens.css` into `@theme`, `app.css` migrated (ADR-0014)
-- [x] **Design pass** with the `frontend-design` skill: app shell, the prospect
+- [x] **Design pass**: app shell, the prospect
       table and the import flow, decided before any of them is built —
       written up in [design.md](design.md)
 - [x] `POST /api/admin/prospects/batch` — upsert by dedupe key (250 rows/request)
@@ -40,7 +40,7 @@ the bundle budget, cited against a measurement each time.
 ## M2 — Field PWA
 - [x] Offline outbox + sync engine and endpoint — wired to the app; `runSync` was
       dead code until this milestone (see the bundle note below)
-- [x] **Design pass** with the `frontend-design` skill: the field screens are a
+- [x] **Design pass**: the field screens are a
       separate problem from the admin ones — one thumb, outdoors, in a hurry.
       Keep the 48px minimum touch target in the shadcn variants, not per screen
       — written up in [design.md](design.md#the-field-side)
@@ -68,7 +68,7 @@ the bundle budget, cited against a measurement each time.
 - [x] Field bundle back under budget before the milestone spends anything —
       [ADR-0017](adr/0017-zod-mini-for-the-shared-wire-contract.md), closing
       [backlog/004](backlog/004-field-bundle-budget.md)
-- [x] **Design pass** with the `frontend-design` skill: the question editor is the
+- [x] **Design pass**: the question editor is the
       most complex screen in the app — written up in
       [design.md](design.md#the-script-editor)
 - [x] `GET` / `POST /api/admin/scripts` — versioning server-side, "exactly one active script"
@@ -82,7 +82,7 @@ the bundle budget, cited against a measurement each time.
       since ADR-0015's native-controls rule still governs this route
 
 ## M4 — Map import & live feed
-- [x] **Design pass** with the `frontend-design` skill: map + results side by side,
+- [x] **Design pass**: map + results side by side,
       and the live feed — written up in [design.md](design.md#the-map-import) and
       [design.md](design.md#the-live-feed)
 - [x] Leaflet polygon drawing, Overpass proxy + cache — Leaflet owns the map canvas; every control

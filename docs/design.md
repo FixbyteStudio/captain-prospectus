@@ -14,12 +14,15 @@ right and this file needs updating.
 The artifact this app replaces is a **carnet de tournée** — a route notebook: a
 list of addresses, ticks, and scribbled outcomes. The mark is a ship's wheel
 around a map pin: a captain plotting a round. Navy and gold come from it, and
-they suit the ledger — navy is ink, gold is what you are steering towards.
+they suit the app — navy is ink, gold is what you are steering towards.
 
-So the admin side is a **ledger, not a dashboard**. Ruled, dense, numeric. No
-cards around rows, no tiles, no gradient washes, no zebra striping. The field
-side is the ticket torn out of that notebook — few controls, large targets — and
-gets its own design pass in M2 (ADR-0014, decision 3).
+So the admin side is a **dashboard**: the figures that say how the canvassing is
+going come first, and the lists sit beneath them. The field side is the ticket
+torn out of that notebook — few controls, large targets — and gets its own
+design pass in M2 (ADR-0014, decision 3).
+
+A new global design is being specified; the screen-by-screen sections below
+describe the current screens and will be rewritten from it.
 
 ## Colour
 
@@ -498,15 +501,6 @@ The server compares every answer with the list; the panel shows what it found:
 5. Motion only where something changed — the toolbar swap, a row settling after
    assign. Nothing fades in on scroll, nothing animates on hover by default.
 
-## Not this
-
-Choices rejected on purpose, recorded so they do not creep back in: cards around
-rows; zebra striping; a uniform soft shadow under everything; status as a
-coloured pill; tracked-out ALL-CAPS eyebrow labels above headings; `01 / 02 / 03`
-step markers on things that are not sequences; `→` appended to button text; meta
-strings joined with middle dots; a monospace face for figures — the variable
-font's tabular numerals do that job.
-
 ## Writing
 
 Covered by CLAUDE.md and the [glossary](glossary.md): sentence case, active
@@ -575,7 +569,7 @@ chunk, for a tab icon the `.ico` already serves.
 
 ## The field side
 
-The admin side is a ledger. The field side is **the tear-off** — the ticket
+The admin side is a dashboard. The field side is **the tear-off** — the ticket
 pulled out of the *carnet de tournée* and held in one hand.
 
 Everything below is designed for one situation: an agent standing on a pavement
@@ -625,8 +619,7 @@ my fourth of eleven" is something an agent wants to know. The number sits in the
 left gutter beside the status edge, tabular and muted.
 
 **No card around the next stop.** It is set apart by space and by being the only
-thing carrying actions — not by a box, a shadow or a different radius. The
-"Not this" list above still applies on this side.
+thing carrying actions — not by a box, a shadow or a different radius.
 
 ### One decision per screen
 
@@ -789,22 +782,6 @@ These extend the five above; they do not replace them.
 10. **Legible in sun, at arm's length.** Field body text is `text-base`, one
     step up from the admin's `text-sm`. Inputs are `text-base` too, which also
     stops iOS zooming the form.
-
-### Not this, on the field side
-
-Further to the list above, and for the same reason — so they do not creep back:
-
-- A bottom tab bar. Three screens, one of which is reached from a row, do not
-  earn permanent chrome at the bottom of a phone.
-- A map on the today list. That is M4, and even then it is not the default view:
-  an agent standing in the street can already see the street.
-- A progress ring, a streak, or "7 visites aujourd'hui". This is a job, not a
-  fitness app, and the count that matters is the one still unsent.
-- Swipe-to-action on a row. Invisible, undiscoverable, and wrong when one hand
-  is holding flyers.
-- A confirmation dialog on saving a visit. Visits are append-only and a mistake
-  is corrected by a second visit (ADR-0007); a dialog would buy nothing and cost
-  a tap in the rain.
 
 ### Native controls here
 

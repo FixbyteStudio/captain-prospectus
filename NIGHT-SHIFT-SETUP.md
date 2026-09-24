@@ -134,9 +134,10 @@ claude.ai/code/routines → New routine.
   was unattended, which is why both are in the skill rather than left to habit.
 - **A task with vague criteria produces vague code at 01:00.** Writing the task
   well is the work that used to happen while implementing it.
-- **Design passes are poor night work.** ADR-0014 wants the `frontend-design`
-  skill run before a screen exists; that is judgement. 001 and 002 ship endpoints
-  and explicitly leave the download button out for this reason.
+- **Design passes are poor night work.** ADR-0014 wants a screen decided and
+  written up in `docs/design.md` before it exists; that is judgement. 001 and
+  002 ship endpoints and explicitly leave the download button out for this
+  reason.
 - **Sync contract changes are poor night work** — 003 is parked as
   `needs-decision` for exactly that.
 - **If the GitHub connection expires**, the routine skips runs for up to 72 hours,
