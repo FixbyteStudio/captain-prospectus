@@ -16,6 +16,29 @@ export function distanceMeters(a: Point, b: Point): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
 }
 
+/**
+ * A ~110 m grid cell (three decimal places). Bucketing by cell and comparing a
+ * point only with its own cell and the eight around it finds everything within
+ * 50 m without comparing every pair — the duplicate sweep and the import
+ * preview both run inside a 10 ms CPU budget (INVARIANT 13).
+ */
+const CELLS_PER_DEGREE = 1000;
+
+export function cellOf(p: Point): string {
+  return `${Math.round(p.lat * CELLS_PER_DEGREE)}:${Math.round(p.lng * CELLS_PER_DEGREE)}`;
+}
+
+/** The point's cell and its eight neighbours. */
+export function cellAndNeighbours(p: Point): string[] {
+  const lat = Math.round(p.lat * CELLS_PER_DEGREE);
+  const lng = Math.round(p.lng * CELLS_PER_DEGREE);
+  const cells: string[] = [];
+  for (let dLat = -1; dLat <= 1; dLat++) {
+    for (let dLng = -1; dLng <= 1; dLng++) cells.push(`${lat + dLat}:${lng + dLng}`);
+  }
+  return cells;
+}
+
 function located<T extends MaybeLocated>(item: T): item is T & Point {
   return typeof item.lat === "number" && typeof item.lng === "number";
 }

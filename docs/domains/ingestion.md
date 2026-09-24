@@ -163,6 +163,20 @@ key is the source's own id (see [prospecting](prospecting.md)), and `node/4711` 
 only tier that survives a rename, and weakening it to catch this would cost more than it
 saves. The duplicates sweep and the merge screen already exist for exactly this pair.
 
+**The preview warns before it happens.** Each answer, from either provider and whether
+cached or not, is compared with the live prospects around it using the duplicates
+sweep's rule (`isProbablySamePlace`: within 50 m and alike by name). A place that
+matches one is shown with the prospect it looks like and is **left out of the import
+unless the admin opts in**. Nothing is merged automatically, because a rename and a
+takeover look the same in the data ([prospecting § Merging](prospecting.md#merging)).
+
+- A place whose `sourceRef` a prospect already holds is never flagged, even if a
+  neighbour looks like it: importing it updates that prospect.
+- A place without coordinates is never flagged. Matching it would take a full scan by
+  name, which is not worth it for the rare OSM element without a centre.
+- The lookup compares against at most `DUPLICATES_SCAN_LIMIT` prospects inside the answer's
+  bounding box plus 50 m ([free-tier budget](../free-tier-budget.md) on what it reads).
+
 ### Limits and etiquette
 - Polygon: 3–200 vertices. Circle: 50–2000 m.
 - Food trucks are weakly mapped in OSM. Expect most of them to come from CSV or from agents in the field.

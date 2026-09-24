@@ -516,7 +516,7 @@ export const placesImportSchema = z.object({
  * of the dedupe key — the only tier that survives a rename
  * (docs/domains/prospecting.md).
  */
-export const areaCandidateSchema = z.object({
+export const foundPlaceSchema = z.object({
   name: shortText,
   named: z.boolean(),
   type: prospectTypeSchema,
@@ -527,6 +527,22 @@ export const areaCandidateSchema = z.object({
   website: z.nullable(shortText),
   cuisine: z.nullable(shortText),
   sourceRef: shortTextRequired,
+});
+/** A place as the provider describes it, before the Worker compares it with the list. */
+export type FoundPlace = z.infer<typeof foundPlaceSchema>;
+
+/**
+ * A found place as the preview shows it.
+ *
+ * `likelyDuplicateOf` is the live prospect this place probably already is —
+ * within 50 m and alike by name (`isProbablySamePlace`) — under another source's
+ * id, so the dedupe key would not catch it (ADR-0020). Computed on every
+ * answer, cached or not, because the list changes and the provider does not.
+ * Null for a place that matches nothing, or that matches its own `sourceRef`:
+ * that is a re-import, which updates rather than duplicates.
+ */
+export const areaCandidateSchema = z.extend(foundPlaceSchema, {
+  likelyDuplicateOf: z.nullable(z.object({ id: uuidSchema, name: shortText })),
 });
 export type AreaCandidate = z.infer<typeof areaCandidateSchema>;
 

@@ -8,7 +8,7 @@
  * Everything in this file is pure. The route does the I/O.
  */
 import { OVERPASS_CANDIDATES_LIMIT, type ProspectType } from "../shared/constants";
-import type { AreaCandidate } from "../shared/schemas";
+import type { FoundPlace } from "../shared/schemas";
 
 /**
  * Part of the cache key, so a changed query cannot be served a stale answer
@@ -143,7 +143,7 @@ function address(tags: Record<string, unknown>): string | null {
  * `amenity=fast_food` and `street_vendor=yes`, and "food truck" is the more
  * useful fact for someone walking a round.
  */
-function toCandidate(element: OverpassElement): AreaCandidate | null {
+function toCandidate(element: OverpassElement): FoundPlace | null {
   const ref = sourceRef(element);
   if (!ref) return null;
 
@@ -179,7 +179,7 @@ function toCandidate(element: OverpassElement): AreaCandidate | null {
  */
 export function toCandidates(
   body: string,
-): { candidates: AreaCandidate[]; truncated: boolean } | null {
+): { candidates: FoundPlace[]; truncated: boolean } | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
@@ -190,7 +190,7 @@ export function toCandidates(
   const elements = (parsed as { elements?: unknown })?.elements;
   if (!Array.isArray(elements)) return null;
 
-  const candidates: AreaCandidate[] = [];
+  const candidates: FoundPlace[] = [];
   for (const element of elements) {
     if (candidates.length >= OVERPASS_CANDIDATES_LIMIT) {
       return { candidates, truncated: true };

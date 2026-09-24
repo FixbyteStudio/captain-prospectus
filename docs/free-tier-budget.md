@@ -36,6 +36,10 @@ Checked: 2026-09-22 (from public sources, to be confirmed on official pricing pa
 
 - A bug that loops syncs could burn request quota: the client backs off exponentially on errors.
 - Row reads count scanned rows: keep the indexes in [data-model.md](data-model.md) and avoid unindexed filters.
+  One known exception: the likely-duplicate check on every map search filters `prospects` on a bounding box,
+  and there is no index on `lat`/`lng`, so each search scans the whole table. At 3,000 prospects and 30
+  searches a day that is 90 k rows, about 2 % of the daily limit. An index on `lat` is the fix if it ever
+  is not.
 - **CPU, not wall time, is the binding limit.** Waiting on D1 or Overpass is free; `JSON.parse`,
   zod validation, dedupe-key normalisation and crypto are not. This is why the CSV batch is capped
   at 250 rows per request ([ingestion](domains/ingestion.md)) and why the Access JWKS is cached in
