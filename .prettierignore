@@ -4,6 +4,9 @@ drizzle
 node_modules
 pnpm-lock.yaml
 
+# Vendored agent skills (bmad). Third-party assets we do not author or reformat.
+.agents
+
 # Docs are hand-formatted prose and tables; Prettier reflows them into noise.
 *.md
 
