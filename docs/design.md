@@ -134,7 +134,12 @@ Gold text on the navy band is allowed, because the band is not a light surface.
 Dark follows the system by default and can be pinned with `data-theme` on
 `<html>`. Tokens swap their *values*, so components rarely need a `dark:`
 utility; the variant exists for the few that do. The two dark blocks in
-`app.css` must stay identical, which the test also checks.
+`app.css` must stay identical, which the test also checks. The admin top
+bar's Sun/Moon toggle (GH #64) is what pins it: a click stores the chosen
+theme in `localStorage` and writes it straight to `data-theme`, with no route
+back to "system"; a classic `<script>` in `index.html` applies a stored pin
+before first paint, so a pinned-dark reload never flashes light. The field
+side reads the same pin through that boot script.
 
 ## Status is read down the left edge
 
@@ -216,6 +221,23 @@ what their own screen lists, because both read the same query. The two sides
 share the band's look and tokens, but each owns its frame: the admin frame
 (sidebar and top bar) ships in the admin chunk, and the field band carries the
 sync state.
+
+The top bar (GH #64) sits beside the sidebar toggle, left to right: the
+breadcrumb, a flexible gap, search, the notifications bell, the theme toggle
+and the avatar menu. The breadcrumb reads "Captain Prospectus › {group} ›
+{page}" at ≥ 1024px, "{group} › {page}" from 768 to 1023px, and just "{page}"
+in semibold below 768px — `NAV_GROUPS` and `isCurrent` supply the group and
+page, so it can never name one the sidebar disagrees with; a path outside
+every group (a route this epic has not shipped a sidebar entry for) falls back
+to the app name alone. Search is a 240px outlined button from 768px
+("Rechercher un prospect…", with a shortcut hint) and an icon button below
+that; the button and ⌘K/Ctrl+K open a shadcn `CommandDialog` whose only
+content is its input and an explanatory empty state — there is no back end
+yet, and no request is made. The bell is a disabled icon button with no
+content. The avatar is initials on `primary` with a `primary-edge` ring,
+opening a `DropdownMenu` with the signed-in email and "Se déconnecter", a real
+anchor to `/cdn-cgi/access/logout` rather than a router link — see
+[identity-access.md](domains/identity-access.md) for why.
 
 Safe-area insets go on `.safe-top` (the band) and `.safe-bottom` (the field's
 bottommost fixed element — the tab bar below 768px, GH #66), never on `body`,

@@ -70,6 +70,20 @@ describe("service worker", () => {
     expect(config).toMatch(/navigateFallbackDenylist:\s*\[[^\]]*RECONNECT_MARKER_PATTERN/);
   });
 
+  it("exempts /cdn-cgi/ from the SPA fallback so Access's logout reaches the network (GH #76)", () => {
+    const config = readFileSync("vite.config.ts", "utf8");
+
+    // spec-gh-64: without this, "Se déconnecter" would be served the
+    // precached index.html instead of ever reaching Access. The pattern
+    // lives in access-logout.ts, shared with AccountMenu's own logout link,
+    // so this only asserts the two are wired together rather than
+    // re-deriving the regex here (same shape as the reconnect-marker test).
+    expect(config).toContain(
+      'import { ACCESS_PATH_PATTERN } from "./src/client/admin/access-logout"',
+    );
+    expect(config).toMatch(/navigateFallbackDenylist:\s*\[[^\]]*ACCESS_PATH_PATTERN/);
+  });
+
   it("precaches the field app only, never the admin chunk", () => {
     const config = readFileSync("vite.config.ts", "utf8");
 

@@ -16,6 +16,29 @@
          gives the page two of them. -->
 
     <title>Captain Prospectus</title>
+
+    <!--
+      Pins <html data-theme> before first paint — spec-gh-64. A classic script
+      (not type="module") so it runs synchronously while the parser still
+      blocks on <head>, unlike main.tsx's ThemeToggle, which only runs after
+      React mounts and would show a pinned-dark user a white flash on every
+      load. It duplicates theme.ts's parse rule ("light" or "dark" only,
+      caught if localStorage throws) rather than importing it, because a
+      module import is exactly the deferred load this script exists to avoid;
+      theme.test.ts ties the two THEME_STORAGE_KEY literals together so they
+      cannot drift apart silently.
+    -->
+    <script>
+      (function () {
+        try {
+          var pin = localStorage.getItem("cap-theme");
+          if (pin === "light" || pin === "dark") document.documentElement.dataset.theme = pin;
+        } catch (e) {
+          // Storage blocked (I/O matrix): no pin applies, the page follows
+          // the system prefers-color-scheme query instead (app.css).
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

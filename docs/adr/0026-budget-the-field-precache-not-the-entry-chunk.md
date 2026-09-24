@@ -1,6 +1,6 @@
 # ADR-0026: Budget the field route by its precache, not its entry chunk
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-24
 - Deciders: mohss, Claude
 - Supersedes: the 150 kB budget in [vision.md](../vision.md) and its use in [ADR-0015](0015-native-controls-on-the-field-route.md)
