@@ -161,6 +161,9 @@ page.
   OSM has many unnamed amenities, they are worth showing, and `importRowSchema`
   will not accept one. `sourceRef` is always present and is always
   `<type>/<id>` — tier 1 of the dedupe key.
+- `likelyDuplicateOf` is `{id, name}` of the live prospect a candidate probably
+  already is under another source's id, or `null`. It is computed on every answer,
+  cached or not, and never stored ([ingestion](domains/ingestion.md#duplicates-across-providers)).
 - **502** on a timeout, a 429, a 5xx, or a 200 whose body is not the provider's
   answer (a rate-limit notice arrives as HTML). There is no retry loop on either
   side; the screen offers the admin a retry. For Google a retry is also another

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "./index";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
-import { overpassCache } from "./db/schema";
+import { overpassCache, prospects, visits } from "./db/schema";
 import { OVERPASS_QUERY_VERSION, buildOverpassQuery, polygonHash, toCandidates } from "./overpass";
 import { OVERPASS_CACHE_TTL_MS, OVERPASS_CANDIDATES_LIMIT } from "../shared/constants";
 import type { AreaSearchResponse } from "../shared/schemas";
@@ -296,5 +296,113 @@ describe("POST /api/admin/import/overpass", () => {
     expect(response.status).toBe(403);
     // The role check runs before the body is read, let alone Overpass called.
     expect(fetchCalls).toHaveLength(0);
+  });
+});
+
+/** A prospect already in the list, as another import or an agent left it. */
+async function seedListed(over: {
+  name: string;
+  lat: number;
+  lng: number;
+  source: "osm" | "google" | "field";
+  sourceRef?: string | null;
+  mergedInto?: string | null;
+}): Promise<string> {
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  await getDb(env.DB)
+    .insert(prospects)
+    .values({
+      id,
+      name: over.name,
+      type: "restaurant",
+      lat: over.lat,
+      lng: over.lng,
+      address: null,
+      phone: null,
+      website: null,
+      cuisine: null,
+      source: over.source,
+      sourceRef: over.sourceRef ?? null,
+      dedupeKey: `test:${id}`,
+      status: "new",
+      assignedTo: null,
+      mergedInto: over.mergedInto ?? null,
+      createdBy: ADMIN,
+      createdAt: now,
+      updatedAt: now,
+    });
+  return id;
+}
+
+describe("POST /api/admin/import/overpass — places already in the list", () => {
+  beforeEach(async () => {
+    const db = getDb(env.DB);
+    await db.delete(visits);
+    await db.delete(prospects);
+  });
+
+  const bouchon = (body: AreaSearchResponse) =>
+    body.candidates.find((c) => c.name === "Le Bouchon");
+
+  it("flags a place Google already brought in under its own id", async () => {
+    // Same restaurant, ~10 m off: Google and OSM rarely agree to the metre.
+    const id = await seedListed({
+      name: "Le Bouchon",
+      lat: 50.84798,
+      lng: 4.35392,
+      source: "google",
+      sourceRef: "google/ChIJbouchon",
+    });
+    stubOverpass(ok(FIXTURE));
+
+    const body = (await (await search()).json()) as AreaSearchResponse;
+
+    expect(bouchon(body)?.likelyDuplicateOf).toEqual({ id, name: "Le Bouchon" });
+    // Nothing else in the fixture looks like it.
+    expect(body.candidates.filter((c) => c.likelyDuplicateOf !== null)).toHaveLength(1);
+  });
+
+  it("does not flag a re-import of the same OSM element: that is an update", async () => {
+    await seedListed({
+      name: "Le Bouchon",
+      lat: 50.8479,
+      lng: 4.3538,
+      source: "osm",
+      sourceRef: "node/123",
+    });
+    stubOverpass(ok(FIXTURE));
+
+    const body = (await (await search()).json()) as AreaSearchResponse;
+    expect(bouchon(body)?.likelyDuplicateOf).toBeNull();
+  });
+
+  it("ignores a merged prospect and a namesake too far away", async () => {
+    const survivor = await seedListed({ name: "Autre chose", lat: 10, lng: 10, source: "osm" });
+    await seedListed({
+      name: "Le Bouchon",
+      lat: 50.84798,
+      lng: 4.35392,
+      source: "google",
+      mergedInto: survivor,
+    });
+    // ~200 m north: same name, not the same door.
+    await seedListed({ name: "Le Bouchon", lat: 50.8497, lng: 4.3538, source: "field" });
+    stubOverpass(ok(FIXTURE));
+
+    const body = (await (await search()).json()) as AreaSearchResponse;
+    expect(bouchon(body)?.likelyDuplicateOf).toBeNull();
+  });
+
+  it("marks a cached answer against the list as it is now", async () => {
+    stubOverpass(ok(FIXTURE));
+    const first = (await (await search()).json()) as AreaSearchResponse;
+    expect(bouchon(first)?.likelyDuplicateOf).toBeNull();
+
+    const id = await seedListed({ name: "Le Bouchon", lat: 50.8479, lng: 4.3538, source: "field" });
+    const second = (await (await search()).json()) as AreaSearchResponse;
+
+    expect(second.cached).toBe(true);
+    expect(bouchon(second)?.likelyDuplicateOf?.id).toBe(id);
   });
 });
