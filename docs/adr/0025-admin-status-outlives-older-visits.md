@@ -1,6 +1,6 @@
 # ADR-0025: An admin's manual status is not undone by an older visit
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-24
 - Deciders: mohss, Claude
 - Amends: [ADR-0011](0011-server-derived-prospect-status.md)
