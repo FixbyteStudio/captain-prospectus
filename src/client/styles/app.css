@@ -97,6 +97,10 @@
   --color-band-muted: var(--band-muted);
   --color-band-accent: var(--band-accent);
   --color-band-border: var(--band-border);
+  /* One step darker than the band: the waiting/syncing-with-a-backlog strip
+     (key-f8-sync.html). Named for what it is rather than reusing --band, since
+     the strip sits directly under the band and needs to read as a step down. */
+  --color-band-strip: var(--band-strip);
 
   /* shadcn Sidebar's own token names (GH #63), aliased onto the band above:
      no new hex values, just names so the vendored component's classes
@@ -250,6 +254,7 @@
   --band-muted: #95a0b8;
   --band-accent: #ffffff14;
   --band-border: #ffffff1f;
+  --band-strip: #142038;
   --outcome-no-contact: #dde0e5;
   --outcome-interested: #4f5e81;
   --outcome-not-interested: #5b5f63;
@@ -298,6 +303,7 @@
     --band-muted: #7d899f;
     --band-accent: #ffffff0f;
     --band-border: #ffffff14;
+    --band-strip: #070b15;
     --outcome-no-contact: #3a4356;
     --outcome-interested: #98a6cd;
     --outcome-not-interested: #8e9399;
@@ -328,6 +334,7 @@
   --band-muted: #7d899f;
   --band-accent: #ffffff0f;
   --band-border: #ffffff14;
+  --band-strip: #070b15;
   --outcome-no-contact: #3a4356;
   --outcome-interested: #98a6cd;
   --outcome-not-interested: #8e9399;

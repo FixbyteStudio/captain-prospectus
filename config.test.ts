@@ -55,6 +55,21 @@ describe("service worker", () => {
     expect(config).toMatch(/runtimeCaching:\s*\[\s*\]/);
   });
 
+  it("exempts the reconnect marker from the SPA fallback so it reaches Access", () => {
+    const config = readFileSync("vite.config.ts", "utf8");
+
+    // spec-gh-65: navigateFallback serves every other navigation from
+    // precache, which never reaches Access, so "Se reconnecter" would reload
+    // an expired session straight back into itself without this entry. The
+    // pattern itself lives in reconnect-marker.ts, shared with the client's
+    // own navigate/strip code, so this only asserts the two are wired
+    // together rather than re-deriving the regex here.
+    expect(config).toContain(
+      'import { RECONNECT_MARKER_PATTERN } from "./src/client/field/reconnect-marker"',
+    );
+    expect(config).toMatch(/navigateFallbackDenylist:\s*\[[^\]]*RECONNECT_MARKER_PATTERN/);
+  });
+
   it("precaches the field app only, never the admin chunk", () => {
     const config = readFileSync("vite.config.ts", "utf8");
 

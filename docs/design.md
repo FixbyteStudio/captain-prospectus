@@ -64,6 +64,7 @@ with navy on top and a `primary-edge` border.
 | `band-muted` | `#95A0B8` | `#7D899F` | Quieter text on the band, sidebar group labels |
 | `band-accent` | `#FFFFFF14` | `#FFFFFF0F` | Hover wash on the band (white at 8 % / 6 %) |
 | `band-border` | `#FFFFFF1F` | `#FFFFFF14` | Hairlines on the band (white at 12 % / 8 %) |
+| `band-strip` | `#142038` | `#070B15` | The sync strip: the band, one step darker |
 | `status-new` | 16 % ink | 16 % ink | The `new` row edge |
 | `status-assigned` | 55 % ink | 55 % ink | The `assigned` row edge |
 | `outcome-no-contact` | `#DDE0E5` | `#3A4356` | `no_contact` in charts |
@@ -845,13 +846,63 @@ An agent's sync state is a **condition, not an event**. "Three visits waiting to
 send" stays true for as long as there is no signal — sometimes hours. A toast
 shows it for four seconds and then lies by omission.
 
-So sync lives in two permanent places:
+So sync lives in two permanent places, both drawn from one pure function
+(`syncView`, `src/client/field/sync-view.ts`) that decides all seven states in
+one place rather than letting the band and the strip each branch on their own:
 
-- **A dot and a count in the band**, always visible, on every field screen.
-- **A strip under the band** that appears only when there is something to say —
-  the pending count, or one of `copy.sync.offline` / `authExpired` / `upgrade` /
-  `failed`. When nothing is pending and the last sync succeeded, there is no
-  strip at all.
+- **A dot and a count in the band**, always visible, on every field screen. The
+  count pill (28px, `band-accent`, full radius) shows whenever something is
+  pending, in every state below. The dot always carries its own accessible
+  name too — synced included — because it sits on `role="img"`, not on a
+  wrapper a screen reader would skip.
+- **A strip under the band** that appears only when there is something to say.
+  When nothing is pending and the last sync succeeded, there is no strip at
+  all — the quiet state is silence, not an empty banner.
+
+| State | Dot | Strip | Message | Button |
+|---|---|---|---|---|
+| Synced | `success`, no count | none | — | — |
+| Waiting to send | `warn` + count | `band-strip` (the band, one step darker) | `copy.sync.pending` | — |
+| Syncing | pulsing `band-muted`, with a halo | none, unless also waiting | as waiting | — |
+| Offline | `warn` + count | `secondary` | `copy.sync.offline` | — |
+| Failed | `warn` + count | `secondary` | `copy.sync.failed` | — |
+| Session expired | `destructive` + count | `destructive`, `on-destructive` text | `copy.sync.authExpired` | Se reconnecter |
+| Update needed | `warn` + count | `warn`, `on-destructive` text | `copy.sync.upgrade` | Mettre à jour |
+
+Only two states carry a button, because only two ask the agent for something
+the app cannot do by itself:
+
+- **Se reconnecter** navigates to the current URL plus `?reconnect=1`. The
+  service worker serves every other navigation from precache
+  (`navigateFallback: "index.html"`), which never reaches Cloudflare Access, so
+  a plain reload cannot re-authenticate an expired session — this marker is the
+  one entry `navigateFallbackDenylist` excludes from that fallback
+  (`vite.config.ts`), so this one navigation goes to the network and through
+  Access. The app removes the marker from the URL once it has landed
+  (`withoutReconnectMarker`, `App.tsx`). The outbox is never touched by this —
+  a session expiring is not a reason to lose a visit (INVARIANT 5).
+- **Mettre à jour** takes a build already waiting, or reloads if the browser
+  has not noticed one yet — either way the *next* sync's 426 can call
+  `applyUpdateNow` again from a fresh page load. The shared `UpdatePrompt`
+  Alert says the same fact, so it is hidden while this strip shows it
+  (`hidesUpdateBanner`).
+
+Offline and failed retry on their own, so a button there would ask the agent to
+do what is already happening. Session expired and update needed keep their
+strip and button while a retry runs in the background — `syncView` only lets
+`running` make the dot pulse for those two, never drop the button or swap the
+message, because `nextDelayMs` (`sync-schedule.ts`) keeps retrying both on
+backoff and a button that disappears on every attempt is worse than a static
+one.
+
+The strip sits in two always-mounted live regions, one `aria-live="polite"`
+and one `"assertive"`, rather than one region that toggles the attribute — a
+screen reader that has never seen a region announce anything can miss its
+first change, and "your session just expired" is exactly the message that
+must land. Session expired and update needed use the assertive region; every
+other state uses the polite one. Colour is never the only signal either way:
+every dot and strip pairs its colour with a count, an icon or a French
+sentence.
 
 This is a deliberate departure from the roadmap's "a shadcn `sonner` toast on
 failure". A toast is the wrong medium for a persistent condition, and it costs

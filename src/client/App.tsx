@@ -1,12 +1,26 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router";
+import {
+  Link,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useMatch,
+  useNavigate,
+} from "react-router";
+import { LockIcon, MapPinOffIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import { apiFetch } from "./api";
 import { BandBrand, BandLink, UpdatePrompt } from "./Band";
 import { copy } from "./copy";
+import { initials } from "./format";
 import type { MeResponse } from "../shared/schemas";
 import { usePwa, type PwaState } from "./pwa";
+import { buttonVariants } from "@/ui/button-variants";
 import { TodayScreen } from "./field/TodayScreen";
-import { SyncDot, SyncStrip } from "./field/SyncIndicator";
+import { SyncDot, SyncStrip, useSyncView } from "./field/SyncIndicator";
+import { hasReconnectMarker, withoutReconnectMarker } from "./field/reconnect-marker";
+import { hidesUpdateBanner } from "./field/sync-view";
 import { SyncProvider } from "./field/useSync";
 import { clearAgentCache, fieldDb, getMeta, setMeta } from "./field/db";
 import { resolveIdentity } from "./field/identity";
@@ -76,29 +90,90 @@ function FieldRoutes() {
 /**
  * The field-only band. Admin screens get their own frame instead of this one:
  * `AdminApp` renders as a sibling route, not nested inside `FieldFrame`.
+ *
+ * `.safe-top` is padding, not height, so the notch inset goes on the header
+ * and the 56px `band-height` goes on the row inside it — putting both on the
+ * header would grow it by the inset instead of just moving its content down.
  */
-function FieldFrame({ isAdmin, pwa }: { isAdmin: boolean; pwa: PwaState }) {
+function FieldFrame({ isAdmin, pwa, email }: { isAdmin: boolean; pwa: PwaState; email: string }) {
+  // `FieldFrame` also wraps the forbidden and not-found fallbacks (neither is
+  // under /tournee), so the subtitle names a tab only when there is one.
+  const onTournee = useMatch("/tournee/*");
+  const onAddProspect = useMatch("/tournee/nouveau/*");
+  const subtitle = onAddProspect
+    ? copy.nav.subtitle.add
+    : onTournee
+      ? copy.nav.subtitle.today
+      : undefined;
+
+  // The update-needed strip already says a build is waiting; the banner
+  // would repeat it (hidesUpdateBanner, sync-view.ts).
+  const hideUpdatePrompt = hidesUpdateBanner(useSyncView());
+
   return (
     <>
-      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
-        <BandBrand />
-        {/* An admin on a phone has one extra link into the admin side; an
-            agent has none. Either way the nav scrolls rather than pushing the
-            page sideways, and the rest of the space goes to the sync state. */}
-        <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
-          <BandLink to="/tournee">{copy.nav.today}</BandLink>
-          {isAdmin && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
-        </nav>
-        <SyncDot />
+      <header className="safe-top bg-band text-band-foreground">
+        <div className="flex h-band-height items-center gap-3 px-4">
+          <BandBrand subtitle={subtitle} />
+          {/* An admin on a phone has one extra link into the admin side; an
+              agent has none. Either way the nav scrolls rather than pushing
+              the page sideways, and the rest of the space goes to the sync
+              state and the avatar. */}
+          <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
+            <BandLink to="/tournee">{copy.nav.today}</BandLink>
+            {isAdmin && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
+          </nav>
+          <SyncDot />
+          {/* Static, no menu (2026-09-24 decision, spec-gh-65): it only names
+              who is signed in, which the outbox and every visit already
+              assume. */}
+          <span
+            role="img"
+            aria-label={copy.nav.avatar(email)}
+            className="bg-primary text-primary-foreground ring-primary-edge flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ring-inset"
+          >
+            {initials(email)}
+          </span>
+        </div>
       </header>
 
-      <UpdatePrompt pwa={pwa} />
-      <SyncStrip />
+      {!hideUpdatePrompt && <UpdatePrompt pwa={pwa} />}
+      <SyncStrip pwa={pwa} />
 
       <main className="safe-bottom px-4 py-6">
         <Outlet />
       </main>
     </>
+  );
+}
+
+/**
+ * DESIGN.md's empty-state pattern (a 64px `secondary` icon tile, one line,
+ * one button) reused for the field route's fallback screens: not found,
+ * forbidden, and the identity error below, which passes no `action` since
+ * there is nowhere useful to send an agent who cannot be identified.
+ */
+function FieldEmptyState({
+  icon: Icon,
+  message,
+  action,
+}: {
+  icon: LucideIcon;
+  message: string;
+  action?: { to: string; label: string };
+}) {
+  return (
+    <div className="flex flex-col items-center gap-4 py-12 text-center">
+      <span className="bg-secondary text-muted-foreground flex size-16 items-center justify-center rounded-xl">
+        <Icon aria-hidden className="size-7" />
+      </span>
+      <p className="text-heading">{message}</p>
+      {action && (
+        <Link to={action.to} className={buttonVariants({ variant: "outline", size: "touch" })}>
+          {action.label}
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -110,8 +185,10 @@ function FieldFrame({ isAdmin, pwa }: { isAdmin: boolean; pwa: PwaState }) {
 function AdminFrameFallback() {
   return (
     <>
-      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
-        <BandBrand />
+      <header className="safe-top bg-band text-band-foreground">
+        <div className="flex h-band-height items-center gap-3 px-4">
+          <BandBrand />
+        </div>
       </header>
       <main className="safe-bottom px-4 py-6">
         <p className="text-muted-foreground" aria-busy="true" />
@@ -129,6 +206,22 @@ export function App() {
   // Registers the service worker on mount, before and regardless of whether
   // `/api/me` answers. See the note on `UpdatePrompt`.
   const pwa = usePwa();
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // "Se reconnecter" (SyncStrip) navigates here with the marker so the SW's
+  // navigateFallbackDenylist sends that one request to the network; once it
+  // has landed, the marker has done its job and the visible URL should not
+  // keep advertising it. A router navigation (not `history.replaceState`
+  // directly) so it does not wipe whatever state react-router already
+  // attached to this history entry.
+  useEffect(() => {
+    if (!hasReconnectMarker(location.search)) return;
+    navigate(withoutReconnectMarker(`${location.pathname}${location.search}${location.hash}`), {
+      replace: true,
+    });
+  }, [location, navigate]);
 
   /**
    * Identity, with an offline fallback — but only for genuine unreachability.
@@ -183,7 +276,20 @@ export function App() {
     };
   }, []);
 
-  if (error) return <main className="safe-top px-4 py-6">{error}</main>;
+  if (error) {
+    return (
+      <>
+        <header className="safe-top bg-band text-band-foreground">
+          <div className="flex h-band-height items-center gap-3 px-4">
+            <BandBrand />
+          </div>
+        </header>
+        <main className="safe-bottom px-4 py-6">
+          <FieldEmptyState icon={TriangleAlertIcon} message={error} />
+        </main>
+      </>
+    );
+  }
   if (!me) return <main className="safe-top px-4 py-6" aria-busy="true" />;
 
   // Admin screens are useless without the network, so a cached identity opens
@@ -202,17 +308,29 @@ export function App() {
 
         {/* The field-only band. The forbidden and not-found fallbacks live
             here too, since neither screen is admin chrome. */}
-        <Route element={<FieldFrame isAdmin={isAdmin} pwa={pwa} />}>
+        <Route element={<FieldFrame isAdmin={isAdmin} pwa={pwa} email={me.email} />}>
           <Route path="/tournee/*" element={<FieldRoutes />} />
           {!isAdmin && (
             <Route
               path="/admin/*"
-              element={<p className="text-muted-foreground">{copy.errors.forbidden}</p>}
+              element={
+                <FieldEmptyState
+                  icon={LockIcon}
+                  message={copy.errors.forbidden}
+                  action={{ to: "/tournee", label: copy.visit.back }}
+                />
+              }
             />
           )}
           <Route
             path="*"
-            element={<p className="text-muted-foreground">{copy.errors.notFound}</p>}
+            element={
+              <FieldEmptyState
+                icon={MapPinOffIcon}
+                message={copy.errors.notFound}
+                action={{ to: "/tournee", label: copy.visit.back }}
+              />
+            }
           />
         </Route>
 
