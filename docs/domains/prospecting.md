@@ -26,7 +26,7 @@ stateDiagram-v2
 | `converted` | `converted` |
 
 - Status transitions caused by visits are **computed by the server** when a visit is received ([ADR-0011](../adr/0011-server-derived-prospect-status.md)).
-- Only the **latest visit by `visited_at`** moves the status. A late-syncing older visit is stored but does not overwrite a newer outcome.
+- Only the **latest visit by `visited_at`** moves the status. A late-syncing older visit is stored but does not overwrite a newer outcome. On a tie the visit received last decides, and inside one sync the greater `visits.id`, so the same visit always does.
 - Only the **assignee's** visit moves the status. A visit written by any other agent is
   quarantined instead of stored, so it derives nothing until an admin attaches it
   ([ADR-0022](../adr/0022-quarantine-visits-the-server-cannot-take.md)) — otherwise

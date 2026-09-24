@@ -17,7 +17,10 @@ import type { Db } from "../db/client";
  * Only the latest visit by `visited_at` moves it, so a late-syncing older visit
  * is stored without overwriting a newer outcome (ADR-0011). `visited_at` is
  * already clamped to the server clock on insert, so a phone ahead by a week
- * cannot win this comparison for ever (INVARIANT 12).
+ * cannot win this comparison for ever (INVARIANT 12). That clamp also makes
+ * ties real — two visits dated ahead in one sync land on the same `visited_at`
+ * — so `received_at` then `id` settle which one decides, and both callers get
+ * the same answer however often they run.
  *
  * Nor does it overwrite a newer decision: when an admin set the status by hand
  * at or after that visit, the status and `next_visit_at` stay theirs and only
@@ -37,7 +40,7 @@ export async function deriveProspectStatus(db: Db, prospectId: string, now: numb
     })
     .from(visits)
     .where(eq(visits.prospectId, prospectId))
-    .orderBy(desc(visits.visitedAt))
+    .orderBy(desc(visits.visitedAt), desc(visits.receivedAt), desc(visits.id))
     .limit(1);
   if (!latest) return;
 
