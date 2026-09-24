@@ -363,6 +363,61 @@
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
+  /**
+   * The field tab bar (`FieldTabs.tsx`) is the field's bottommost fixed
+   * element below 768px and carries `.safe-bottom` itself, so a screen's own
+   * sticky action bar (`VisitScreen`, `AddProspectScreen`) sits directly
+   * above it there — offset up by the bar's own height plus the inset it
+   * already owns — rather than stacked on top of it with a z-index (GH #66,
+   * a real agent-facing bug: that hid "Enregistrer la visite" entirely).
+   * From 768px the tabs move into the band, there is no tab bar under this
+   * bar any more, and it returns to the bottom of the screen with its own
+   * inset. `calc()` off the real tokens — `--spacing-tab-bar-height` and
+   * Tailwind's own `--spacing` scale — rather than a guessed pixel figure.
+   */
+  .above-tab-bar {
+    bottom: calc(var(--spacing-tab-bar-height) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--spacing) * 3);
+  }
+
+  @media (width >= 48rem) {
+    .above-tab-bar {
+      bottom: 0;
+      padding-bottom: calc(var(--spacing) * 3 + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  /**
+   * A field form's own scrolling content, clearing only its sticky action bar
+   * (`.above-tab-bar` above) — `--spacing` × 24 is that bar's own height,
+   * at every width. It does *not* also add the tab bar's height below 768px:
+   * `.above-tab-bar` already carries the action bar up above the tab bar on
+   * its own, so the form's content only ever has to clear the bar directly
+   * on top of it. `<main>` (`App.tsx`) separately clears the tab bar itself
+   * with `.pb-tab-bar` on every field route; adding that here too would
+   * double it and leave ~one tab-bar's worth of dead scroll space below the
+   * action bar.
+   */
+  .pb-action-bar {
+    padding-bottom: calc(var(--spacing) * 24);
+  }
+
+  /**
+   * A field screen with no action bar of its own (`TodayScreen`, the
+   * forbidden/not-found fallbacks): its scrolling content only has to clear
+   * the tab bar itself below 768px. From 768px the tabs are inline in the
+   * band and this is just the page's usual bottom margin.
+   */
+  .pb-tab-bar {
+    padding-bottom: calc(var(--spacing-tab-bar-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (width >= 48rem) {
+    .pb-tab-bar {
+      padding-bottom: calc(var(--spacing) * 6);
+    }
+  }
+
   :focus-visible {
     @apply outline-ring rounded-xs outline-2 outline-offset-2;
   }

@@ -217,8 +217,10 @@ share the band's look and tokens, but each owns its frame: the admin frame
 (sidebar and top bar) ships in the admin chunk, and the field band carries the
 sync state.
 
-Safe-area insets go on `.safe-top` (the band) and `.safe-bottom` (the content),
-never on `body`, so the band stays flush with the top of a notched phone.
+Safe-area insets go on `.safe-top` (the band) and `.safe-bottom` (the field's
+bottommost fixed element — the tab bar below 768px, GH #66), never on `body`,
+so the band stays flush with the top of a notched phone and the tab bar stays
+flush with the bottom.
 
 ### One toolbar slot
 
@@ -701,6 +703,9 @@ of the round is a quiet ledger beneath it.
 │                                  │
 │  Plus tard                       │
 │ ▎  Le Comptoir          18 sept. │  future follow-ups, subordinate
+├──────────────────────────────────┤
+│   ⬤        ⬤                    │  tab bar (GH #66, "Tab bar" below):
+│ Tournée  Ajouter                 │  fixed at the bottom below 768px
 └──────────────────────────────────┘
 ```
 
@@ -746,7 +751,7 @@ else is allowed to compete.
 │  Visites précédentes             │
 │  12 sept.            Intéressé   │
 ├──────────────────────────────────┤
-│  [   Enregistrer la visite   ]   │  sticky above the safe-area inset
+│  [   Enregistrer la visite   ]   │  sticky above the tab bar (GH #66)
 └──────────────────────────────────┘
 ```
 
@@ -908,6 +913,81 @@ This is a deliberate departure from the roadmap's "a shadcn `sonner` toast on
 failure". A toast is the wrong medium for a persistent condition, and it costs
 ~5 kB gzipped the field route does not have (ADR-0015). `sonner` stays on the
 admin side, where the events it reports really are events.
+
+### Tab bar
+
+One component, two layouts, not two (GH #66): below 768px a bar fixed to the
+bottom of the screen, 64px plus `safe-area-bottom`, `card` fill with a 1px top
+border; from 768px the same tabs sit inline in the band's own row instead,
+where the old band nav lived, and carry the band palette rather than the
+card's. `position: fixed` ignores where an element sits in the DOM, so the
+tabs live once, in the header markup, and only their classes switch at the
+breakpoint — building two components would let the tab list and the current
+tab's rule drift apart.
+
+```
+┌──────────────────────────────────┐
+│ ⬤ Tournée  ⬤ Ajouter  ▤ Tableau  │  ← 768px: inline in the band
+├──────────────────────────────────┤
+│                                  │
+│           (the round)            │
+│                                  │
+├──────────────────────────────────┤
+│   ⬤        ⬤         ▤          │  < 768px: fixed at the bottom
+│ Tournée  Ajouter  Tableau de bord│
+└──────────────────────────────────┘
+```
+
+Each tab is a 24px Lucide icon over a `text-meta` label, at least 48px in
+every dimension the thumb can miss. Below 768px the current tab carries a gold
+pill behind its icon alone (`primary` fill, `primary-edge` inset ring) and its
+label goes bold `foreground`; an inactive tab is plain `muted-foreground`.
+From 768px the pill grows to the whole row instead — gold fill, `primary-edge`
+inset ring, `primary-foreground` (navy) icon and label — reading like the
+current item in the admin sidebar; an inactive tab there stays
+`band-foreground` in every state, with a `band-accent` hover, and is never
+`band-muted` — same rule as the sidebar's own item text (Layout, above):
+`band-muted` is for group labels only.
+
+**A screen's own action bar sits directly above the tab bar, never under
+it.** Below 768px the tab bar is the field's bottommost fixed element and
+owns `.safe-bottom` there; `VisitScreen`'s and `AddProspectScreen`'s own
+sticky "Enregistrer"/"Ajouter" bar is offset up by the tab bar's height
+(`.above-tab-bar`, `app.css`) rather than sharing its `bottom: 0` — two fixed
+elements at the same coordinates only differ by which one *paints* on top,
+and DOM order here would have hidden the save button under the tab bar, not
+the other way round. From 768px there is no tab bar underneath, so the action
+bar returns to `bottom: 0` and carries its own `.safe-bottom`-equivalent
+inset again. Scrolling content clears whichever bars sit below it —
+`.pb-tab-bar` for a screen with no action bar of its own, `.pb-action-bar` for
+one that has one — both `calc()`'d off `--spacing-tab-bar-height` and the
+safe-area inset rather than a guessed pixel figure.
+
+**Four possible slots, two or three ship now.** Tournée and Ajouter for every
+role, Tableau de bord last for an admin who is online — `me.role === "admin"
+&& !offline`, the one signal `App.tsx` already computes, never a second one.
+Carte is the fourth slot the mockup draws; it stays out until
+epic-field-screens ships the screen it would point to, same rule as the
+sidebar's own nav items. Tableau de bord disappears outright rather than
+showing disabled, because the admin side needs the network to do anything at
+all — but `offline` itself is decided once, when identity resolves (app
+start, or after "Se reconnecter"), from whether that one `/api/me` fetch
+reached the server; there is no live online/offline listener, so a session
+that loses its connection mid-round keeps the tab until the next such check,
+not the instant the network actually drops.
+
+**A tab tap never silently discards a draft (#74).** `/tournee`'s own rule
+differs from every other tab's — it is an index route, so it must match only
+itself, or the admin sidebar's "path, or anything under it" rule would light
+it up on `/tournee/nouveau` and on an open visit too (`isCurrentTab`,
+`tabs.ts`). Tapping a tab away from a dirty visit or add-prospect form — one
+react-hook-form `formState.isDirty` the open screen registers, read at the
+moment of the tap — opens a shadcn AlertDialog, "Quitter sans enregistrer ?",
+and leaves only on "Quitter". "Annuler" leaves the draft exactly as it was,
+values and focus both. Tapping the tab that is already current never asks and
+never navigates. A save's own `navigate("/tournee")` bypasses the guard
+entirely — it is built on the tab bar's own click handler, not on the router,
+so a save is never the thing a dialog interrupts.
 
 ### Field principles
 
