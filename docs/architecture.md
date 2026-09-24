@@ -86,17 +86,7 @@ Admin polls `GET /api/admin/visits?since=<ms>` every 15 s ([ADR-0010](adr/0010-l
 
 ## 5. Architectural invariants
 
-These hold everywhere. Breaking one requires a new ADR.
-
-1. **Zero cost.** No service, plan or dependency that bills.
-2. **Single writer per row type.** Agents only *insert* visits and field prospects. Admins edit prospects. Prospect status changes caused by visits are computed by the server. No client-side merge logic.
-3. **Idempotent writes.** Client-generated UUIDs; every write endpoint is safe to retry.
-4. **The server is the only source of truth.** IndexedDB is a cache plus an outbox.
-5. **`/api` is never cached** by the service worker.
-6. **Every request body is validated** with a schema from `src/shared`.
-7. **D1 statements stay under 100 bound parameters.** Batch inserts are chunked.
-8. **Old clients keep working.** Phones may run a stale build for days; the sync contract is versioned ([ADR-0007](adr/0007-offline-first-insert-only-sync.md)).
-9. **OpenStreetMap attribution** is visible on every map and export.
+They are listed once, in [`CLAUDE.md`](../CLAUDE.md#non-negotiable-invariants). Breaking one requires a new ADR.
 
 ## 6. Quality attributes
 

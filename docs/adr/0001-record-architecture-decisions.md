@@ -1,6 +1,6 @@
 # ADR-0001: Record architecture decisions
 
-- Status: accepted
+- Status: accepted — amended by [ADR-0024](0024-adrs-only-for-hard-to-reverse-decisions.md)
 - Date: 2026-09-21
 
 ## Context

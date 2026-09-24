@@ -1,6 +1,6 @@
 # ADR-0019: Keep the admin chunk out of the service worker precache
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-22
 - Deciders: owner
 

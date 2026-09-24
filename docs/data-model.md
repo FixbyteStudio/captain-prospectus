@@ -104,7 +104,7 @@ been told it is `accepted` and has dropped it, so this table is the only copy.
 
 ## Rules
 - **A visit is kept for ever; its personal fields are not.** `lat`, `lng` and `notes` are nulled once `received_at` is older than `RETENTION_DAYS` (90), by a daily Cron Trigger ([ADR-0023](adr/0023-retention-by-redaction.md)). This is the single exception to `visits` being append-only: no row is deleted and nothing sync or the derived status reads is touched.
-- **`accepted` means the server has durably taken a visit, not that a row is in `visits`.** A quarantined visit is reported in `accepted` so the phone's outbox drains, which is what stops an orphan being resent for ever (ADR-0022, INVARIANT 5). A quarantined visit is not in the prospect's history or the live feed until it is repaired.
+- A quarantined visit is not in the prospect's history or the live feed until it is repaired. Why it is still reported in `accepted`: [field-operations](domains/field-operations.md#rules).
 
 - **Visits are append-only.** Never updated, never deleted by the app. A revisit is a new row.
 - **Answers live on the visit** as JSON, keyed by question `key`. The visit references the exact `script_id` (a specific version), so answers stay interpretable after the script changes.
@@ -119,9 +119,8 @@ been told it is `accepted` and has dropped it, so this table is the only copy.
   the whole chunked insert. The visit is still true — only the questionnaire reference is stale — and
   INVARIANT 5 says never lose one. See `src/worker/routes/agent.ts`.
 - **Two clocks on a visit.** `visited_at` is when it happened (phone clock), `received_at` is when the server got it. The live feed uses `received_at`; history uses `visited_at`.
-- **`visited_at` is clamped** to `min(visited_at, received_at)` on insert, because a phone's clock can
-  be wrong and a future-dated visit would freeze a prospect's status forever
-  ([prospecting](domains/prospecting.md)). The unclamped value stays in `client_visited_at`.
+- **`visited_at` is clamped** on insert ([prospecting](domains/prospecting.md#prospect-lifecycle)); the
+  unclamped value stays in `client_visited_at`.
 - **`client_version` records the sync contract version of the build that sent the visit.** It makes
   "have all phones upgraded?" a SQL query instead of a log search, which is the gate for raising
   `MIN_CLIENT_VERSION` (`sync-contract-change` skill).

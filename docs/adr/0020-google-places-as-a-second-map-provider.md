@@ -1,6 +1,6 @@
 # ADR-0020: Google Places as a second map-import provider
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-22
 - Deciders: the owner
 
