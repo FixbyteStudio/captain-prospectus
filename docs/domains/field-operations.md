@@ -94,11 +94,9 @@ Response
 - **Idempotency:** resending an accepted payload is a no-op. The client deletes outbox rows only after they appear in `accepted`. A visit the server already holds is listed in `accepted` again, so a phone that lost the first response can still clear its outbox instead of resending for ever.
 - **Bounded payload:** the client sends at most `SYNC_VISITS_PER_REQUEST` visits and `SYNC_PROSPECTS_PER_REQUEST` field prospects per sync (`src/shared/constants.ts`) and repeats until the outbox is empty. A phone offline for a week must not build one request that exceeds the Worker's CPU budget.
 - **"Repeats" means while it is making progress.** `shouldDrain` (`src/client/field/sync-schedule.ts`) goes again only after a pass that succeeded, left rows behind **and** had something listed in `accepted`. The outbox slice is taken from the front, so a pass that accepted nothing would build the identical request again. Since ADR-0022 a quarantined visit is listed in `accepted` too, which is correct — the outbox really is draining, and the front of the queue really does move — so the condition now guards only against a pass the server rejected outright. The pass cap stays as the backstop above it.
-- **Only the assignee's visit moves the prospect.** A visit is stored and listed in `accepted` whoever wrote it, and is always attributed to the agent whose JWT sent it — but `OUTCOME_TO_STATUS` is applied only when the visit that would drive the change was written by the prospect's current assignee ([ADR-0021](../adr/0021-visits-derive-status-only-for-the-assignee.md)). Without that, any agent past Access could post `not_interested` against any prospect id and drop it out of `OPEN_STATUSES` — off the other agent's today list and out of the admin's open workload.
-  **The cost is the reassignment race:** an agent visits, the admin reassigns the prospect while the phone is offline, and that real visit then does not move it. The visit is kept and shows in the live feed beside the current assignee, and the admin can set the status by hand. Refusing the visit instead would breach "never lose a visit", which is the trade the ADR makes deliberately. An unassigned prospect has no assignee, so nothing derives — agents never pull one.
 - **A visit the server cannot take is quarantined, not dropped and not refused.**
   Two cases: its `prospectId` resolves to nothing, or the prospect belongs to another
-  agent. Either way the visit is written to `visits_orphaned` with a `reason`, listed in
+  agent ([only the assignee's visit moves status](prospecting.md#prospect-lifecycle)). Either way the visit is written to `visits_orphaned` with a `reason`, listed in
   `accepted`, and left out of the prospect's history until an admin repairs it
   ([ADR-0022](../adr/0022-quarantine-visits-the-server-cannot-take.md)).
   **`accepted` means the server has durably taken the visit, not that a row exists in
@@ -109,6 +107,7 @@ Response
   may also discard it, which is the one place a visit is deliberately lost.
 - **Versioning:** `clientVersion` is an integer bumped on any breaking contract change. The server answers `426 Upgrade Required` below the minimum supported version; the client then forces a service worker update *without* dropping the outbox (`applyUpdateNow` in `src/client/pwa.ts`, called from `useSync` — it re-checks for a build and activates a waiting one, at most once per page load, and is a no-op when there is nothing to take). The version is checked **before** the body is validated, so a build old enough to send a now-invalid shape is told to update rather than that its data is bad.
 - **Never lose a visit.** The outbox survives app updates, reloads and failed syncs. Clearing it requires a successful sync.
+- **Attribution:** a visit is always attributed to the agent whose verified JWT sent it, never to a field in the payload.
 
 ### Triggers
 App start · `online` event · immediately after saving a visit · every 60 s while the app is open.

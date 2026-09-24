@@ -105,11 +105,9 @@ Two endpoints, one serialiser (`src/shared/csv.ts`, unit-tested away from D1).
 
 ## The repair queue
 
-A visit the server cannot take is written to `visits_orphaned` rather than `visits`, and
-is **still reported in `accepted`** — `accepted` means the server has durably taken the
-visit, not that a row exists in `visits`
-([ADR-0022](adr/0022-quarantine-visits-the-server-cannot-take.md)). That is what lets a
-phone drop a visit whose prospect will never arrive, instead of resending it for ever.
+A visit the server cannot take is written to `visits_orphaned` and still reported in
+`accepted` — the rule and its reasons are in
+[field-operations](domains/field-operations.md#rules).
 
 - Two reasons: `unknown_prospect` (the id resolves to nothing) and `not_assigned` (it is
   somebody else's prospect). They differ only in what the admin has to decide — a

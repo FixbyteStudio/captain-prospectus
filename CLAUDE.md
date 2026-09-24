@@ -21,38 +21,32 @@ One concern per change. When you find a bug, inconsistency or code/doc drift tha
 Fix it in the current change only when the task cannot be finished or verified without it, and say so in the PR description. If you are unsure whether it blocks you, ask.
 
 ## Non-negotiable invariants
-1. **Nothing bills without the owner's consent.** No paid service and no dependency needing a paid plan,
-   unless an ADR records the owner accepting that specific cost and `docs/free-tier-budget.md` records its
-   limits and our usage (ADR-0002, amended by ADR-0020). Google Places is the one exception, and it stays
-   inert until `GOOGLE_PLACES_KEY` is configured.
-2. **Agents only insert** visits and field prospects. Never add an agent-side update of shared data.
-3. **Prospect status from visits is computed by the server** (`OUTCOME_TO_STATUS`). Clients never send a derived status.
-   A visit the server cannot take — unknown prospect, or a prospect not assigned to the sender — is quarantined in
-   `visits_orphaned`, reported in `accepted`, and derives nothing until an admin repairs it (ADR-0022).
-4. **Every write is idempotent.** Client ids are `crypto.randomUUID()`. Inserts use `onConflictDoNothing` unless the doc says upsert.
-5. **Never lose a visit.** Outbox rows are deleted only after the server lists them in `accepted`. Auth errors and 426 never clear the outbox.
-6. **Validate every request body** with a zod schema from `src/shared/schemas.ts`. No inline ad-hoc validation in routes.
-   That file is written in **`zod/mini`** (`.check(...)`, `z.optional(x)`, `z._default(x, v)`), not the classic chained
-   API — it is reachable from the field entry chunk and the classic runtime costs 17 kB gzipped more (ADR-0017).
+Each is one line; its reasons live behind the link.
+1. **Nothing bills without the owner's consent.** A paid service or plan needs an ADR and a row in `docs/free-tier-budget.md`. Only Google Places has one, and it stays inert without `GOOGLE_PLACES_KEY` ([ADR-0002](docs/adr/0002-zero-cost-constraint.md), [ADR-0020](docs/adr/0020-google-places-as-a-second-map-provider.md)).
+2. **Agents only insert** visits and field prospects; never add an agent-side update of shared data. The server is the only source of truth, and Dexie is a cache plus an outbox ([ADR-0007](docs/adr/0007-offline-first-insert-only-sync.md)).
+3. **Prospect status from visits is computed by the server** (`OUTCOME_TO_STATUS`); clients never send a derived status. A visit the server cannot take is quarantined in `visits_orphaned` ([prospecting](docs/domains/prospecting.md#prospect-lifecycle), [ADR-0022](docs/adr/0022-quarantine-visits-the-server-cannot-take.md)).
+4. **Every write is idempotent.** Client ids are `crypto.randomUUID()`; inserts use `onConflictDoNothing` unless the doc says upsert.
+5. **Never lose a visit.** Outbox rows are deleted only once the server lists them in `accepted`; auth errors and 426 never clear the outbox ([field-operations](docs/domains/field-operations.md#rules)).
+6. **Validate every request body** with a zod schema from `src/shared/schemas.ts`, written in **`zod/mini`** (`.check(...)`, `z.optional(x)`, `z._default(x, v)`), never the classic chained API ([ADR-0017](docs/adr/0017-zod-mini-for-the-shared-wire-contract.md)).
 7. **D1: ≤100 bound parameters per statement.** Use the `chunk()` helper for multi-row inserts.
 8. **Service worker never caches `/api/*`.**
-9. **Sync contract changes are additive.** Breaking changes bump `clientVersion` and follow the api.md process.
-10. **Identity comes from the verified Access JWT only.** Never read `Cf-Access-Authenticated-User-Email` as proof.
-11. **OSM attribution** on every map and export. Overpass is called only from the Worker, through the cache.
-12. **`visited_at` is clamped server-side** to `min(visited_at, received_at)`. Phone clocks lie, and a future-dated visit would freeze a prospect's status forever.
-13. **Workers Free gives 10 ms CPU per request.** Keep per-request work small: batch imports are 250 rows, the Access JWKS is cached in module scope. Waiting on D1 is free; parsing and validating is not.
-14. **`assets.run_worker_first` stays `["/api/*"]`, never `true`.** Static asset requests are free only while they do not invoke the Worker.
-15. **French UI, English everything else.** All French strings live in `src/client/copy.ts`; enum values stay English in the database (ADR-0013).
+9. **Sync contract changes are additive.** A breaking one bumps `clientVersion` ([api.md](docs/api.md#conventions), `sync-contract-change` skill).
+10. **Identity comes from the verified Access JWT only**, never from `Cf-Access-Authenticated-User-Email` ([identity-access](docs/domains/identity-access.md)).
+11. **OSM attribution** on every map and export. Overpass is called only from the Worker, through the cache ([ADR-0008](docs/adr/0008-map-import-via-overpass.md)).
+12. **`visited_at` is clamped server-side** to `min(visited_at, received_at)` ([prospecting](docs/domains/prospecting.md#prospect-lifecycle)).
+13. **10 ms CPU per request** on Workers Free: batch imports are 250 rows, and the Access JWKS is cached in module scope ([free-tier-budget](docs/free-tier-budget.md#watch-outs)).
+14. **`assets.run_worker_first` stays `["/api/*"]`, never `true`** ([free-tier-budget](docs/free-tier-budget.md#watch-outs)).
+15. **French UI, English everything else.** Every French string lives in `src/client/copy.ts`, and components never inline one. Enum values stay English in the database ([ADR-0013](docs/adr/0013-frontend-conventions.md)).
 
 ## Code conventions
 - TypeScript `strict`, no `any`, no non-null `!` without a comment explaining why.
 - Named exports; files `kebab-case.ts`, React components `PascalCase.tsx`.
+- Comments say *why*, in as few lines as it takes. Link the ADR or domain doc instead of restating it; a rule has one home ([ADR-0024](docs/adr/0024-adrs-only-for-hard-to-reverse-decisions.md)).
 - `src/shared` holds pure code only (no DOM, no Worker APIs). Both sides import contracts from there; never duplicate a type.
 - Routes grouped by domain: `src/worker/routes/<domain>.ts`. Client by domain: `src/client/<domain>/`.
 - Timestamps are epoch ms numbers. JSON camelCase, SQL snake_case.
 - User-facing copy: sentence case, active verbs, errors say what happened and what to do.
 - No new dependency without stating in the PR: size, maintenance, workerd compatibility, and why the platform can't do it.
-- User-facing strings are French and live only in `src/client/copy.ts`. Components import from it; they never inline a French literal.
 - Styling: Tailwind utilities only, with tokens from the `@theme` block in `src/client/styles/app.css`. No hardcoded colours or spacing, no per-component CSS file.
 - Forms: shadcn `form` over react-hook-form, everywhere including the field route (ADR-0018). The resolver reuses an
   existing pure validator or a `z.pick` of the shared schema — never a second copy of the rules. `FormMessage` takes a
@@ -79,7 +73,7 @@ Fix it in the current change only when the task cannot be finished or verified w
 ## Definition of done
 - Typecheck, tests and build pass.
 - Docs updated in the same change when behaviour, API or data model changed (`docs/api.md`, `docs/data-model.md`, domain docs).
-- New decision → new ADR.
+- A decision that is hard to reverse → new ADR ([ADR-0024](docs/adr/0024-adrs-only-for-hard-to-reverse-decisions.md) sets the bar). Anything smaller → the PR description and one line in the doc that owns the rule.
 - Commit messages follow Conventional Commits (`feat(field-ops): …`).
 
 ## Subagents and skills
