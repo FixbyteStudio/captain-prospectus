@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
-import type { ImportRow, AreaCandidate } from "../../../shared/schemas";
+import type { AreaCandidate, AreaSearchResponse, ImportRow } from "../../../shared/schemas";
 import { ApiError } from "../../api";
 import { TYPE_LABELS, copy } from "../../copy";
 import { Alert, AlertDescription } from "../../ui/alert";
 import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
+import { Label } from "../../ui/label";
 import { Progress } from "../../ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { MapCanvas } from "./MapCanvas";
@@ -90,11 +92,25 @@ export function MapStep({
   // A place OSM has no name for cannot be imported: `name` is required by the
   // contract (docs/domains/ingestion.md, "Unnamed elements"). Both lists are
   // derived from one memo, so `?? []` cannot mint a new array every render.
-  const { candidates, importable } = useMemo(() => {
+  const { candidates, importable, likely } = useMemo(() => {
     const found = search.data?.candidates ?? [];
-    return { candidates: found, importable: found.filter((c) => c.named) };
+    const named = found.filter((c) => c.named);
+    return {
+      candidates: found,
+      importable: named,
+      likely: named.filter((c) => c.likelyDuplicateOf !== null).length,
+    };
   }, [search.data]);
   const unnamed = candidates.length - importable.length;
+
+  // A place that looks already listed stays out unless the admin opts in, and
+  // the opt-in belongs to one answer: a new search starts unchecked again. Keyed
+  // on the answer itself rather than reset in an effect.
+  const [includedFor, setIncludedFor] = useState<AreaSearchResponse | null>(null);
+  const includeLikely = search.data !== undefined && includedFor === search.data;
+  const toImport = includeLikely
+    ? importable
+    : importable.filter((c) => c.likelyDuplicateOf === null);
   const percent = progress.total === 0 ? 0 : Math.round((progress.done / progress.total) * 100);
 
   return (
@@ -200,7 +216,7 @@ export function MapStep({
 
         {search.data && (
           <>
-            <div className="mb-3 flex gap-6">
+            <div className="mb-3 flex flex-wrap gap-x-6 gap-y-2">
               <span>
                 <strong className="text-display tnum block font-semibold">
                   {importable.length}
@@ -209,6 +225,14 @@ export function MapStep({
                   {copy.map.results.found(importable.length)}
                 </span>
               </span>
+              {likely > 0 && (
+                <span>
+                  <strong className="text-display tnum text-warn block font-semibold">
+                    {likely}
+                  </strong>
+                  <span className="text-muted-foreground">{copy.map.results.likely(likely)}</span>
+                </span>
+              )}
               {unnamed > 0 && (
                 <span>
                   <strong className="text-display tnum text-muted-foreground block font-semibold">
@@ -247,6 +271,26 @@ export function MapStep({
                 ))}
               </ul>
             )}
+
+            {likely > 0 && (
+              <div className="mt-3 flex items-start gap-2">
+                <Checkbox
+                  id="include-likely"
+                  className="mt-0.5"
+                  checked={includeLikely}
+                  disabled={isRunning}
+                  onCheckedChange={(checked) =>
+                    setIncludedFor(checked === true ? (search.data ?? null) : null)
+                  }
+                />
+                <Label htmlFor="include-likely" className="block font-normal">
+                  {copy.map.results.includeLikely(likely)}
+                  <span className="text-muted-foreground block text-xs">
+                    {copy.map.results.includeLikelyHint}
+                  </span>
+                </Label>
+              </div>
+            )}
           </>
         )}
 
@@ -271,10 +315,10 @@ export function MapStep({
           </Button>
           {search.data && (
             <Button
-              onClick={() => onStart(importable.map(toImportRow))}
-              disabled={isRunning || importable.length === 0}
+              onClick={() => onStart(toImport.map(toImportRow))}
+              disabled={isRunning || toImport.length === 0}
             >
-              {error ? copy.import.actions.retry : copy.map.results.start(importable.length)}
+              {error ? copy.import.actions.retry : copy.map.results.start(toImport.length)}
             </Button>
           )}
         </div>
@@ -303,18 +347,19 @@ function searchError(error: unknown): string {
 
 /**
  * One found place. Same leading edge as the prospect ledger — `status-new` for
- * something that will be imported, `status-rejected` for one that cannot be —
- * so the panel scans like every other list in this app (design.md).
+ * something that will be imported, `warn` for one that looks already listed,
+ * `status-rejected` for one that cannot be — so the panel scans like every
+ * other list in this app (design.md). The edge never speaks alone: a likely
+ * duplicate names the prospect it looks like.
  */
 function CandidateRow({ candidate }: { candidate: AreaCandidate }) {
+  const edge = !candidate.named
+    ? "text-muted-foreground px-3 py-2 shadow-[inset_4px_0_0_0_var(--color-status-rejected)]"
+    : candidate.likelyDuplicateOf
+      ? "px-3 py-2 shadow-[inset_4px_0_0_0_var(--color-status-follow-up)]"
+      : "px-3 py-2 shadow-[inset_4px_0_0_0_var(--color-status-new)]";
   return (
-    <li
-      className={
-        candidate.named
-          ? "px-3 py-2 shadow-[inset_4px_0_0_0_var(--color-status-new)]"
-          : "text-muted-foreground px-3 py-2 shadow-[inset_4px_0_0_0_var(--color-status-rejected)]"
-      }
-    >
+    <li className={edge}>
       <span className="flex items-baseline justify-between gap-2">
         <span className={candidate.named ? "font-medium" : "decoration-border line-through"}>
           {candidate.named ? candidate.name : copy.map.results.noName}
@@ -325,6 +370,11 @@ function CandidateRow({ candidate }: { candidate: AreaCandidate }) {
       </span>
       {candidate.address && (
         <span className="text-muted-foreground block text-xs">{candidate.address}</span>
+      )}
+      {candidate.named && candidate.likelyDuplicateOf && (
+        <span className="text-warn block text-xs">
+          {copy.map.results.looksLike(candidate.likelyDuplicateOf.name)}
+        </span>
       )}
     </li>
   );

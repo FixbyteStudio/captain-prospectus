@@ -39,7 +39,7 @@ import {
   csvTimestamp,
 } from "../../shared/csv";
 import { dedupeKey, normalize } from "../../shared/dedupe";
-import { distanceMeters } from "../../shared/geo";
+import { cellAndNeighbours, cellOf, distanceMeters } from "../../shared/geo";
 import { isProbablySamePlace } from "../../shared/similarity";
 import {
   assignSchema,
@@ -93,6 +93,7 @@ import {
   toCandidates as toPlaceCandidates,
 } from "../places";
 import type { NewProspectRow, ProspectRow } from "../db/schema";
+import { markLikelyDuplicates } from "../likely-duplicates";
 import { deriveProspectStatus } from "./status";
 import { toWireScript } from "./wire";
 import type { AppEnv } from "../types";
@@ -564,10 +565,6 @@ adminRoutes.get("/prospects/duplicates", async (c) => {
   const truncated = rows.length > DUPLICATES_SCAN_LIMIT;
   const scanned = truncated ? rows.slice(0, DUPLICATES_SCAN_LIMIT) : rows;
 
-  const CELL = 1000; // three decimal places
-  const cellKey = (lat: number, lng: number) =>
-    `${Math.round(lat * CELL)}:${Math.round(lng * CELL)}`;
-
   const buckets = new Map<string, ProspectRow[]>();
   const put = (key: string, row: ProspectRow) => {
     const bucket = buckets.get(key);
@@ -577,7 +574,7 @@ adminRoutes.get("/prospects/duplicates", async (c) => {
 
   for (const row of scanned) {
     if (typeof row.lat === "number" && typeof row.lng === "number") {
-      put(cellKey(row.lat, row.lng), row);
+      put(cellOf({ lat: row.lat, lng: row.lng }), row);
     } else {
       // No coordinates: the name is all there is, so bucket by that instead.
       put(`name:${normalize(row.name)}`, row);
@@ -590,12 +587,8 @@ adminRoutes.get("/prospects/duplicates", async (c) => {
   for (const row of scanned) {
     const neighbourhood: ProspectRow[] = [];
     if (typeof row.lat === "number" && typeof row.lng === "number") {
-      const lat = Math.round(row.lat * CELL);
-      const lng = Math.round(row.lng * CELL);
-      for (let dLat = -1; dLat <= 1; dLat++) {
-        for (let dLng = -1; dLng <= 1; dLng++) {
-          neighbourhood.push(...(buckets.get(`${lat + dLat}:${lng + dLng}`) ?? []));
-        }
+      for (const cell of cellAndNeighbours({ lat: row.lat, lng: row.lng })) {
+        neighbourhood.push(...(buckets.get(cell) ?? []));
       }
     } else {
       neighbourhood.push(...(buckets.get(`name:${normalize(row.name)}`) ?? []));
@@ -817,7 +810,8 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), asy
     // A cached body that no longer parses is a bug in what we stored, not
     // something to hand the admin. Fall through and ask Overpass again.
     if (mapped) {
-      return c.json<AreaSearchResponse>({ ...mapped, cached: true });
+      const candidates = await markLikelyDuplicates(db, mapped.candidates);
+      return c.json<AreaSearchResponse>({ ...mapped, candidates, cached: true });
     }
   }
 
@@ -859,7 +853,8 @@ adminRoutes.post("/import/overpass", validate("json", overpassImportSchema), asy
       set: { body, createdAt: Date.now() },
     });
 
-  return c.json<AreaSearchResponse>({ ...mapped, cached: false });
+  const candidates = await markLikelyDuplicates(db, mapped.candidates);
+  return c.json<AreaSearchResponse>({ ...mapped, candidates, cached: false });
 });
 
 /**
@@ -894,7 +889,8 @@ adminRoutes.post("/import/places", validate("json", placesImportSchema), async (
     // A cached body that no longer parses is a bug in what we stored, not
     // something to hand the admin. Fall through and ask Google again.
     if (mapped) {
-      return c.json<AreaSearchResponse>({ ...mapped, cached: true });
+      const candidates = await markLikelyDuplicates(db, mapped.candidates);
+      return c.json<AreaSearchResponse>({ ...mapped, candidates, cached: true });
     }
   }
 
@@ -937,7 +933,8 @@ adminRoutes.post("/import/places", validate("json", placesImportSchema), async (
       set: { body, createdAt: Date.now() },
     });
 
-  return c.json<AreaSearchResponse>({ ...mapped, cached: false });
+  const candidates = await markLikelyDuplicates(db, mapped.candidates);
+  return c.json<AreaSearchResponse>({ ...mapped, candidates, cached: false });
 });
 
 /* ---------------------------------------------------------------- live feed */

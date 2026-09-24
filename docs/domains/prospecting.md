@@ -60,6 +60,7 @@ Normalisation: strip accents, lowercase, collapse non-alphanumerics.
 Known limits, accepted for v1; the admin can merge manually later (roadmap M5):
 
 - Two branches of the same chain in the same cell merge; the same place just across a cell boundary does not.
+- The same place imported from OpenStreetMap and from Google gets two keys, one per source id. The map import preview flags it before it is imported ([ingestion](ingestion.md#duplicates-across-providers)).
 - **A rename is a new prospect.** Tiers 2 and 3 are built from the name, so correcting a spelling in the spreadsheet and re-importing creates a second row rather than updating the first. Only tier 1 — a source that supplies a stable `source_ref`, such as OSM — survives a rename.
 - The dedupe key is **import-time identity and is never recomputed**. Editing a name or address through `PATCH /api/admin/prospects/:id` leaves the key as it was, because recomputing it could collide with the unique index and fail an otherwise valid edit.
 

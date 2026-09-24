@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "./index";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
-import { overpassCache } from "./db/schema";
+import { overpassCache, prospects, visits } from "./db/schema";
 import {
   PLACES_FIELD_MASK,
   PLACES_QUERY_VERSION,
@@ -377,5 +377,65 @@ describe("POST /api/admin/import/places", () => {
     const response = await search();
     expect(response.status).toBe(403);
     expect(fetchCalls).toHaveLength(0);
+  });
+});
+
+/** A prospect already in the list, as another import or an agent left it. */
+async function seedListed(over: {
+  name: string;
+  lat: number;
+  lng: number;
+  source: "osm" | "google" | "field";
+  sourceRef?: string | null;
+  mergedInto?: string | null;
+}): Promise<string> {
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  await getDb(env.DB)
+    .insert(prospects)
+    .values({
+      id,
+      name: over.name,
+      type: "restaurant",
+      lat: over.lat,
+      lng: over.lng,
+      address: null,
+      phone: null,
+      website: null,
+      cuisine: null,
+      source: over.source,
+      sourceRef: over.sourceRef ?? null,
+      dedupeKey: `test:${id}`,
+      status: "new",
+      assignedTo: null,
+      mergedInto: over.mergedInto ?? null,
+      createdBy: ADMIN,
+      createdAt: now,
+      updatedAt: now,
+    });
+  return id;
+}
+
+describe("POST /api/admin/import/places — places already in the list", () => {
+  beforeEach(async () => {
+    const db = getDb(env.DB);
+    await db.delete(visits);
+    await db.delete(prospects);
+  });
+
+  it("flags a place OSM already brought in under its own id", async () => {
+    const id = await seedListed({
+      name: "Estaminet",
+      lat: 50.84793,
+      lng: 4.35375,
+      source: "osm",
+      sourceRef: "node/4711",
+    });
+    stubPlaces(ok(FIXTURE));
+
+    const body = (await (await search()).json()) as AreaSearchResponse;
+    const estaminet = body.candidates.find((c) => c.sourceRef === "google/ChIJestaminet");
+
+    expect(estaminet?.likelyDuplicateOf).toEqual({ id, name: "Estaminet" });
   });
 });

@@ -13,7 +13,7 @@
  * Everything here is pure. The route does the I/O.
  */
 import { PLACES_MAX_RESULTS, type ProspectType } from "../shared/constants";
-import type { AreaCandidate } from "../shared/schemas";
+import type { FoundPlace } from "../shared/schemas";
 import type { Vertex } from "./overpass";
 
 /**
@@ -207,7 +207,7 @@ function sourceRef(place: Place): string | null {
   return id ? `google/${id}` : null;
 }
 
-function toCandidate(place: Place): AreaCandidate | null {
+function toCandidate(place: Place): FoundPlace | null {
   const ref = sourceRef(place);
   if (!ref) return null;
 
@@ -244,7 +244,7 @@ function toCandidate(place: Place): AreaCandidate | null {
  */
 export function toCandidates(
   body: string,
-): { candidates: AreaCandidate[]; truncated: boolean } | null {
+): { candidates: FoundPlace[]; truncated: boolean } | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
@@ -259,7 +259,7 @@ export function toCandidates(
   const places = answer.places ?? [];
   if (!Array.isArray(places)) return null;
 
-  const candidates: AreaCandidate[] = [];
+  const candidates: FoundPlace[] = [];
   for (const place of places) {
     const candidate = toCandidate(place as Place);
     if (candidate) candidates.push(candidate);

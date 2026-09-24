@@ -227,6 +227,16 @@ export const copy = {
       idle: "Dessinez une zone sur la carte, puis lancez la recherche pour voir ce qu'OpenStreetMap y connaît.",
       found: (n: number) => (n === 1 ? "1 lieu trouvé" : `${n} lieux trouvés`),
       unnamed: (n: number) => (n === 1 ? "1 sans nom" : `${n} sans nom`),
+      // Probably already a prospect under another source's id (ADR-0020). Left
+      // out of the import unless the admin says otherwise.
+      likely: (n: number) =>
+        n === 1 ? "1 semble déjà dans la liste" : `${n} semblent déjà dans la liste`,
+      looksLike: (name: string) => `Semble déjà dans la liste : ${name}`,
+      includeLikely: (n: number) =>
+        n === 1
+          ? "Importer aussi le lieu qui semble déjà dans la liste"
+          : `Importer aussi les ${n} lieux qui semblent déjà dans la liste`,
+      includeLikelyHint: "Un doublon importé se fusionne ensuite depuis l'écran Doublons.",
       empty: "Aucun commerce trouvé dans cette zone. Élargissez-la et cherchez à nouveau.",
       // The cache is up to seven days old, so the screen says so rather than
       // letting two identical searches look like two live ones.
