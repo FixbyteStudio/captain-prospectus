@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { VitePWA } from "vite-plugin-pwa";
+import { ACCESS_PATH_PATTERN } from "./src/client/admin/access-logout";
 import { RECONNECT_MARKER_PATTERN } from "./src/client/field/reconnect-marker";
 
 export default defineConfig({
@@ -67,8 +68,15 @@ export default defineConfig({
         // reloading. The reconnect marker is excluded instead, so that one
         // navigation goes to the network. Shared with the client's own
         // navigate/strip code (`reconnect-marker.ts`) so the two never drift.
+        //
+        // The third exempts Access's own logout endpoint (GH #76, spec-gh-64):
+        // without it, "Se déconnecter" would hit navigateFallback and get
+        // served index.html from precache instead of ever reaching Access, so
+        // the click would look like a broken link rather than a sign-out.
+        // Shared with AccountMenu's own logout link (`access-logout.ts`) so
+        // the two never drift.
         navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api\//, RECONNECT_MARKER_PATTERN],
+        navigateFallbackDenylist: [/^\/api\//, RECONNECT_MARKER_PATTERN, ACCESS_PATH_PATTERN],
         runtimeCaching: [],
       },
     }),

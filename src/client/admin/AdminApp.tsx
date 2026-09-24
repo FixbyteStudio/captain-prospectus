@@ -26,10 +26,10 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
-export function AdminApp({ updatePrompt }: { updatePrompt: ReactNode }) {
+export function AdminApp({ email, updatePrompt }: { email: string; updatePrompt: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <AdminLayout banner={updatePrompt}>
+      <AdminLayout banner={updatePrompt} email={email}>
         <Routes>
           <Route path="prospects" element={<ProspectsScreen />} />
           <Route path="import" element={<ImportScreen />} />

@@ -22,6 +22,12 @@ export const copy = {
 
   /** Used by vendored components that ship an English string (INVARIANT 15). */
   close: "Fermer",
+  /** Breadcrumb's own overflow item (unused today: the top bar never has
+   * enough levels to collapse), translated anyway since it ships in the
+   * vendored file (INVARIANT 15). */
+  breadcrumbMore: "Plus",
+  /** The breadcrumb `<nav>`'s landmark name. */
+  breadcrumb: "Fil d'Ariane",
 
   nav: {
     today: "Tournée du jour",
@@ -53,6 +59,43 @@ export const copy = {
     drawerDescription: "Navigation de l'administration",
     /** A nav item's accessible name carries its pending count, in every mode. */
     withCount: (label: string, count: number) => `${label} (${count})`,
+  },
+
+  /** The top bar's search button and its inert CommandDialog (GH #64). */
+  search: {
+    // Reused verbatim as the ≥768px button's text and, below 768px, as the
+    // icon-only button's aria-label (spec's Always list).
+    button: "Rechercher un prospect…",
+    // The palette makes no request yet — this is its only content besides
+    // the input, so it doubles as the dialog's sr-only description.
+    unavailable:
+      "La recherche n'est pas encore disponible. Utilisez les filtres de la page Prospects.",
+  },
+
+  /** Defaults for the vendored Command's own English strings (INVARIANT 15) —
+   * SearchPalette always overrides them, but the vendored file must still
+   * carry no English literal of its own. */
+  palette: {
+    title: "Palette de commandes",
+    description: "Rechercher une commande à exécuter…",
+  },
+
+  notifications: {
+    /** Disabled for now (Never list): no content, just the aria-label. */
+    label: "Notifications",
+  },
+
+  /** The top bar's Sun/Moon toggle. Each label names the action a click
+   * performs, matching its icon (spec-gh-64: "Moon with 'Thème sombre' while
+   * light, Sun with 'Thème clair' while dark"). */
+  theme: {
+    toDark: "Thème sombre",
+    toLight: "Thème clair",
+  },
+
+  account: {
+    menu: (email: string) => `Menu du compte de ${email}`,
+    logout: "Se déconnecter",
   },
 
   prospects: {
