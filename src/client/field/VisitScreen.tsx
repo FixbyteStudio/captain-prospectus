@@ -36,6 +36,7 @@ import type { Answers, Script } from "../../shared/schemas";
 import { cacheVisitHistory, fieldDb, getMeta } from "./db";
 import { emptyDraft, toVisit, withOutcome, type VisitDraft } from "./visit-draft";
 import { useAgentPosition } from "./useAgentPosition";
+import { useRegisterDirty } from "./leave-guard";
 import { useSyncState } from "./useSync";
 
 export function VisitScreen() {
@@ -125,6 +126,10 @@ export function VisitScreen() {
   const answers = useWatch({ control: form.control, name: "answers" });
   const errors = form.formState.errors;
   const saving = form.formState.isSubmitting;
+
+  // A tab tap unmounts this form (#74, spec-gh-66): the leave guard asks
+  // before it does, unless save() has already navigated it away itself.
+  useRegisterDirty(form.formState.isDirty);
 
   /**
    * Step 1 does not save; it checks its own two controls and moves on. Doing
@@ -275,7 +280,7 @@ export function VisitScreen() {
   return (
     <Form {...form}>
       <form
-        className="pb-24"
+        className="pb-action-bar"
         onSubmit={(e) => void form.handleSubmit(save, showFirstProblem)(e)}
         noValidate
       >
@@ -434,8 +439,11 @@ export function VisitScreen() {
         )}
 
         {/* Sticky, because the outcome list is taller than a phone and the action
-            should not require scrolling back past it. */}
-        <div className="safe-bottom bg-background border-border fixed inset-x-0 bottom-0 border-t px-4 py-3">
+            should not require scrolling back past it. `.above-tab-bar` sits
+            it directly above the tab bar below 768px rather than under it
+            (app.css); at that size the tab bar itself owns the safe-area
+            inset, so this carries only its own breathing room. */}
+        <div className="above-tab-bar bg-background border-border fixed inset-x-0 border-t px-4 pt-3">
           {saveFailed && (
             <p role="alert" className="text-destructive mb-2 text-sm">
               {copy.visit.saveFailed}

@@ -30,7 +30,6 @@ export const copy = {
   breadcrumb: "Fil d'Ariane",
 
   nav: {
-    today: "Tournée du jour",
     prospects: "Prospects",
     visits: "Visites",
     scripts: "Scripts",
@@ -42,6 +41,24 @@ export const copy = {
     subtitle: {
       today: "Tournée",
       add: "Ajouter",
+    },
+
+    /** The field tab bar's labels (spec-gh-66), bottom on a phone, in the band
+     * from 768px. Tableau de bord only renders for an admin who is online. */
+    tabs: {
+      today: "Tournée",
+      add: "Ajouter",
+      dashboard: "Tableau de bord",
+    },
+    /** The field tab bar's own `<nav>` landmark name (FieldTabs.tsx). */
+    tabsLabel: "Navigation",
+
+    /** A tab tapped while a field form has unsaved input (spec-gh-66, #74). */
+    leaveGuard: {
+      title: "Quitter sans enregistrer ?",
+      body: "Ce que vous avez saisi n'est pas encore enregistré et sera perdu.",
+      leave: "Quitter",
+      cancel: "Annuler",
     },
 
     /** The band avatar has no menu; this is its only accessible name. */

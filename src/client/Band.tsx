@@ -1,31 +1,7 @@
-import { NavLink } from "react-router";
 import { copy } from "./copy";
-import { cn } from "./lib/utils";
 import { Alert, AlertTitle } from "@/ui/alert";
 import { buttonVariants } from "@/ui/button-variants";
 import type { PwaState } from "./pwa";
-
-/**
- * A link in the field band. The admin side has its own navy sidebar
- * (`AdminSidebar.tsx`, GH #63) rather than reusing this.
- */
-export function BandLink({ to, children }: { to: string; children: string }) {
-  return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        cn(
-          "inline-flex h-8 shrink-0 items-center rounded-md px-2.5 font-medium transition-colors",
-          isActive
-            ? "bg-band-foreground/10 text-band-foreground"
-            : "text-band-muted hover:text-band-foreground",
-        )
-      }
-    >
-      {children}
-    </NavLink>
-  );
-}
 
 /**
  * The mark and wordmark, shared by the field band and the admin sidebar header.

@@ -30,6 +30,7 @@ import { PROSPECT_TYPES, type ProspectType } from "../../shared/constants";
 import { fieldProspectSchema } from "../../shared/schemas";
 import { fieldDb } from "./db";
 import { useAgentPosition } from "./useAgentPosition";
+import { useRegisterDirty } from "./leave-guard";
 import { useSyncState } from "./useSync";
 
 /**
@@ -101,9 +102,13 @@ export function AddProspectScreen() {
 
   const saving = form.formState.isSubmitting;
 
+  // A tab tap unmounts this form (#74, spec-gh-66): the leave guard asks
+  // before it does, unless save() has already navigated it away itself.
+  useRegisterDirty(form.formState.isDirty);
+
   return (
     <Form {...form}>
-      <form className="pb-24" onSubmit={(e) => void form.handleSubmit(save)(e)} noValidate>
+      <form className="pb-action-bar" onSubmit={(e) => void form.handleSubmit(save)(e)} noValidate>
         <header>
           <BackLink />
           <h2 className="mt-1 text-xl font-semibold tracking-[-0.005em]">
@@ -214,7 +219,11 @@ export function AddProspectScreen() {
           )}
         />
 
-        <div className="safe-bottom bg-background border-border fixed inset-x-0 bottom-0 border-t px-4 py-3">
+        {/* `.above-tab-bar` sits this directly above the tab bar below 768px
+            rather than under it (app.css); at that size the tab bar itself
+            owns the safe-area inset, so this carries only its own breathing
+            room. */}
+        <div className="above-tab-bar bg-background border-border fixed inset-x-0 border-t px-4 pt-3">
           {saveFailed && (
             <p role="alert" className="text-destructive mb-2 text-sm">
               {copy.fieldProspect.saveFailed}

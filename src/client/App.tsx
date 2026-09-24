@@ -11,12 +11,14 @@ import {
 } from "react-router";
 import { LockIcon, MapPinOffIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import { apiFetch } from "./api";
-import { BandBrand, BandLink, UpdatePrompt } from "./Band";
+import { BandBrand, UpdatePrompt } from "./Band";
 import { copy } from "./copy";
 import { initials } from "./format";
 import type { MeResponse } from "../shared/schemas";
 import { usePwa, type PwaState } from "./pwa";
 import { buttonVariants } from "@/ui/button-variants";
+import { FieldTabs } from "./field/FieldTabs";
+import { LeaveGuardProvider } from "./field/leave-guard";
 import { TodayScreen } from "./field/TodayScreen";
 import { SyncDot, SyncStrip, useSyncView } from "./field/SyncIndicator";
 import { hasReconnectMarker, withoutReconnectMarker } from "./field/reconnect-marker";
@@ -111,19 +113,21 @@ function FieldFrame({ isAdmin, pwa, email }: { isAdmin: boolean; pwa: PwaState; 
   const hideUpdatePrompt = hidesUpdateBanner(useSyncView());
 
   return (
-    <>
+    <LeaveGuardProvider>
       <header className="safe-top bg-band text-band-foreground">
         <div className="flex h-band-height items-center gap-3 px-4">
           <BandBrand subtitle={subtitle} />
-          {/* An admin on a phone has one extra link into the admin side; an
-              agent has none. Either way the nav scrolls rather than pushing
-              the page sideways, and the rest of the space goes to the sync
-              state and the avatar. */}
-          <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
-            <BandLink to="/tournee">{copy.nav.today}</BandLink>
-            {isAdmin && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
-          </nav>
-          <SyncDot />
+          {/* Below 768px this detaches to a fixed bar at the bottom of the
+              screen; from 768px it sits right here, in the band's own row.
+              Below 768px it is `position: fixed` (out of flow) and claims no
+              width here at all, so it cannot push the sync pill and avatar to
+              the row's right edge the way the band nav it replaced used to —
+              `ml-auto` on the wrapper below does that instead, standing down
+              once the tab bar is back in flow and doing that job itself. */}
+          <FieldTabs isAdmin={isAdmin} />
+          <span className="ml-auto md:ml-0">
+            <SyncDot />
+          </span>
           {/* Static, no menu (2026-09-24 decision, spec-gh-65): it only names
               who is signed in, which the outbox and every visit already
               assume. */}
@@ -140,10 +144,16 @@ function FieldFrame({ isAdmin, pwa, email }: { isAdmin: boolean; pwa: PwaState; 
       {!hideUpdatePrompt && <UpdatePrompt pwa={pwa} />}
       <SyncStrip pwa={pwa} />
 
-      <main className="safe-bottom px-4 py-6">
+      {/* .safe-bottom moved to the tab bar (FieldTabs): it is now the
+          bottommost fixed element on a phone. .pb-tab-bar (app.css) clears
+          its real height plus the inset it carries, so the bar never covers
+          the last row of content — a screen with its own action bar
+          (VisitScreen, AddProspectScreen) additionally clears that with
+          `.pb-action-bar` on its own form. */}
+      <main className="px-4 pt-6 pb-tab-bar">
         <Outlet />
       </main>
-    </>
+    </LeaveGuardProvider>
   );
 }
 
