@@ -122,8 +122,9 @@ table widget, and it matters for counts, dates and distances alike.
 ## Layout
 
 A thin ink band with the wordmark and the nav, then full-width content. No left
-rail — three admin screens do not earn that much chrome, and one shell serves
-both the admin and the field side rather than two.
+rail — three admin screens do not earn that much chrome. The two sides share
+the band's look and tokens, but each owns its frame: the admin frame ships in
+the admin chunk, and the field band carries the sync state.
 
 Safe-area insets go on `.safe-top` (the band) and `.safe-bottom` (the content),
 never on `body`, so the band stays flush with the top of a notched phone.
