@@ -24,7 +24,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 | `GET /api/admin/agents` | `{agents: [{email, role}]}` — everyone a prospect can be assigned to |
 | `GET /api/admin/prospects?status=&assignedTo=&source=&limit=&offset=` | `{prospects[], total}`, newest edit first |
 | `POST /api/admin/prospects/batch` | Upsert `{source: "csv" \| "osm", rows[]}` by dedupe key → `{created, updated}` |
-| `PATCH /api/admin/prospects/:id` | Edit fields, `assignedTo`, `status`, `nextVisitAt` → the updated prospect |
+| `PATCH /api/admin/prospects/:id` | Edit fields, `assignedTo`, `status`, `nextVisitAt` → the updated prospect. A `status` set here holds until a visit made after it ([prospecting](domains/prospecting.md#prospect-lifecycle)) |
 | `POST /api/admin/prospects/assign` | Bulk `{ids[], assignedTo}` → `{assigned}`; `assignedTo: null` unassigns |
 | `GET /api/admin/prospects/export.csv?status=&assignedTo=&source=` | The ledger as CSV, same three filters as the list, merged prospects excluded. `text/csv` attachment, max 500 rows, `x-truncated: true` when capped |
 | `GET /api/admin/prospects/duplicates` | `{pairs[], truncated}` — prospects that are probably the same place |

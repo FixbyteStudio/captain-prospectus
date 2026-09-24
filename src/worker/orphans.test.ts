@@ -185,6 +185,26 @@ describe("POST /api/admin/visits/orphaned/:id/repair", () => {
     expect(row?.status).toBe("converted");
   });
 
+  it("keeps an admin's manual status when the repaired visit predates it (ADR-0025)", async () => {
+    const db = getDb(env.DB);
+    const prospectId = crypto.randomUUID();
+    await seedProspect(prospectId);
+    const visitId = await quarantine({ outcome: "converted" });
+
+    const patched = await call(`/api/admin/prospects/${prospectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "rejected" }),
+    });
+    expect(patched.status).toBe(200);
+
+    await post(`/api/admin/visits/orphaned/${visitId}/repair`, { prospectId });
+
+    const [row] = await db.select().from(prospects).where(eq(prospects.id, prospectId));
+    expect(row?.status).toBe("rejected");
+    expect(row?.lastVisitAt).not.toBeNull();
+  });
+
   it("keeps the visit's own timestamps rather than reclamping at repair time", async () => {
     const db = getDb(env.DB);
     const prospectId = crypto.randomUUID();
