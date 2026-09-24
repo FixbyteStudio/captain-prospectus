@@ -1,6 +1,7 @@
 import { NavLink } from "react-router";
 import { copy } from "./copy";
 import { cn } from "./lib/utils";
+import { Alert, AlertTitle } from "@/ui/alert";
 import { buttonVariants } from "@/ui/button-variants";
 import type { PwaState } from "./pwa";
 
@@ -26,13 +27,21 @@ export function BandLink({ to, children }: { to: string; children: string }) {
   );
 }
 
-/** The mark and wordmark, shared by the field band and the admin nav. */
-export function BandBrand() {
+/**
+ * The mark and wordmark, shared by the field band and the admin nav.
+ * `subtitle` is the field band's meta line naming the current tab; the admin
+ * nav leaves it unset.
+ */
+export function BandBrand({ subtitle }: { subtitle?: string }) {
   return (
     <>
       <img src="/mark.svg" alt="" className="h-7 w-auto shrink-0" />
-      <span className="shrink-0 text-[0.9375rem] font-semibold tracking-[0.01em] whitespace-nowrap">
-        {copy.appName}
+      {/* min-w-0 lets this shrink below its content's width instead of
+          pushing the count pill and avatar off a 320px band; the lines
+          truncate rather than wrap or overflow. */}
+      <span className="flex min-w-0 flex-col justify-center leading-tight">
+        <span className="text-heading truncate">{copy.appName}</span>
+        {subtitle && <span className="text-meta text-band-muted truncate">{subtitle}</span>}
       </span>
     </>
   );
@@ -53,15 +62,14 @@ export function UpdatePrompt({ pwa }: { pwa: PwaState }) {
   if (!needRefresh) return null;
 
   return (
-    <div
-      role="status"
-      className="bg-secondary border-border flex items-center justify-between gap-3 border-b px-4 py-2"
-    >
-      <span className="text-sm">{copy.update.available}</span>
-      <span className="flex shrink-0 gap-2">
+    // A new build waiting is not urgent — the agent decides when — so this
+    // overrides Alert's default role="alert" with the quieter "status".
+    <Alert role="status" className="rounded-none border-x-0 border-t-0">
+      <AlertTitle>{copy.update.available}</AlertTitle>
+      <div className="col-start-2 mt-2 flex gap-2">
         <button
           type="button"
-          className={buttonVariants({ size: "sm", variant: "ghost" })}
+          className={buttonVariants({ size: "sm", variant: "secondary" })}
           onClick={dismiss}
         >
           {copy.update.dismiss}
@@ -69,7 +77,7 @@ export function UpdatePrompt({ pwa }: { pwa: PwaState }) {
         <button type="button" className={buttonVariants({ size: "sm" })} onClick={update}>
           {copy.update.apply}
         </button>
-      </span>
-    </div>
+      </div>
+    </Alert>
   );
 }

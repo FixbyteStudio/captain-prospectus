@@ -20,7 +20,9 @@ See [ADR-0006](../adr/0006-cloudflare-access-auth.md).
 `DEV_USER_EMAIL` in `.dev.vars` impersonates a user. It is honoured **only** when the request host is `localhost` or `127.0.0.1`.
 
 ## Offline and session expiry
-Access sessions expire. The app shell is cached by the service worker, so the agent can keep working offline. When a sync gets a 401 or an Access redirect, the app shows "Sign in again to sync" and keeps the outbox intact.
+Access sessions expire. The app shell is cached by the service worker, so the agent can keep working offline. When a sync gets a 401 or an Access redirect, the band's session-expired strip shows and offers "Se reconnecter"; the outbox stays intact either way.
+
+**"Se reconnecter" is a marker navigation, not a reload.** The service worker serves every ordinary navigation from precache (`navigateFallback`), which never reaches Access, so a plain reload cannot re-authenticate. The button instead navigates to the current URL plus `?reconnect=1`, an entry `navigateFallbackDenylist` excludes from that fallback (`vite.config.ts`), so this one navigation goes to the network and through Access; the app strips the marker back out of the URL once it has landed (`docs/design.md` § "Sync is ambient, never a toast"). The outbox is untouched either way — INVARIANT 5.
 
 **The app shell itself has the same offline fallback, with the same limit.**
 On load it calls `GET /api/me`; if that genuinely cannot be reached (no network

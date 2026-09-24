@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { VitePWA } from "vite-plugin-pwa";
+import { RECONNECT_MARKER_PATTERN } from "./src/client/field/reconnect-marker";
 
 export default defineConfig({
   // shadcn generates imports as "@/ui/button". The alias is mirrored in
@@ -59,8 +60,15 @@ export default defineConfig({
         // worse, make a failed sync look successful. navigateFallbackDenylist
         // keeps /api out of the SPA fallback; there are no runtimeCaching rules
         // on purpose. Asserted in config.test.ts.
+        //
+        // The second entry is "Se reconnecter" (spec-gh-65): navigateFallback
+        // otherwise serves every navigation from precache, which never reaches
+        // Access, so an expired session could never re-authenticate by
+        // reloading. The reconnect marker is excluded instead, so that one
+        // navigation goes to the network. Shared with the client's own
+        // navigate/strip code (`reconnect-marker.ts`) so the two never drift.
         navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, RECONNECT_MARKER_PATTERN],
         runtimeCaching: [],
       },
     }),

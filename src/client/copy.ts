@@ -31,6 +31,15 @@ export const copy = {
     import: "Import",
     duplicates: "Doublons",
     orphans: "À rattacher",
+
+    /** The band's meta subtitle, naming the current tab (spec-gh-65). */
+    subtitle: {
+      today: "Tournée",
+      add: "Ajouter",
+    },
+
+    /** The band avatar has no menu; this is its only accessible name. */
+    avatar: (email: string) => `Connecté en tant que ${email}`,
   },
 
   prospects: {
@@ -486,6 +495,9 @@ export const copy = {
   },
 
   sync: {
+    /** The dot's accessible name when nothing is pending and the last sync
+     * worked — every dot state names itself, this one included. */
+    synced: "Synchronisé",
     pending: (count: number) =>
       count === 1 ? "1 élément en attente d'envoi" : `${count} éléments en attente d'envoi`,
     syncing: "Synchronisation…",
@@ -495,6 +507,9 @@ export const copy = {
     authExpired: "Votre session a expiré. Reconnectez-vous pour synchroniser.",
     upgrade: "Une mise à jour est nécessaire. Vos visites sont conservées.",
     failed: "La synchronisation a échoué. Nouvel essai automatique.",
+    /** Reconnects through Access (docs/domains/identity-access.md); the
+     * outbox is untouched. */
+    reconnect: "Se reconnecter",
   },
 
   /** The service worker has a new build waiting (registerType: "prompt"). */
