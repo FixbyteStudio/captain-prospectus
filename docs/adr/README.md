@@ -30,5 +30,6 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0022](0022-quarantine-visits-the-server-cannot-take.md) | Quarantine a visit the server cannot take, and let the admin repair it | accepted |
 | [0023](0023-retention-by-redaction.md) | Keep the visit, drop the personal parts after 90 days | accepted |
 | [0024](0024-adrs-only-for-hard-to-reverse-decisions.md) | ADRs only for hard-to-reverse decisions; one home per rule | accepted |
+| [0025](0025-admin-status-outlives-older-visits.md) | An admin's manual status is not undone by an older visit | proposed |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.

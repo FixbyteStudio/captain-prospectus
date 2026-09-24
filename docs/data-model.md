@@ -21,6 +21,7 @@ erDiagram
     text source_ref "e.g. osm node/123, google/ChIJ…"
     text dedupe_key UK
     text status "new|assigned|follow_up|converted|rejected"
+    int status_set_at "last manual status change; null = visits decide"
     text assigned_to "agent email"
     int last_visit_at
     int next_visit_at
@@ -118,6 +119,7 @@ been told it is `accepted` and has dropped it, so this table is the only copy.
   phone holding a visit answered against a script this database does not have would otherwise fail
   the whole chunked insert. The visit is still true — only the questionnaire reference is stale — and
   INVARIANT 5 says never lose one. See `src/worker/routes/agent.ts`.
+- **`status_set_at` is written only by an admin's `PATCH` that carries `status`.** A visit dated at or before it keeps its hands off `status` and `next_visit_at` ([prospecting](domains/prospecting.md#prospect-lifecycle)).
 - **Two clocks on a visit.** `visited_at` is when it happened (phone clock), `received_at` is when the server got it. The live feed uses `received_at`; history uses `visited_at`.
 - **`visited_at` is clamped** on insert ([prospecting](domains/prospecting.md#prospect-lifecycle)); the
   unclamped value stays in `client_visited_at`.

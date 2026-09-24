@@ -467,10 +467,17 @@ adminRoutes.patch(
     }
 
     const db = getDb(c.env.DB);
+    const now = Date.now();
 
+    // A status set here holds against any visit dated at or before now, however
+    // late that visit syncs (ADR-0025).
     const [row] = await db
       .update(prospects)
-      .set({ ...patch, updatedAt: Date.now() })
+      .set({
+        ...patch,
+        ...(patch.status !== undefined && { statusSetAt: now }),
+        updatedAt: now,
+      })
       .where(eq(prospects.id, id))
       .returning();
 

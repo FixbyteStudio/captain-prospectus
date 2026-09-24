@@ -36,6 +36,12 @@ export const prospects = sqliteTable(
     dedupeKey: text("dedupe_key").notNull(),
 
     status: text("status", { enum: STATUSES }).notNull().default("new"),
+    /**
+     * When an admin last set `status` by hand. Written by PATCH only — never by
+     * assignment, import or merge. A visit dated at or before it does not move
+     * the status (ADR-0025). Null: no manual status, visits decide.
+     */
+    statusSetAt: integer("status_set_at"),
     /** Agent email, or null when unassigned. Zero or one agent per prospect. */
     assignedTo: text("assigned_to"),
 

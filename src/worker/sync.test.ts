@@ -742,3 +742,85 @@ describe("POST /api/agent/sync — a visit for someone else's prospect", () => {
     expect(await db.select().from(visitsOrphaned)).toHaveLength(1);
   });
 });
+
+describe("POST /api/agent/sync — a late visit against a newer outcome", () => {
+  const DAY = 24 * 3600 * 1000;
+
+  const visitAt = (prospectId: string, outcome: Outcome, visitedAt: number) => ({
+    id: crypto.randomUUID(),
+    prospectId,
+    visitedAt,
+    flyerGiven: false,
+    outcome,
+    answers: {},
+    ...(outcome === "follow_up" && { followUpAt: visitedAt + 7 * DAY }),
+  });
+
+  function patch(id: string, body: Record<string, unknown>): Promise<Response> {
+    return call(`/api/admin/prospects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async function prospect(id: string) {
+    const [row] = await getDb(env.DB).select().from(prospects).where(eq(prospects.id, id));
+    return row;
+  }
+
+  it("does not let an older visit that syncs later overwrite a newer outcome (ADR-0011)", async () => {
+    const id = crypto.randomUUID();
+    await seedProspect(id);
+    const now = Date.now();
+
+    await sync({ visits: [visitAt(id, "converted", now - DAY)] });
+    await sync({ visits: [visitAt(id, "not_interested", now - 3 * DAY)] });
+
+    const row = await prospect(id);
+    expect(row?.status).toBe("converted");
+    expect(row?.lastVisitAt).toBe(now - DAY);
+  });
+
+  it("keeps an admin's manual status against a visit made before it (ADR-0025)", async () => {
+    const id = crypto.randomUUID();
+    await seedProspect(id);
+    const monday = Date.now() - 2 * DAY;
+
+    // Tuesday: the admin closes it after a phone call.
+    expect((await patch(id, { status: "converted", nextVisitAt: null })).status).toBe(200);
+
+    // Wednesday: Monday's offline visit finally syncs.
+    const response = await sync({ visits: [visitAt(id, "follow_up", monday)] });
+    const body = (await response.json()) as SyncResponse;
+
+    const row = await prospect(id);
+    expect(row?.status).toBe("converted");
+    // The visit is still a fact: it is stored and dates the last visit…
+    expect(row?.lastVisitAt).toBe(monday);
+    // …but it does not schedule a follow-up on a prospect the admin closed.
+    expect(row?.nextVisitAt).toBeNull();
+    expect(body.accepted.visits).toHaveLength(1);
+    expect(body.prospects.map((p) => p.id)).not.toContain(id);
+  });
+
+  it("still lets a visit made after the admin's change move the status", async () => {
+    const id = crypto.randomUUID();
+    await seedProspect(id);
+
+    await patch(id, { status: "rejected" });
+    await sync({ visits: [visitAt(id, "interested", Date.now())] });
+
+    expect((await prospect(id))?.status).toBe("follow_up");
+  });
+
+  it("does not treat an assignment as a manual status", async () => {
+    const id = crypto.randomUUID();
+    await seedProspect(id);
+
+    await patch(id, { assignedTo: AGENT });
+    await sync({ visits: [visitAt(id, "interested", Date.now() - DAY)] });
+
+    expect((await prospect(id))?.status).toBe("follow_up");
+  });
+});
