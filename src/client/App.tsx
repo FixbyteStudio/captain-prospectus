@@ -340,7 +340,7 @@ export function App() {
             path="/admin/*"
             element={
               <Suspense fallback={<AdminFrameFallback />}>
-                <AdminApp updatePrompt={<UpdatePrompt pwa={pwa} />} />
+                <AdminApp email={me.email} updatePrompt={<UpdatePrompt pwa={pwa} />} />
               </Suspense>
             }
           />

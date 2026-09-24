@@ -24,6 +24,8 @@ Access sessions expire. The app shell is cached by the service worker, so the ag
 
 **"Se reconnecter" is a marker navigation, not a reload.** The service worker serves every ordinary navigation from precache (`navigateFallback`), which never reaches Access, so a plain reload cannot re-authenticate. The button instead navigates to the current URL plus `?reconnect=1`, an entry `navigateFallbackDenylist` excludes from that fallback (`vite.config.ts`), so this one navigation goes to the network and through Access; the app strips the marker back out of the URL once it has landed (`docs/design.md` § "Sync is ambient, never a toast"). The outbox is untouched either way — INVARIANT 5.
 
+**The admin top bar's "Se déconnecter" (GH #64) hits the same wall the other way round.** It is a plain `<a href="/cdn-cgi/access/logout">`, not a router `Link`: a SPA navigation never leaves `App.tsx`, and a normal `<a>` click would still be swallowed by `navigateFallback`. `navigateFallbackDenylist` also excludes `/^\/cdn-cgi\//` (GH #76) so this one anchor's click reaches the network and Access's own logout endpoint instead of the precached shell.
+
 **The app shell itself has the same offline fallback, with the same limit.**
 On load it calls `GET /api/me`; if that genuinely cannot be reached (no network
 route to the Worker at all), it falls back to the last identity Dexie cached
