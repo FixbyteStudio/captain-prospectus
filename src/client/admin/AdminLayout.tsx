@@ -1,38 +1,51 @@
-import type { ReactNode } from "react";
-import { BandBrand, BandLink } from "../Band";
-import { copy } from "../copy";
+import { useEffect, useState, type ReactNode } from "react";
+import { AdminSidebar } from "./AdminSidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "../ui/sidebar";
 
 /**
- * The admin frame.
- *
- * Today the nav reuses the field band's look and today's link order; a later
- * change replaces it with the navy sidebar (full / icon rail / Sheet drawer).
- * The reserved slot below it becomes the top bar: sidebar toggle, breadcrumb,
- * search, notifications, theme toggle and avatar menu.
+ * ≥ 1024px gets the full sidebar; below that the icon rail and the Sheet
+ * split at shadcn's own 768px (`use-mobile.ts`). GH #63: the three widths are
+ * a layout rule, not a persisted preference, so `open` tracks this query
+ * rather than a cookie. A manual toggle (the trigger, or Ctrl/⌘+B) overrides
+ * it until the query next changes.
+ */
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+function useDesktopOpen() {
+  const [open, setOpen] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_QUERY);
+    const onChange = (event: MediaQueryListEvent) => setOpen(event.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return [open, setOpen] as const;
+}
+
+/**
+ * The admin frame: a navy sidebar (full / icon rail / Sheet drawer, GH #63)
+ * and a 56px top-bar slot that today holds only the sidebar toggle — the
+ * breadcrumb, search, notifications, theme toggle and avatar arrive with the
+ * top bar (story 1.5).
  *
  * `AdminLayout` lives in this module rather than `App.tsx` so it ships only in
  * the lazy `AdminApp-*` chunk (ADR-0019) — a field agent never downloads it.
  */
 export function AdminLayout({ banner, children }: { banner: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useDesktopOpen();
+
   return (
-    <>
-      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
-        <BandBrand />
-        <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
-          <BandLink to="/tournee">{copy.nav.today}</BandLink>
-          <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>
-          <BandLink to="/admin/import">{copy.nav.import}</BandLink>
-          <BandLink to="/admin/doublons">{copy.nav.duplicates}</BandLink>
-          <BandLink to="/admin/a-rattacher">{copy.nav.orphans}</BandLink>
-          <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>
-          <BandLink to="/admin/scripts">{copy.nav.scripts}</BandLink>
-        </nav>
-      </header>
-      {/* Reserved for the top bar: sidebar toggle, breadcrumb, search,
-          notifications, theme toggle, avatar menu. Empty for now. */}
-      <div />
-      {banner}
-      <main className="safe-bottom px-4 py-6">{children}</main>
-    </>
+    <SidebarProvider open={open} onOpenChange={setOpen}>
+      <AdminSidebar />
+      <SidebarInset>
+        <header className="safe-top border-border bg-card flex h-14 shrink-0 items-center border-b px-3">
+          <SidebarTrigger />
+        </header>
+        {banner}
+        <main className="safe-bottom px-4 py-6">{children}</main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
