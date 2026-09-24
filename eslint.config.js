@@ -4,7 +4,8 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["dist", "drizzle", ".wrangler", "worker-configuration.d.ts"] },
+  // .agents holds vendored agent skills (bmad), not our source.
+  { ignores: [".agents", "dist", "drizzle", ".wrangler", "worker-configuration.d.ts"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
