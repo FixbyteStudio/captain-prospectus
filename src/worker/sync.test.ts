@@ -814,6 +814,45 @@ describe("POST /api/agent/sync — a late visit against a newer outcome", () => 
     expect((await prospect(id))?.status).toBe("follow_up");
   });
 
+  it("settles two visits with the same visited_at by id, whatever order they arrive in", async () => {
+    const id = crypto.randomUUID();
+    await seedProspect(id);
+    const sameMoment = Date.now() - DAY;
+    const [a, b] = [crypto.randomUUID(), crypto.randomUUID()];
+    const [lower, higher] = a < b ? [a, b] : [b, a];
+
+    // Same sync, so both share a received_at: only the id can decide. The
+    // winner is sent first, so the order of the array is not what settles it.
+    await sync({
+      visits: [
+        { ...visitAt(id, "converted", sameMoment), id: higher },
+        { ...visitAt(id, "not_interested", sameMoment), id: lower },
+      ],
+    });
+
+    expect((await prospect(id))?.status).toBe("converted");
+  });
+
+  it("prefers the visit received last when visited_at ties across two syncs", async () => {
+    const id = crypto.randomUUID();
+    await seedProspect(id);
+    const sameMoment = Date.now() - DAY;
+    const [a, b] = [crypto.randomUUID(), crypto.randomUUID()];
+    const [lower, higher] = a < b ? [a, b] : [b, a];
+
+    await sync({ visits: [{ ...visitAt(id, "converted", sameMoment), id: higher }] });
+    // Push the first one an hour back so the two received_at cannot land on the
+    // same millisecond, and give it the higher id, so only received_at can put
+    // the second visit last.
+    await getDb(env.DB)
+      .update(visits)
+      .set({ receivedAt: Date.now() - 3600 * 1000 })
+      .where(eq(visits.id, higher));
+    await sync({ visits: [{ ...visitAt(id, "not_interested", sameMoment), id: lower }] });
+
+    expect((await prospect(id))?.status).toBe("rejected");
+  });
+
   it("does not treat an assignment as a manual status", async () => {
     const id = crypto.randomUUID();
     await seedProspect(id);
