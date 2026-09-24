@@ -42,9 +42,9 @@ from **shadcn/ui** components vendored into `src/client/ui/`.
    hand-roll an element shadcn already provides, and we do not add a second
    component library.
 3. **Screens are designed before they are built.** Any new screen, or a
-   material reshape of an existing one, goes through the `frontend-design`
-   skill first, so the visual direction is decided deliberately rather than
-   emerging from defaults.
+   material reshape of an existing one, is decided against `docs/design.md`
+   and written up there first, so the visual direction is decided
+   deliberately rather than emerging from defaults.
 4. **The French copy rule is unchanged.** shadcn components ship English
    strings; every user-visible string is replaced from `src/client/copy.ts`
    (INVARIANT 15). A French literal inside a vendored component is still a bug.

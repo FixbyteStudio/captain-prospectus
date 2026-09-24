@@ -120,8 +120,8 @@ goes back to `ready`.
 - **PRs carry the owner's GitHub identity.** The `[night]` title prefix and the
   `claude/*` branch namespace are the only markers that a change was unattended,
   so both are part of the contract rather than a convention.
-- **Harder: anything needing judgement.** Design passes (`frontend-design`,
-  [ADR-0014](0014-tailwind-and-shadcn-ui.md)), sync contract changes
+- **Harder: anything needing judgement.** Design passes
+  ([ADR-0014](0014-tailwind-and-shadcn-ui.md)), sync contract changes
   ([ADR-0007](0007-offline-first-insert-only-sync.md)) and migrations on deployed
   data are poor night work. They are not forbidden, but a task that needs one
   should say so and will usually come back as `needs-decision`.
