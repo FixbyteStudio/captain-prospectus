@@ -10,9 +10,10 @@ decide the screen's design against [design.md](design.md) *before* building
 it, and compose it from **shadcn/ui** elements vendored into `src/client/ui/`.
 Do not hand-roll an element shadcn provides, and replace every English string a
 vendored component ships with the French one from `src/client/copy.ts`. **On
-the field route**, [ADR-0015](adr/0015-native-controls-on-the-field-route.md)
-narrows this: a native element replaces a shadcn one whose dependencies breach
-the bundle budget, cited against a measurement each time.
+the field route**, the date input, radios, checkboxes and labels stay native
+([ADR-0015](adr/0015-native-controls-on-the-field-route.md),
+[ADR-0026](adr/0026-budget-the-field-precache-not-the-entry-chunk.md)), and the
+route's precache stays under the 1,000 KiB ceiling.
 
 ## M0 — Foundations ✅
 - [x] Docs, ADRs, rules, agents, skills
