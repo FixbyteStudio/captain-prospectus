@@ -1,6 +1,6 @@
 # ADR-0022: Quarantine a visit the server cannot take, and let the admin repair it
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-23
 - Deciders: owner
 - Supersedes: [ADR-0021](0021-visits-derive-status-only-for-the-assignee.md)

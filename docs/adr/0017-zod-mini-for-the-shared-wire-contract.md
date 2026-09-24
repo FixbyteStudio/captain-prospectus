@@ -1,6 +1,6 @@
 # ADR-0017: Write the shared wire contract in `zod/mini`
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-22
 - Deciders: mohss, Claude
 

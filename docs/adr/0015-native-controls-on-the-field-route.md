@@ -1,6 +1,6 @@
 # ADR-0015: Native form controls on the field route where shadcn's cost breaches the bundle budget
 
-- Status: proposed
+- Status: accepted — validation decision superseded by [ADR-0018](0018-one-form-stack.md)
 - Date: 2026-09-22
 - Deciders: owner
 

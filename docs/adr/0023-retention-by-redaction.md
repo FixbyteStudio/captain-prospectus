@@ -1,6 +1,6 @@
 # ADR-0023: Keep the visit, drop the personal parts after 90 days
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-23
 - Deciders: owner
 - Amends: the append-only rule on `visits` (`.claude/skills/d1-migration`)

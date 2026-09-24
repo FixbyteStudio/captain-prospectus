@@ -1,6 +1,6 @@
 # ADR-0016: Autonomous overnight agent runs, bounded by the repo
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-22
 - Deciders: owner
 

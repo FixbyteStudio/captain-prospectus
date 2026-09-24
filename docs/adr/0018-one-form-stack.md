@@ -1,6 +1,6 @@
 # ADR-0018: One form stack — react-hook-form everywhere, the field route included
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-22
 - Deciders: mohss, Claude
 - Supersedes: the *validation* decision of [ADR-0015](0015-native-controls-on-the-field-route.md)
