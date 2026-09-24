@@ -2,9 +2,11 @@
 
 One decision per file, numbered, never edited after acceptance except to change status. To reverse a decision, write a new ADR that supersedes it.
 
+**Write one only for a decision that is hard to reverse** ([ADR-0024](0024-adrs-only-for-hard-to-reverse-decisions.md)): it changes or deletes stored data, changes the sync wire contract, changes hosting / database / auth / the stack, adds a cost, or reverses an ADR. Anything else goes in the PR description and one line in the doc that owns the rule. Merging the PR accepts the ADR, so set `accepted` in that PR.
+
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-record-architecture-decisions.md) | Record architecture decisions | accepted |
+| [0001](0001-record-architecture-decisions.md) | Record architecture decisions | accepted — amended by 0024 |
 | [0002](0002-zero-cost-constraint.md) | Zero cost is a hard constraint | accepted — amended by 0020 |
 | [0003](0003-single-cloudflare-worker.md) | Host everything on one Cloudflare Worker | accepted |
 | [0004](0004-vite-react-pwa-not-nextjs.md) | Vite + React PWA, not Next.js | accepted |
@@ -27,5 +29,6 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0021](0021-visits-derive-status-only-for-the-assignee.md) | A visit derives prospect status only when its author is the assignee | superseded by 0022 |
 | [0022](0022-quarantine-visits-the-server-cannot-take.md) | Quarantine a visit the server cannot take, and let the admin repair it | proposed |
 | [0023](0023-retention-by-redaction.md) | Keep the visit, drop the personal parts after 90 days | proposed |
+| [0024](0024-adrs-only-for-hard-to-reverse-decisions.md) | ADRs only for hard-to-reverse decisions; one home per rule | accepted |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.
