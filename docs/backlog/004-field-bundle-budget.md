@@ -101,3 +101,10 @@ effect. One definition still serves both sides — `@hono/zod-validator` accepts
 mini schema, because both flavours are `$ZodType` — so option C's duplication was
 avoided. See [ADR-0017](../adr/0017-zod-mini-for-the-shared-wire-contract.md) for
 the full attribution table and the compatibility checks.
+
+## Superseded (2026-09-24)
+
+The 150 kB entry-chunk budget this task defended was retired by
+[ADR-0026](../adr/0026-budget-the-field-precache-not-the-entry-chunk.md). The bound is now the
+field route's precache, at most 1,000 KiB. The work above stands: `zod/mini` still keeps both
+numbers down.

@@ -51,7 +51,7 @@ Each is one line; its reasons live behind the link.
 - Forms: shadcn `form` over react-hook-form, everywhere including the field route (ADR-0018). The resolver reuses an
   existing pure validator or a `z.pick` of the shared schema — never a second copy of the rules. `FormMessage` takes a
   French string from `copy.ts` as children; it never renders zod's English `error.message`. Use `useWatch`, not `watch()`.
-- UI: decide a screen against `docs/design.md` before building it, then compose it from shadcn/ui elements vendored into `src/client/ui/`. Never hand-roll an element shadcn provides; translate the English strings a vendored component ships with into `copy.ts` French (ADR-0014). **On the field route only**, a native element may replace a shadcn one whose dependencies breach the 150 kB budget — cite the measurement (ADR-0015).
+- UI: decide a screen against `docs/design.md` before building it, then compose it from shadcn/ui elements vendored into `src/client/ui/`. Never hand-roll an element shadcn provides; translate the English strings a vendored component ships with into `copy.ts` French (ADR-0014). **On the field route only**, the date input, radios, checkboxes and labels stay native (ADR-0015, ADR-0026), and every PR quotes the precache total against its 1,000 KiB ceiling.
 
 ## Database
 - Change `src/worker/db/schema.ts`, then `pnpm db:generate`. Never hand-edit a migration that is already on `main`.
