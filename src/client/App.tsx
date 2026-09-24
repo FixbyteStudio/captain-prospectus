@@ -1,10 +1,9 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { Navigate, NavLink, Route, Routes } from "react-router";
+import { Navigate, Outlet, Route, Routes } from "react-router";
 import { apiFetch } from "./api";
+import { BandBrand, BandLink, UpdatePrompt } from "./Band";
 import { copy } from "./copy";
-import { cn } from "./lib/utils";
 import type { MeResponse } from "../shared/schemas";
-import { buttonVariants } from "@/ui/button-variants";
 import { usePwa, type PwaState } from "./pwa";
 import { TodayScreen } from "./field/TodayScreen";
 import { SyncDot, SyncStrip } from "./field/SyncIndicator";
@@ -47,60 +46,6 @@ const AddProspectScreen = lazy(() =>
   import("./field/AddProspectScreen").then((module) => ({ default: module.AddProspectScreen })),
 );
 
-function BandLink({ to, children }: { to: string; children: string }) {
-  return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        cn(
-          "inline-flex h-8 shrink-0 items-center rounded-md px-2.5 font-medium transition-colors",
-          isActive
-            ? "bg-band-foreground/10 text-band-foreground"
-            : "text-band-muted hover:text-band-foreground",
-        )
-      }
-    >
-      {children}
-    </NavLink>
-  );
-}
-
-/**
- * A new build is waiting. `registerType` is "prompt" (vite.config.ts), so the
- * agent decides when to take it rather than being reloaded mid-round.
- *
- * The registration itself is deliberately *not* done here. This component
- * renders only once `/api/me` has settled, and a phone whose first load fails
- * to identify would then never register a worker at all — which is exactly the
- * phone that most needs one, since without it there is nothing cached to open
- * offline next time. `App` holds the hook; this only draws the prompt.
- */
-function UpdatePrompt({ pwa }: { pwa: PwaState }) {
-  const { needRefresh, update, dismiss } = pwa;
-  if (!needRefresh) return null;
-
-  return (
-    <div
-      role="status"
-      className="bg-secondary border-border flex items-center justify-between gap-3 border-b px-4 py-2"
-    >
-      <span className="text-sm">{copy.update.available}</span>
-      <span className="flex shrink-0 gap-2">
-        <button
-          type="button"
-          className={buttonVariants({ size: "sm", variant: "ghost" })}
-          onClick={dismiss}
-        >
-          {copy.update.dismiss}
-        </button>
-        <button type="button" className={buttonVariants({ size: "sm" })} onClick={update}>
-          {copy.update.apply}
-        </button>
-      </span>
-    </div>
-  );
-}
-
 /** The field routes, which every role can reach. */
 function FieldRoutes() {
   return (
@@ -125,6 +70,53 @@ function FieldRoutes() {
         }
       />
     </Routes>
+  );
+}
+
+/**
+ * The field-only band. Admin screens get their own frame instead of this one:
+ * `AdminApp` renders as a sibling route, not nested inside `FieldFrame`.
+ */
+function FieldFrame({ isAdmin, pwa }: { isAdmin: boolean; pwa: PwaState }) {
+  return (
+    <>
+      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
+        <BandBrand />
+        {/* An admin on a phone has one extra link into the admin side; an
+            agent has none. Either way the nav scrolls rather than pushing the
+            page sideways, and the rest of the space goes to the sync state. */}
+        <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
+          <BandLink to="/tournee">{copy.nav.today}</BandLink>
+          {isAdmin && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
+        </nav>
+        <SyncDot />
+      </header>
+
+      <UpdatePrompt pwa={pwa} />
+      <SyncStrip />
+
+      <main className="safe-bottom px-4 py-6">
+        <Outlet />
+      </main>
+    </>
+  );
+}
+
+/**
+ * Shown while the lazy admin chunk loads, so an admin sees a band rather than
+ * a blank page. Built from entry-chunk pieces only: the real admin frame
+ * (`AdminLayout`) lives in the chunk this is standing in for.
+ */
+function AdminFrameFallback() {
+  return (
+    <>
+      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
+        <BandBrand />
+      </header>
+      <main className="safe-bottom px-4 py-6">
+        <p className="text-muted-foreground" aria-busy="true" />
+      </main>
+    </>
   );
 }
 
@@ -200,54 +192,42 @@ export function App() {
 
   return (
     <SyncProvider>
-      <header className="safe-top bg-band text-band-foreground flex h-12 items-center gap-3 px-4">
-        <img src="/mark.svg" alt="" className="h-7 w-auto shrink-0" />
-        <span className="shrink-0 text-[0.9375rem] font-semibold tracking-[0.01em] whitespace-nowrap">
-          {copy.appName}
-        </span>
-        {/* An admin on a phone has five links and the band is only so wide, so
-            the nav scrolls rather than pushing the page sideways. An agent has
-            one, and the space goes to the sync state instead. */}
-        <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
-          <BandLink to="/tournee">{copy.nav.today}</BandLink>
-          {isAdmin && <BandLink to="/admin/prospects">{copy.nav.prospects}</BandLink>}
-          {isAdmin && <BandLink to="/admin/import">{copy.nav.import}</BandLink>}
-          {isAdmin && <BandLink to="/admin/doublons">{copy.nav.duplicates}</BandLink>}
-          {isAdmin && <BandLink to="/admin/a-rattacher">{copy.nav.orphans}</BandLink>}
-          {isAdmin && <BandLink to="/admin/visites">{copy.nav.visits}</BandLink>}
-          {isAdmin && <BandLink to="/admin/scripts">{copy.nav.scripts}</BandLink>}
-        </nav>
-        <SyncDot />
-      </header>
+      <Routes>
+        {/* Not under FieldFrame: the redirect target decides which frame
+            shows, so the field band must not render even for one commit. */}
+        <Route
+          path="/"
+          element={<Navigate to={isAdmin ? "/admin/prospects" : "/tournee"} replace />}
+        />
 
-      <UpdatePrompt pwa={pwa} />
-      <SyncStrip />
-
-      <main className="safe-bottom px-4 py-6">
-        <Routes>
-          <Route
-            path="/"
-            element={<Navigate to={isAdmin ? "/admin/prospects" : "/tournee"} replace />}
-          />
+        {/* The field-only band. The forbidden and not-found fallbacks live
+            here too, since neither screen is admin chrome. */}
+        <Route element={<FieldFrame isAdmin={isAdmin} pwa={pwa} />}>
           <Route path="/tournee/*" element={<FieldRoutes />} />
-          <Route
-            path="/admin/*"
-            element={
-              isAdmin ? (
-                <Suspense fallback={<p className="text-muted-foreground" aria-busy="true" />}>
-                  <AdminApp />
-                </Suspense>
-              ) : (
-                <p className="text-muted-foreground">{copy.errors.forbidden}</p>
-              )
-            }
-          />
+          {!isAdmin && (
+            <Route
+              path="/admin/*"
+              element={<p className="text-muted-foreground">{copy.errors.forbidden}</p>}
+            />
+          )}
           <Route
             path="*"
             element={<p className="text-muted-foreground">{copy.errors.notFound}</p>}
           />
-        </Routes>
-      </main>
+        </Route>
+
+        {/* Admin screens get their own frame instead of the field band. */}
+        {isAdmin && (
+          <Route
+            path="/admin/*"
+            element={
+              <Suspense fallback={<AdminFrameFallback />}>
+                <AdminApp updatePrompt={<UpdatePrompt pwa={pwa} />} />
+              </Suspense>
+            }
+          />
+        )}
+      </Routes>
     </SyncProvider>
   );
 }

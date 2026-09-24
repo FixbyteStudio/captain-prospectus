@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import { Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "../ui/sonner";
+import { AdminLayout } from "./AdminLayout";
 import { DuplicatesScreen } from "./DuplicatesScreen";
 import { OrphansScreen } from "./OrphansScreen";
 import { ProspectsScreen } from "./ProspectsScreen";
@@ -24,17 +26,19 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
-export function AdminApp() {
+export function AdminApp({ updatePrompt }: { updatePrompt: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <Routes>
-        <Route path="prospects" element={<ProspectsScreen />} />
-        <Route path="import" element={<ImportScreen />} />
-        <Route path="doublons" element={<DuplicatesScreen />} />
-        <Route path="visites" element={<VisitsScreen />} />
-        <Route path="a-rattacher" element={<OrphansScreen />} />
-        <Route path="scripts" element={<ScriptsScreen />} />
-      </Routes>
+      <AdminLayout banner={updatePrompt}>
+        <Routes>
+          <Route path="prospects" element={<ProspectsScreen />} />
+          <Route path="import" element={<ImportScreen />} />
+          <Route path="doublons" element={<DuplicatesScreen />} />
+          <Route path="visites" element={<VisitsScreen />} />
+          <Route path="a-rattacher" element={<OrphansScreen />} />
+          <Route path="scripts" element={<ScriptsScreen />} />
+        </Routes>
+      </AdminLayout>
       {/* Admin-side only: the field client reports sync state inline. */}
       <Toaster position="bottom-right" />
     </QueryClientProvider>
