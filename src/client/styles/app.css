@@ -2,10 +2,11 @@
  * The whole visual system (ADR-0014). Tokens live here, in @theme; there is no
  * tokens.css and no per-component CSS file any more.
  *
- * Design direction: the admin side is a ledger, not a dashboard. Status is read
- * down a row's leading edge before it is read as a word, numbers are tabular and
- * right-aligned, and nothing is wrapped in a card. The palette is the brand's
- * navy and gold; docs/design.md explains what each colour may and may not do.
+ * Two faces, one palette: the admin side is a quiet dashboard under a navy
+ * sidebar, the field side a notebook page under a navy band, with bigger type
+ * and targets. docs/design.md says what each colour and type role is for, and
+ * palette.test.ts asserts the token values behind its five colour rules in
+ * every theme; whether a component uses them is up to the component.
  */
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -88,10 +89,14 @@
      satisfy WCAG 1.4.11. A darker gold gives 3.4:1 and still reads as gold. */
   --color-primary-edge: var(--primary-edge);
 
-  /* The dark band the app shell sits under. */
+  /* The navy that fills the admin sidebar and the field band. Accent is the
+     hover wash on it, border its hairlines: white at a low alpha, so both
+     follow the band in either theme. */
   --color-band: var(--band);
   --color-band-foreground: var(--band-foreground);
   --color-band-muted: var(--band-muted);
+  --color-band-accent: var(--band-accent);
+  --color-band-border: var(--band-border);
 
   /* follow_up. Neither success nor failure — someone owes this place a visit. */
   --color-warn: var(--warn);
@@ -106,12 +111,64 @@
   --color-status-converted: var(--success);
   --color-status-rejected: var(--destructive);
 
+  /* One colour per visit outcome, admin side only (charts, outcome badges).
+     follow_up and converted reuse warn and success. The field visit form never
+     shows these: its outcome cards stay neutral until one is chosen. */
+  --color-outcome-no-contact: var(--outcome-no-contact);
+  --color-outcome-interested: var(--outcome-interested);
+  --color-outcome-not-interested: var(--outcome-not-interested);
+
+  /* Badge fills: the status or outcome colour mixed at most 12 % into the card.
+     Nouveau and Personne sur place use secondary instead of a tint. */
+  --color-tint-assigned: var(--tint-assigned);
+  --color-tint-warn: var(--tint-warn);
+  --color-tint-success: var(--tint-success);
+  --color-tint-destructive: var(--tint-destructive);
+  --color-tint-outcome-interested: var(--tint-outcome-interested);
+  --color-tint-outcome-not-interested: var(--tint-outcome-not-interested);
+
   --font-sans: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
-  /* 1.75rem sits between Tailwind's 2xl and 3xl; it is the count display. */
+  /* Type roles. Each sets its size, line height, tracking and weight; an
+     explicit font-* utility still wins. Tailwind's own xs…9xl scale stays. */
+  /* KPI figures and tallies. 1.75rem sits between Tailwind's 2xl and 3xl. */
   --text-display: 1.75rem;
   --text-display--line-height: 1.15;
   --text-display--letter-spacing: -0.01em;
+  --text-display--font-weight: 700;
+  /* Screen titles. */
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.3;
+  --text-title--letter-spacing: -0.005em;
+  --text-title--font-weight: 600;
+  /* Card and panel titles. */
+  --text-heading: 1rem;
+  --text-heading--line-height: 1.4;
+  --text-heading--font-weight: 600;
+  /* All field text and every input on both sides: 16px, so iOS never zooms. */
+  --text-body-field: 1rem;
+  --text-body-field--line-height: 1.5;
+  --text-body-field--font-weight: 400;
+  /* Admin body text and table cells. */
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.45;
+  --text-body--font-weight: 400;
+  /* Buttons, nav items, form labels. */
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.3;
+  --text-label--font-weight: 500;
+  /* Timestamps, secondary lines, badges, tab labels. */
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.35;
+  --text-meta--letter-spacing: 0.02em;
+  --text-meta--font-weight: 500;
+  /* KPI labels, column headers, sidebar group labels. The component adds
+     `uppercase`; the copy.ts string stays in sentence case. Named text-overline
+     because Tailwind's bare `overline` is a text decoration. */
+  --text-overline: 0.75rem;
+  --text-overline--line-height: 1.35;
+  --text-overline--letter-spacing: 0.06em;
+  --text-overline--font-weight: 500;
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -128,12 +185,32 @@
 
   /* The ledger row. Dense enough to scan, tall enough to hit. */
   --spacing-row: 2.75rem;
+
+  /* The shell. Band and tab bar heights leave out the safe-area insets, which
+     .safe-top and .safe-bottom add. The sidebar's width is shadcn Sidebar's
+     own --sidebar-width, not a token here. */
+  --spacing-band-height: 3.5rem;
+  --spacing-tab-bar-height: 4rem;
+  /* Admin content at >= lg. */
+  --spacing-page-margin: 2rem;
+  /* Admin content below md, and every field screen. */
+  --spacing-page-margin-compact: 1rem;
+  /* Between dashboard cards and panels. */
+  --spacing-panel-gap: 1.5rem;
+  /* Between field rows and cards. */
+  --spacing-stack-gap: 0.75rem;
 }
 
 /**
  * The brand is navy #1b2a4a and gold #c9a227, taken from the mark in
- * public/icon-512.png. Navy is the ink and the band; gold is the primary
- * action and nothing else. Every pair below is asserted in palette.test.ts.
+ * public/icon-512.png. Navy is the ink and the band; gold marks the main action
+ * and what is selected, and nothing else. palette.test.ts asserts the
+ * contrast pairs and badge tints the docs rely on, not every token below, and
+ * that the two dark blocks stay identical.
+ *
+ * Tokens declared only here (the status edges, the tints) are computed from
+ * whichever theme's values apply, so dark overrides one only to change its
+ * recipe.
  */
 :root {
   /* The logo's own field, so the app and the mark sit on the same white. */
@@ -149,17 +226,37 @@
   --primary-edge: #a8801a;
   --ring: #1b2a4a;
   --success: #1f6f4a;
-  --warn: #9a6b12;
+  /* #9a6b12 gave 4.0:1 on its own 12 % badge tint (rule 5). This is 5.4:1 on
+     white, 4.6:1 on its tint, and 15° clear of gold. */
+  --warn: #9a5b18;
   --destructive: #8c2f39;
   --on-destructive: #ffffff;
   --band: #1b2a4a;
   --band-foreground: #eef0f4;
   --band-muted: #95a0b8;
+  --band-accent: #ffffff14;
+  --band-border: #ffffff1f;
+  --outcome-no-contact: #dde0e5;
+  --outcome-interested: #4f5e81;
+  --outcome-not-interested: #5b5f63;
 
   /* Nothing has happened here yet: present, but the quietest thing in the column. */
   --status-new: color-mix(in oklab, var(--foreground) 16%, transparent);
   /* Someone owes this a visit. Legible, but it must not outshout converted. */
   --status-assigned: color-mix(in oklab, var(--foreground) 55%, transparent);
+
+  /* Badge fills, ≤ 12 % so the badge text keeps 4.5:1 on them. */
+  /* 12 % of the 55 % edge, mixed from the ink so the fill stays opaque. */
+  --tint-assigned: color-mix(in oklab, var(--foreground) 7%, var(--card));
+  --tint-warn: color-mix(in oklab, var(--warn) 12%, var(--card));
+  --tint-success: color-mix(in oklab, var(--success) 12%, var(--card));
+  --tint-destructive: color-mix(in oklab, var(--destructive) 12%, var(--card));
+  --tint-outcome-interested: color-mix(in oklab, var(--outcome-interested) 12%, var(--card));
+  --tint-outcome-not-interested: color-mix(
+    in oklab,
+    var(--outcome-not-interested) 12%,
+    var(--card)
+  );
 
   --radius: 0.375rem;
 
@@ -185,6 +282,13 @@
     --band: #0b1120;
     --band-foreground: #e7eaf0;
     --band-muted: #7d899f;
+    --band-accent: #ffffff0f;
+    --band-border: #ffffff14;
+    --outcome-no-contact: #3a4356;
+    --outcome-interested: #98a6cd;
+    --outcome-not-interested: #8e9399;
+    /* At 12 % the rose text is 4.38:1 on its own tint; 10 % clears 4.5:1. */
+    --tint-destructive: color-mix(in oklab, var(--destructive) 10%, var(--card));
 
     color-scheme: dark;
   }
@@ -208,6 +312,13 @@
   --band: #0b1120;
   --band-foreground: #e7eaf0;
   --band-muted: #7d899f;
+  --band-accent: #ffffff0f;
+  --band-border: #ffffff14;
+  --outcome-no-contact: #3a4356;
+  --outcome-interested: #98a6cd;
+  --outcome-not-interested: #8e9399;
+  /* At 12 % the rose text is 4.38:1 on its own tint; 10 % clears 4.5:1. */
+  --tint-destructive: color-mix(in oklab, var(--destructive) 10%, var(--card));
 
   color-scheme: dark;
 }

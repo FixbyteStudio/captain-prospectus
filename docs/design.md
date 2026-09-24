@@ -14,61 +14,126 @@ right and this file needs updating.
 The artifact this app replaces is a **carnet de tournée** — a route notebook: a
 list of addresses, ticks, and scribbled outcomes. The mark is a ship's wheel
 around a map pin: a captain plotting a round. Navy and gold come from it, and
-they suit the app — navy is ink, gold is what you are steering towards.
+they suit the app — navy is the ink, gold is where you are heading.
 
-So the admin side is a **dashboard**: the figures that say how the canvassing is
-going come first, and the lists sit beneath them. The field side is the ticket
-torn out of that notebook — few controls, large targets — and gets its own
-design pass in M2 (ADR-0014, decision 3).
+The app has **two faces with one palette and one typeface**:
 
-A new global design is being specified; the screen-by-screen sections below
-describe the current screens and will be rewritten from it.
+- **The admin side is a dashboard**, a quiet version of the shadcn SaaS
+  dashboard: a navy sidebar holds the navigation, and the figures that say how
+  canvassing is going (KPI cards, charts) come before the tables and queues
+  under them. It is built for a laptop and still works on a tablet or a phone.
+- **The field side is the page torn out of that notebook.** An agent on a
+  Brussels pavement, phone in one hand and flyers in the other, sun on the
+  screen, often no signal. It keeps the admin's tokens under a navy band, with
+  bigger type, bigger targets and one decision per screen.
+
+The system is shadcn/ui ([ADR-0014](adr/0014-tailwind-and-shadcn-ui.md)); this
+file specifies only the brand layer on top of shadcn's defaults: the colours,
+one typeface, a slightly tighter radius, and the app's own components.
+
+Layout and every section after it still describe today's shell and screens;
+each is rewritten as it adopts this system.
 
 ## Colour
 
-The brand: **navy `#1b2a4a`** and **gold `#c9a227`**, taken from the mark — a
-ship's wheel and a map pin — and the off-white `#f6f7f0` it sits on. Navy is the
-ink and the band. Gold is the primary action and nothing else.
+The brand: **navy `#1b2a4a`** and **gold `#c9a227`**, taken from the mark, and
+the off-white `#f6f7f0` it sits on. Navy is the ink and the band. Gold has two
+jobs and no others: it marks **the main action** on a view (Visiter,
+Enregistrer, Importer…) and **what is selected** (the current sidebar item and
+tab, the chosen outcome card or answer, the next stop). Gold is always a fill,
+with navy on top and a `primary-edge` border.
 
-| Role | Light | Dark |
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `background` | `#F6F7F0` | `#101726` | The page |
+| `card` | `#FFFFFF` | `#182031` | Cards, tables, sheets, dialogs |
+| `foreground` | `#1B2A4A` | `#E7EAF0` | The ink: text and icons |
+| `secondary` (also `muted`, `accent`) | `#E8EAEF` | `#222B3D` | Secondary buttons, icon tiles, skeletons, unselected choices |
+| `muted-foreground` | `#5A6478` | `#97A2B8` | Meta text, help text, column headers |
+| `border` (also `input`) | `#D7DAE2` | `#2B3547` | Hairlines |
+| `primary` (gold) | `#C9A227` | `#D9B43C` | The main action and what is selected, as a fill |
+| `primary-foreground` | `#1B2A4A` | `#141C2E` | Text on gold |
+| `primary-edge` | `#A8801A` | `#E6C65C` | The border of every gold fill |
+| `ring` | `#1B2A4A` | `#E7EAF0` | The focus ring |
+| `success` | `#1F6F4A` | `#4FA97D` | `converted`, an upward delta |
+| `warn` | `#9A5B18` | `#D98A3C` | `follow_up`, waiting to send, count pills |
+| `destructive` | `#8C2F39` | `#D2757E` | `rejected`, a downward delta, delete |
+| `on-destructive` (utility `destructive-foreground`) | `#FFFFFF` | `#141C2E` | Text on a `destructive` or `warn` fill |
+| `band` | `#1B2A4A` | `#0B1120` | The admin sidebar and the field band |
+| `band-foreground` | `#EEF0F4` | `#E7EAF0` | Text on the band |
+| `band-muted` | `#95A0B8` | `#7D899F` | Quieter text on the band, sidebar group labels |
+| `band-accent` | `#FFFFFF14` | `#FFFFFF0F` | Hover wash on the band (white at 8 % / 6 %) |
+| `band-border` | `#FFFFFF1F` | `#FFFFFF14` | Hairlines on the band (white at 12 % / 8 %) |
+| `status-new` | 16 % ink | 16 % ink | The `new` row edge |
+| `status-assigned` | 55 % ink | 55 % ink | The `assigned` row edge |
+| `outcome-no-contact` | `#DDE0E5` | `#3A4356` | `no_contact` in charts |
+| `outcome-interested` | `#4F5E81` | `#98A6CD` | `interested` in charts and badges |
+| `outcome-not-interested` | `#5B5F63` | `#8E9399` | `not_interested` in charts |
+
+The outcome colours are admin-only: the stacked visits chart and the outcome
+badges. `follow_up` and `converted` outcomes reuse `warn` and `success`. The
+field visit form never shows them; its outcome cards stay neutral until one is
+chosen, so the phone never previews the status an outcome leads to.
+
+Deltas are `success` when up and `destructive` when down, always with an arrow
+and a signed figure. No colour carries a meaning alone: a status, outcome,
+delta or sync state always has its French label too.
+
+`warn` moved from `#9A6B12` to `#9A5B18` because the old mustard gave 4.0:1 on
+its own 12 % badge tint, failing rule 5. The new one is 5.4:1 on white, 4.6:1 on
+its tint, and 15° in hue clear of the gold.
+
+### Badges
+
+A status or outcome badge is a small tinted rectangle (`rounded-sm`, meta type)
+with the French label. The fill is the badge's colour mixed **at most 12 %**
+into the card, as a `tint-*` token (`color-mix(in oklab, <colour> N%,
+var(--card))`).
+
+| Badge | Text | Fill |
 |---|---|---|
-| `background` (page) | `#F6F7F0` | `#101726` |
-| `card` (table, panels) | `#FFFFFF` | `#182031` |
-| `foreground` (ink) | `#1B2A4A` | `#E7EAF0` |
-| `muted-foreground` | `#5A6478` | `#97A2B8` |
-| `border` (hairlines) | `#D7DAE2` | `#2B3547` |
-| `primary` (the action) | `#C9A227` | `#D9B43C` |
-| `primary-foreground` | `#1B2A4A` | `#141C2E` |
-| `primary-edge` (its border) | `#A8801A` | `#E6C65C` |
-| `ring` (focus) | `#1B2A4A` | `#E7EAF0` |
-| `success` (`converted`) | `#1F6F4A` | `#4FA97D` |
-| `warn` (`follow_up`) | `#9A6B12` | `#D98A3C` |
-| `destructive` (`rejected`) | `#8C2F39` | `#D2757E` |
-| `band` (top bar) | `#1B2A4A` | `#0B1120` |
+| Nouveau (`new`) | `muted-foreground` | `secondary` |
+| Assigné (`assigned`) | `foreground` | `tint-assigned`: 7 % ink, i.e. 12 % of the 55 % edge, kept opaque |
+| À relancer (`follow_up`) | `warn` | `tint-warn` |
+| Converti (`converted`) | `success` | `tint-success` |
+| Refusé (`rejected`) | `destructive` | `tint-destructive`: 12 % light, 10 % dark |
+| Personne sur place (`no_contact`) | `muted-foreground` | `secondary` |
+| Intéressé (`interested`) | `outcome-interested` | `tint-outcome-interested` |
+| Pas intéressé (`not_interested`) | `foreground` | `tint-outcome-not-interested` |
 
-### What gold may and may not do
+`converted` has its own `success` token and is **always green**. A gold
+`converted` would sit 7° in hue from the mustard that means `follow_up`, and
+the two would stop being separable.
 
-Three rules, each forced by a measurement rather than taste. They are asserted in
-`src/client/styles/palette.test.ts`, so nudging a hex fails CI.
+### The five rules
 
-- **Gold is never text on a light surface.** It is 2.4:1 on white. It is a fill,
-  with navy on top at 5.9:1 — and navy, not white, which would be 2.4:1.
-- **Gold is never the focus ring.** A ring needs 3:1 against what it sits on and
-  gold gives 2.4:1, so `--color-ring` points at the ink. This is the one place
-  shadcn's default wiring (`ring` follows `primary`) had to be broken.
-- **A gold button needs its own edge.** The fill is 2.2:1 against the page, below
-  the 3:1 WCAG 1.4.11 wants for a control's boundary, so the `default` button
-  variant carries `border-primary-edge` — a darker gold at 3.4:1.
+Each is forced by a measurement rather than taste.
+`src/client/styles/palette.test.ts` asserts the tokens behind each rule in
+light, in dark pinned with `data-theme`, and in dark from the system: nudging a
+hex so that one breaks fails CI and names the theme. It does not check every
+place a component uses them; rules 1 and 4 are usage rules, kept in review.
 
-`converted` has its own `success` token rather than following `primary`, because
-a gold `converted` would sit **7°** in hue from the mustard that means
-`follow_up` and the two would stop being separable. Gold and mustard do share a
-screen — a gold button above a column of `À relancer` rows. If that ever reads
-muddy, `--warn` moves to `#9A5B18`, which is 5.4:1 and 15° clear.
+1. **Gold is never text on a light surface.** It is 2.4:1 on white. This keeps
+   every word legible: gold only ever says "act here" or "chosen" as a fill.
+2. **Text on gold is navy, never white.** Navy gives 5.9:1; white gives 2.4:1.
+   This keeps the main action's label readable in the sun.
+3. **Gold is never the focus ring; `ring` is the ink.** A ring needs 3:1
+   against what it sits on and gold gives 2.4:1, so a gold ring would vanish
+   exactly where keyboard users need it. This is the one place shadcn's default
+   wiring (`ring` follows `primary`) is broken.
+4. **Every gold fill carries `primary-edge`.** The fill is 2.2:1 against the
+   page, below the 3:1 WCAG 1.4.11 wants for a control's boundary; the darker
+   gold edge gives 3.4:1 and still reads as gold.
+5. **Status and outcome badge text reaches 4.5:1 on its tint.** This keeps a
+   badge's word legible, not just its colour. A tint that fails drops below 12 %
+   in that theme until it passes, which is why dark `tint-destructive` is 10 %.
+
+Gold text on the navy band is allowed, because the band is not a light surface.
 
 Dark follows the system by default and can be pinned with `data-theme` on
 `<html>`. Tokens swap their *values*, so components rarely need a `dark:`
-utility; the variant exists for the few that do.
+utility; the variant exists for the few that do. The two dark blocks in
+`app.css` must stay identical, which the test also checks.
 
 ## Status is read down the left edge
 
@@ -96,7 +161,9 @@ Two rules this encodes, both deliberate:
 ## Type
 
 One family: **Archivo Variable**, latin subset, **weight axis only** — a single
-35 KB woff2, self-hosted, declared as one `@font-face` in `app.css`.
+35 KB woff2, self-hosted, declared as one `@font-face` in `app.css`. There is
+no second family and no monospace: coordinates, CSV headers and script keys are
+Archivo with tabular figures too.
 
 The width axis was considered and cut: it is 90 KB for the same glyphs, and the
 field PWA pays that on a phone with bad signal (vision.md) to buy a subtle width
@@ -107,17 +174,29 @@ Importing the fontsource stylesheet would emit every subset, and Workbox's
 `globPatterns` precaches every `woff2` it finds — hence the hand-written
 `@font-face` naming one file. Latin alone covers French, including œ (U+0153).
 
-| Size | Tailwind | Use |
-|---|---|---|
-| `0.75rem` | `text-xs` | meta, help text, table header |
-| `0.875rem` | `text-sm` | body, table cells — the default |
-| `1rem` | `text-base` | form inputs; 16px so iOS never zooms the field form |
-| `1.25rem` | `text-xl` | screen title |
-| `1.75rem` | `text-display` | counts and tallies |
+Each role is a `--text-*` token carrying its size, line height, tracking and
+weight, so one utility sets all four; an explicit `font-*` utility still wins.
 
-**Numbers are tabular and right-aligned, always.** The `.tnum` utility exists for
-this. It is the single thing that makes a table read as a ledger rather than a
-table widget, and it matters for counts, dates and distances alike.
+| Role | Token | Size / weight | Use |
+|---|---|---|---|
+| Display | `text-display` | 28px / 700 | KPI figures, import tallies |
+| Title | `text-title` | 20px / 600 | Screen titles, the prospect name on a visit |
+| Heading | `text-heading` | 16px / 600 | Card and panel titles, the next stop's name on a phone |
+| Body (field) | `text-body-field` | 16px / 400 | All field text and **every input on both sides**, so iOS never zooms |
+| Body | `text-body` | 14px / 400 | Admin body text and table cells (the admin default) |
+| Label | `text-label` | 14px / 500 | Buttons, nav items, form labels |
+| Meta | `text-meta` | 12px / 500 | Timestamps, secondary lines, badges, tab labels |
+| Overline | `text-overline` | 12px / 500, 0.06em | KPI labels, column headers, sidebar group labels |
+
+The overline is rendered uppercase by the component (`uppercase`); its string
+in `copy.ts` stays in sentence case. The token is `text-overline` because
+Tailwind's bare `overline` utility is a text decoration.
+
+**Numbers use tabular figures (`.tnum`), always**: counts, dates, times,
+distances, percentages and coordinates. In tables, quantities are
+right-aligned; time columns are left-aligned, because they are read down as a
+sequence rather than compared. Figures are formatted for fr-FR: "1 284",
+"10,6 %", "24/09/2026 15:24", "350 m", "1,4 km".
 
 ## Layout
 
