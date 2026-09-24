@@ -229,6 +229,16 @@ describe("the token set", () => {
   it("gives both dark blocks the same declarations", () => {
     expect(SYSTEM_DARK).toEqual(PINNED_DARK);
   });
+
+  it("aliases shadcn's --color-sidebar* onto the band, not a new value (GH #63)", () => {
+    // Theme-independent: this checks the @theme inline wiring itself, not a
+    // resolved colour, so a mistake like sidebar-foreground pointing at
+    // band-muted would pass every per-theme contrast test and still be wrong.
+    expect(THEME_INLINE["--color-sidebar"]).toBe("var(--band)");
+    expect(THEME_INLINE["--color-sidebar-foreground"]).toBe("var(--band-foreground)");
+    expect(THEME_INLINE["--color-sidebar-accent"]).toBe("var(--band-accent)");
+    expect(THEME_INLINE["--color-sidebar-accent-foreground"]).toBe("var(--band-foreground)");
+  });
 });
 
 describe.each(THEMES)("%s palette", (_theme, t) => {
@@ -271,6 +281,14 @@ describe.each(THEMES)("%s palette", (_theme, t) => {
     // A gold button often sits above a column of À relancer rows. The light
     // mustard measures 14.6° in this (HSL) hue, which the docs round to 15°.
     expect(hueDistance(c("--warn"), c("--primary"))).toBeGreaterThanOrEqual(14.5);
+  });
+
+  it("band text on the sidebar hover wash clears AA (GH #63)", () => {
+    // band-accent is a translucent white wash meant to sit over the band, not
+    // the card — composite it there before checking the pair the #62 note
+    // requires: item text stays band-foreground through the hover state.
+    const hover = solid(t, "--band-accent", "--band");
+    expect(contrast(c("--band-foreground"), hover)).toBeGreaterThanOrEqual(TEXT);
   });
 });
 

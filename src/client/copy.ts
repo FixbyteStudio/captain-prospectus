@@ -31,6 +31,19 @@ export const copy = {
     import: "Import",
     duplicates: "Doublons",
     orphans: "À rattacher",
+
+    /** Admin sidebar group labels, rendered uppercase through CSS (GH #63). */
+    groups: {
+      prospects: "Prospects",
+      terrain: "Terrain",
+    },
+    /** The toggle button's aria-label names the action it performs. */
+    openMenu: "Ouvrir le menu",
+    collapseMenu: "Réduire le menu",
+    /** The mobile drawer's dialog description — distinct from the toggle's action label. */
+    drawerDescription: "Navigation de l'administration",
+    /** A nav item's accessible name carries its pending count, in every mode. */
+    withCount: (label: string, count: number) => `${label} (${count})`,
   },
 
   prospects: {

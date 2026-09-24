@@ -200,10 +200,21 @@ sequence rather than compared. Figures are formatted for fr-FR: "1 284",
 
 ## Layout
 
-A thin ink band with the wordmark and the nav, then full-width content. No left
-rail — three admin screens do not earn that much chrome. The two sides share
-the band's look and tokens, but each owns its frame: the admin frame ships in
-the admin chunk, and the field band carries the sync state.
+The admin side has a navy sidebar (GH #63): **Prospects** (Prospects, Import,
+Doublons) and **Terrain** (Visites, À rattacher, Scripts), each item a 36px row
+with an icon and a label, group labels in the overline style. The current item
+is a gold fill with navy text and a `primary-edge` inset; item text otherwise
+stays `band-foreground` in every state, including the `band-accent` hover
+wash — `band-muted` is for group labels only, which never take the wash. The
+width follows the viewport: full (`16rem`) at ≥ 1024px, an icon rail (`3rem`)
+from 768 to 1023px with a Tooltip naming each item, and a Sheet drawer below
+768px behind a menu button in the top bar. Doublons and À rattacher carry a
+`warn` pill badge — a dot on the icon in the rail — shown only when their
+count is above zero and their query has not failed; the count always equals
+what their own screen lists, because both read the same query. The two sides
+share the band's look and tokens, but each owns its frame: the admin frame
+(sidebar and top bar) ships in the admin chunk, and the field band carries the
+sync state.
 
 Safe-area insets go on `.safe-top` (the band) and `.safe-bottom` (the content),
 never on `body`, so the band stays flush with the top of a notched phone.
