@@ -31,6 +31,6 @@ One decision per file, numbered, never edited after acceptance except to change 
 | [0023](0023-retention-by-redaction.md) | Keep the visit, drop the personal parts after 90 days | accepted |
 | [0024](0024-adrs-only-for-hard-to-reverse-decisions.md) | ADRs only for hard-to-reverse decisions; one home per rule | accepted |
 | [0025](0025-admin-status-outlives-older-visits.md) | An admin's manual status is not undone by an older visit | accepted |
-| [0026](0026-budget-the-field-precache-not-the-entry-chunk.md) | Budget the field route by its precache, not its entry chunk | proposed |
+| [0026](0026-budget-the-field-precache-not-the-entry-chunk.md) | Budget the field route by its precache, not its entry chunk | accepted |
 
 New ADR: copy [0000-template.md](0000-template.md), take the next number, open a PR.
