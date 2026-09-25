@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { classLiterals } from "./class-literals";
+import { walkSourceFiles } from "./scan-files";
 
 /**
  * docs/design.md › Colour states five palette rules and a set of contrast
@@ -269,6 +272,11 @@ describe.each(THEMES)("%s palette", (_theme, t) => {
     ["button edge against a card", "--primary-edge", "--card"],
     ["focus ring against a card", "--ring", "--card"],
     ["focus ring against the page", "--ring", "--background"],
+    // Unlike the gold fill, the destructive fill needs no edge of its own:
+    // recorded here so a future change that dims it back down (#70) fails
+    // this, not just the ink-on-destructive text pair above.
+    ["destructive fill against the page", "--destructive", "--background"],
+    ["destructive fill against a card", "--destructive", "--card"],
   ])("%s clears the 3:1 a control needs", (_label, fg, bg) => {
     expect(contrast(c(fg), c(bg))).toBeGreaterThanOrEqual(CONTROL);
   });
@@ -394,5 +402,116 @@ describe("rule 5: status and outcome badge text reaches 4.5:1 on its tint", () =
       }
       expect(contrast(solid(t, text), solid(t, fill))).toBeGreaterThanOrEqual(TEXT);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The component tier: rules 1–5 above prove the tokens, which let three real
+// bugs through (#69, #70) because nothing checked whether a *component*
+// actually pairs a fill with its edge, or a destructive fill with the text
+// palette.test.ts already asserts. This scans every real class string in
+// `src/client` — not the DOM, no new dependency, same spirit as
+// config.test.ts. A string is the unit, not the file, so badge.tsx's
+// `default` and `destructive` variants are judged separately (GH #67).
+//
+// `src/client/ui/` only was the first cut, and it is blind to `App.tsx` and
+// `FieldTabs.tsx`, which set the same gold fill outside a vendored component.
+// `walkSourceFiles` is the same walk `safe-area.test.ts` uses, so the two
+// scanners cannot drift on what "every source file" means.
+
+const CLIENT_DIR = fileURLToPath(new URL("../", import.meta.url));
+const CLIENT_FILES = walkSourceFiles(CLIENT_DIR);
+
+/** A token split into its variant-prefix chain and the utility it sets. */
+function splitToken(token: string): { prefix: string; utility: string; modifier: string } {
+  const parts = token.split(":");
+  const utility = parts.at(-1) ?? token;
+  return { prefix: parts.slice(0, -1).join(":"), utility, modifier: parts.at(-2) ?? "" };
+}
+
+/** True for a bare (full-opacity) `bg-primary` utility — the fill rule 4 governs. */
+function isGoldFillUtility(utility: string, modifier: string): boolean {
+  // `selection:bg-primary` (input.tsx) colours the browser's own text-
+  // selection highlight, not a persistent control WCAG 1.4.11 governs, so it
+  // is not a "fill" in this rule's sense. `bg-primary/NN` (a tint, e.g.
+  // progress.tsx's track) and `bg-primary-foreground` are excluded by the
+  // exact-token match below.
+  return utility === "bg-primary" && modifier !== "selection";
+}
+
+/** A border, ring or inset shadow that carries the darker gold edge. */
+const IS_EDGE_UTILITY =
+  /^(?:border|ring)-primary-edge(?:\/\d+)?$|^shadow-\[inset[^\]]*primary-edge/;
+
+/** The colon-separated variant modifiers of a prefix chain, as a set. */
+function modifiers(prefix: string): Set<string> {
+  return new Set(prefix ? prefix.split(":") : []);
+}
+
+describe("rule 4, in the components: every gold fill carries primary-edge", () => {
+  it.each(CLIENT_FILES)("%s", (file) => {
+    const source = readFileSync(file, "utf8");
+    for (const literal of classLiterals(source)) {
+      const tokens = literal.split(/\s+/).map(splitToken);
+      for (const fill of tokens) {
+        if (!isGoldFillUtility(fill.utility, fill.modifier)) continue;
+        const fillMods = modifiers(fill.prefix);
+        // The edge's own modifiers must all also apply to the fill — not
+        // necessarily an *identical* chain, since `dark:` on top of an
+        // already-guarded fill (checkbox.tsx's `dark:data-[state=checked]:
+        // bg-primary`, redeclared only to win a specificity fight with
+        // `dark:bg-input/30`) still renders exactly where the plain
+        // `data-[state=checked]:border-primary-edge` edge applies. A bare
+        // fill (no modifiers) still needs a bare edge either way, which is
+        // what catches a `hover:bg-primary` fill added beside checkbox.tsx's
+        // existing `data-[state=checked]:` edge: {hover} is not a subset of
+        // {data-[state=checked]}, so it still fails.
+        const hasMatchingEdge = tokens.some((t) => {
+          if (!IS_EDGE_UTILITY.test(t.utility)) return false;
+          const edgeMods = modifiers(t.prefix);
+          return [...edgeMods].every((m) => fillMods.has(m));
+        });
+        expect(
+          hasMatchingEdge,
+          `${file}: "${literal}" — no primary-edge boundary that also applies under the "${fill.prefix}" prefix`,
+        ).toBe(true);
+      }
+    }
+  });
+});
+
+describe("rule 2, in the components: text on a destructive fill comes from the token", () => {
+  it.each(CLIENT_FILES)("%s", (file) => {
+    const source = readFileSync(file, "utf8");
+    for (const literal of classLiterals(source)) {
+      const tokens = literal.split(/\s+/).map(splitToken);
+      // A destructive fill under any prefix chain — `bg-destructive`,
+      // `hover:bg-destructive`, `dark:bg-destructive` — not only the bare
+      // token, so a future variant that only ever sets the fill under a
+      // prefix is still checked.
+      const hasDestructiveFill = tokens.some((t) => t.utility === "bg-destructive");
+      if (!hasDestructiveFill) continue;
+
+      // Not "never white": `--on-destructive` *is* #ffffff in light mode, so
+      // what this forbids is the hardcoded `text-white` utility, which pins
+      // white in both themes and ignores the token's dark ink.
+      expect(literal, `${file}: "${literal}"`).not.toMatch(/\btext-white\b/);
+
+      // The ink-on-destructive pair rule 2's token tier asserts only holds at
+      // full opacity, so dimming the fill made the proof vacuous (#70) — under
+      // any prefix chain (`bg-destructive/60`, `dark:hover:bg-destructive/60`),
+      // not only `dark:`. `hover:bg-destructive/90` (badge.tsx,
+      // button-variants.ts) is deliberately exempt: it renders only while the
+      // pointer is over the control, not as the pair rule 2 asserts, so a
+      // dimmed *hover* fill does not make that proof vacuous the way a
+      // dimmed resting fill does.
+      const dimmedRestingFill = tokens.find(
+        (t) => /^bg-destructive\/\d+$/.test(t.utility) && !t.prefix.split(":").includes("hover"),
+      );
+      expect(
+        dimmedRestingFill,
+        `${file}: "${literal}" — a dimmed, non-hover destructive fill makes the ink-on-destructive contrast pair vacuous`,
+      ).toBe(undefined);
+    }
   });
 });

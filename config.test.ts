@@ -95,3 +95,36 @@ describe("service worker", () => {
     expect(config).toMatch(/globIgnores:\s*\[\s*"\*\*\/assets\/AdminApp-\*"/);
   });
 });
+
+describe("CI", () => {
+  /**
+   * The `- run:` commands of one job, in order, ignoring commented-out lines.
+   * Read off the indented block rather than with `indexOf`, so two commands in
+   * *different* jobs — which say nothing about ordering — cannot satisfy it.
+   */
+  function runStepsOf(ci: string, job: string): string[] {
+    const jobAt = ci.indexOf(`\n  ${job}:`);
+    if (jobAt === -1) throw new Error(`no ${job} job in ci.yml`);
+    const next = ci.slice(jobAt + 1).search(/\n {2}\w[\w-]*:/);
+    const body = next === -1 ? ci.slice(jobAt) : ci.slice(jobAt, jobAt + 1 + next);
+    return [...body.matchAll(/^\s*- run: (.+)$/gm)].map(([, command]) => command.trim());
+  }
+
+  it("runs check:precache after the build in the same job, so the ceiling fails CI rather than waiting for a human to read the build log", () => {
+    // ADR-0026 named the CI check as follow-up work; without this assertion,
+    // ci.yml could drop the step again and nothing would notice (GH #67).
+    const steps = runStepsOf(readFileSync(".github/workflows/ci.yml", "utf8"), "check");
+    const buildAt = steps.findIndex((s) => s === "pnpm run build");
+    const checkAt = steps.findIndex((s) => s === "pnpm run check:precache");
+    expect(buildAt, "the check job never runs pnpm run build").toBeGreaterThan(-1);
+    expect(checkAt, "the check job never runs pnpm run check:precache").toBeGreaterThan(-1);
+    expect(checkAt, "check:precache must run after the build").toBeGreaterThan(buildAt);
+  });
+
+  it("enforces exactly ADR-0026's 1,000 KiB ceiling, not some other number", () => {
+    // A substring match would also pass for 10000 or for the digits appearing
+    // only in a comment, which is the mistake this guard exists to prevent.
+    const script = readFileSync("scripts/check-precache.mjs", "utf8");
+    expect(script).toMatch(/if \(override === undefined\) return 1000;/);
+  });
+});

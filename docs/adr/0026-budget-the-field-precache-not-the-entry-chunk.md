@@ -54,8 +54,13 @@ vendored Dialog are already dependencies of the admin side.
 ## Decision
 
 We will **budget the field route by its precache total: at most 1,000 KiB**, as `pnpm build` prints
-it on the Workbox line (`precache N entries (X KiB)`). The ceiling is the spike's 811.75 KiB plus
-20 %, rounded up to the next 50 KiB.
+it on the Workbox line (`precache N entries (X KiB)`) and as `pnpm check:precache` enforces it in CI
+(GH #67). The ceiling is the spike's 811.75 KiB plus 20 %, rounded up to the next 50 KiB.
+
+That total is Workbox's own: it sizes the entries it found by globbing `globPatterns`, and not the
+web-manifest icons or `manifest.webmanifest`, which arrive afterwards as `additionalManifestEntries`
+and are precached without being counted — about 66 KiB a phone downloads that this ceiling does not
+see ([issue #88](https://github.com/FixbyteStudio/captain-prospectus/issues/88)).
 
 - **The entry chunk loses its cap.** It is still measured and recorded in vision.md with every field
   change, because it is parse time on a cheap phone.
@@ -84,8 +89,10 @@ it on the Workbox line (`precache N entries (X KiB)`). The ceiling is the spike'
   ceiling leaves about 188 KiB of room from there.
 - **The first paint of Tournée du jour is no longer capped.** A field screen that bloats the entry
   chunk now only shows up in the recorded number, so review has to read it.
-- **Harder: the ceiling is still read by hand.** It is a line in `pnpm build`'s output, not a failing
-  check. A CI step that fails over 1,000 KiB is follow-up work, not part of this change.
+- **The ceiling is enforced in CI, not read by hand** (GH #67): `pnpm check:precache` sums
+  `dist/client/sw.js`'s own precache manifest the same way `pnpm build`'s Workbox line does, and
+  `ci.yml` runs it right after the build. Crossing 1,000 KiB fails the job instead of waiting for a
+  reviewer to read the build log.
 - **Every PR that touches the field route quotes the precache total and the entry chunk**, and
   vision.md records them at each milestone, as it has since ADR-0018.
 - **ADR-0019's glob keeps its known gap in reverse.** A chunk shared by admin and field is precached,

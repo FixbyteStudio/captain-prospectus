@@ -11,6 +11,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Test files hold class-shaped fixture strings (palette.test.ts's revert
+   examples, safe-area.test.ts's clash fixtures) that are never markup —
+   without this, Tailwind's automatic source detection still emits real
+   utilities for them into the precached CSS bundle check:precache measures
+   (GH #67 review). */
+@source not "**/*.test.ts";
+@source not "**/*.test.tsx";
+
 /**
  * Archivo, latin subset, weight axis only — one file, 35 KB.
  *
@@ -353,6 +361,18 @@
     @apply bg-background text-foreground font-sans text-sm antialiased;
   }
 
+  :focus-visible {
+    @apply outline-ring rounded-xs outline-2 outline-offset-2;
+  }
+}
+
+/**
+ * `base` loses to any plain utility (`py-*`) at equal specificity, because
+ * Tailwind v4 orders its `utilities` layer after `base` regardless of source
+ * position (GH #80) — so `.safe-top`/`.safe-bottom` live here, where a page's
+ * own padding utilities do, instead.
+ */
+@layer utilities {
   /* The field client runs full-screen on a notched phone. Applied to the band
      and the scrolling region, not to body, so the band stays flush with the top. */
   .safe-top {
@@ -361,6 +381,14 @@
 
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* A page's own bottom margin plus the inset, in one declaration: two
+     utilities on one element cannot both own padding-bottom (GH #80) — this is
+     `pb-6` and `.safe-bottom` fused into the one property they'd otherwise
+     fight over. */
+  .pb-page {
+    padding-bottom: calc(var(--spacing) * 6 + env(safe-area-inset-bottom, 0px));
   }
 
   /**
@@ -386,7 +414,6 @@
       padding-bottom: calc(var(--spacing) * 3 + env(safe-area-inset-bottom, 0px));
     }
   }
-
   /**
    * A field form's own scrolling content, clearing only its sticky action bar
    * (`.above-tab-bar` above) — `--spacing` × 24 is that bar's own height,
@@ -401,7 +428,6 @@
   .pb-action-bar {
     padding-bottom: calc(var(--spacing) * 24);
   }
-
   /**
    * A field screen with no action bar of its own (`TodayScreen`, the
    * forbidden/not-found fallbacks): its scrolling content only has to clear
@@ -417,11 +443,6 @@
       padding-bottom: calc(var(--spacing) * 6);
     }
   }
-
-  :focus-visible {
-    @apply outline-ring rounded-xs outline-2 outline-offset-2;
-  }
-
   /* Tabular figures are what make the ledger read as a ledger. */
   .tnum {
     font-variant-numeric: tabular-nums;

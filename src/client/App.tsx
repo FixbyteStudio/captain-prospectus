@@ -200,7 +200,7 @@ function AdminFrameFallback() {
           <BandBrand />
         </div>
       </header>
-      <main className="safe-bottom px-4 py-6">
+      <main className="px-4 pt-6 pb-page">
         <p className="text-muted-foreground" aria-busy="true" />
       </main>
     </>
@@ -294,13 +294,26 @@ export function App() {
             <BandBrand />
           </div>
         </header>
-        <main className="safe-bottom px-4 py-6">
+        <main className="px-4 pt-6 pb-page">
           <FieldEmptyState icon={TriangleAlertIcon} message={error} />
         </main>
       </>
     );
   }
-  if (!me) return <main className="safe-top px-4 py-6" aria-busy="true" />;
+  // Same band-plus-<main> shape as the error state above: an agent should not
+  // see a blank, unbranded screen for the moment /api/me is still in flight.
+  if (!me) {
+    return (
+      <>
+        <header className="safe-top bg-band text-band-foreground">
+          <div className="flex h-band-height items-center gap-3 px-4">
+            <BandBrand />
+          </div>
+        </header>
+        <main className="px-4 pt-6 pb-page" aria-busy="true" />
+      </>
+    );
+  }
 
   // Admin screens are useless without the network, so a cached identity opens
   // the field side only, whatever role it happens to record.
