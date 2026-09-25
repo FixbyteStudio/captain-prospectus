@@ -8,5 +8,7 @@
       "@/*": ["./src/client/*"]
     }
   },
-  "include": ["src/client", "src/shared"]
+  // test/setup-dom.ts and test/stubs are DOM code, so they typecheck here
+  // rather than under tsconfig.worker.json, which owns the rest of test/.
+  "include": ["src/client", "src/shared", "test/setup-dom.ts", "test/stubs"]
 }

@@ -4,9 +4,10 @@
  * `formState.isDirty` here; `FieldTabs` reads it on the tab's own click and
  * opens a confirmation before navigating away from unsaved input.
  *
- * `shouldAsk` is the pure part, tested without a DOM. The context plumbing
- * (`LeaveGuardProvider`, `useRegisterDirty`, `useLeaveGuard`) is only reachable
- * through JSX and so untested, like the rest of this repo's context wiring.
+ * `shouldAsk` is the pure part, tested without a DOM in `leave-guard.test.ts`.
+ * The context plumbing (`LeaveGuardProvider`, `useRegisterDirty`,
+ * `useLeaveGuard`) is only reachable through JSX, so it is covered in the
+ * `dom` project instead — `leave-guard.test.tsx` (GH #83).
  */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { isCurrentTab } from "./tabs";
