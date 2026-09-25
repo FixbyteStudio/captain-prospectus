@@ -115,16 +115,23 @@ agentRoutes.post(
       // mergedInto is followed here: if the row the key lands on has since been
       // merged away, the phone must be pointed at the survivor, or its visits
       // would pile up on a prospect the admin has already retired.
+      //
+      // Chunked because one key binds one parameter and the schema's cap on
+      // prospects is exactly D1's 100: raising that cap would otherwise break
+      // this statement silently (#30, INVARIANT 7).
       const keys = rows.map((r) => r.dedupeKey);
-      const existing = await db
-        .select({
-          id: prospects.id,
-          dedupeKey: prospects.dedupeKey,
-          mergedInto: prospects.mergedInto,
-        })
-        .from(prospects)
-        .where(inArray(prospects.dedupeKey, keys));
-      const byKey = new Map(existing.map((r) => [r.dedupeKey, r.mergedInto ?? r.id]));
+      const byKey = new Map<string, string>();
+      for (const keyBatch of chunk(keys, 1)) {
+        const existing = await db
+          .select({
+            id: prospects.id,
+            dedupeKey: prospects.dedupeKey,
+            mergedInto: prospects.mergedInto,
+          })
+          .from(prospects)
+          .where(inArray(prospects.dedupeKey, keyBatch));
+        for (const r of existing) byKey.set(r.dedupeKey, r.mergedInto ?? r.id);
+      }
 
       for (const row of rows) {
         const serverId = byKey.get(row.dedupeKey);
@@ -165,14 +172,21 @@ agentRoutes.post(
         };
       });
 
-      // One read answers both questions the partition below asks: does the
+      // One lookup answers both questions the partition below asks: does the
       // prospect exist, and whose is it.
+      //
+      // It is chunked: a batch may name up to SYNC_VISITS_PER_REQUEST distinct
+      // prospects, one bound parameter each. Unchunked, an agent with more than
+      // 100 doors to report got a 500 that left the outbox full and never
+      // drained (#30, INVARIANT 7).
       const referenced = [...new Set(rows.map((r) => r.prospectId))];
-      for (const row of await db
-        .select({ id: prospects.id, assignedTo: prospects.assignedTo })
-        .from(prospects)
-        .where(inArray(prospects.id, referenced))) {
-        assigneeById.set(row.id, row.assignedTo);
+      for (const batch of chunk(referenced, 1)) {
+        for (const row of await db
+          .select({ id: prospects.id, assignedTo: prospects.assignedTo })
+          .from(prospects)
+          .where(inArray(prospects.id, batch))) {
+          assigneeById.set(row.id, row.assignedTo);
+        }
       }
 
       // ADR-0022: a visit the server cannot take as sent is quarantined rather
@@ -215,14 +229,17 @@ agentRoutes.post(
         ),
       ];
       if (referencedScripts.length > 0) {
-        const knownScripts = new Set(
-          (
-            await db
-              .select({ id: scripts.id })
-              .from(scripts)
-              .where(inArray(scripts.id, referencedScripts))
-          ).map((r) => r.id),
-        );
+        // Chunked for the same reason as the prospect lookup above: the ids come
+        // off the payload, so a client can name more than 100 of them (#30).
+        const knownScripts = new Set<number>();
+        for (const batch of chunk(referencedScripts, 1)) {
+          for (const r of await db
+            .select({ id: scripts.id })
+            .from(scripts)
+            .where(inArray(scripts.id, batch))) {
+            knownScripts.add(r.id);
+          }
+        }
         for (const row of insertable) {
           if (typeof row.scriptId === "number" && !knownScripts.has(row.scriptId)) {
             row.scriptId = null;

@@ -165,6 +165,13 @@ route's precache stays under the 1,000 KiB ceiling.
       dropped (INVARIANT 12). **No download button** — that needs a design pass, so the
       endpoints ship first and add no French copy
 - [x] Manual prospect merge (dedupe misses) — see [prospecting](domains/prospecting.md#merging)
+- [x] Sync's own lookups chunked, closing
+      [#30](https://github.com/FixbyteStudio/captain-prospectus/issues/30). The route
+      chunked its inserts but not the three `inArray` selects beside them, so a batch
+      naming more than 100 distinct prospects — a week offline is enough — bound over
+      D1's 100 parameters and 500d. The 500 correctly kept the outbox, so the phone
+      rebuilt the same payload for ever (INVARIANT 5). A test syncing 150 distinct
+      prospects fails without the fix
 
 ## M6 — Go live
 Everything here is account setup, done once, by hand. Runbook:
