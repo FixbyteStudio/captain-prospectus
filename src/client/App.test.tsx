@@ -36,11 +36,13 @@ const stub = vi.hoisted(() => ({
     "status" | "running" | "pending"
   >,
   needRefresh: false,
+  /** True while `/api/me` should never settle, for the loading-state case. */
+  identityPending: false,
 }));
 
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
-  apiFetch: () => Promise.resolve(stub.me),
+  apiFetch: () => (stub.identityPending ? new Promise(() => {}) : Promise.resolve(stub.me)),
 }));
 
 vi.mock("./field/useSync", () => ({
@@ -88,6 +90,7 @@ beforeEach(() => {
   stub.me = AGENT;
   stub.sync = QUIET;
   stub.needRefresh = false;
+  stub.identityPending = false;
 });
 
 afterEach(async () => {
@@ -95,6 +98,18 @@ afterEach(async () => {
 });
 
 describe("App routing", () => {
+  it("shows the band over a busy main while /api/me is still in flight", () => {
+    stub.identityPending = true;
+    const { container } = renderApp("/");
+
+    // The brand, not the field band's nav (FieldTabs needs `me` to decide
+    // isAdmin, so it cannot render yet) — GH #67 review: a bandless loading
+    // frame flashed blank before every field session until this was added.
+    expect(screen.getByText(copy.appName)).toBeTruthy();
+    const main = container.querySelector("main");
+    expect(main?.getAttribute("aria-busy")).toBe("true");
+  });
+
   it("sends an agent from / to the round, in the field frame", async () => {
     renderApp("/");
 

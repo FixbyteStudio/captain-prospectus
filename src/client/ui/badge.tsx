@@ -16,7 +16,9 @@ const badgeVariants = cva(
         // text-destructive-foreground at full opacity, not text-white on a
         // dimmed dark:bg-destructive/60: palette.test.ts asserts ink-on-
         // destructive at AA, and that pair is only the one actually rendered
-        // when the fill stays at full opacity.
+        // when the fill stays at full opacity. [a&]:hover:bg-destructive/90
+        // stays: it renders only on :hover, not the resting fill the pair
+        // asserts, so dimming it there does not make that proof vacuous.
         destructive:
           "bg-destructive text-destructive-foreground focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
         outline:

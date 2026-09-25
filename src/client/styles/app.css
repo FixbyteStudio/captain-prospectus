@@ -11,6 +11,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Test files hold class-shaped fixture strings (palette.test.ts's revert
+   examples, safe-area.test.ts's clash fixtures) that are never markup —
+   without this, Tailwind's automatic source detection still emits real
+   utilities for them into the precached CSS bundle check:precache measures
+   (GH #67 review). */
+@source not "**/*.test.ts";
+@source not "**/*.test.tsx";
+
 /**
  * Archivo, latin subset, weight axis only — one file, 35 KB.
  *

@@ -160,6 +160,39 @@ describe("check-precache.mjs", () => {
     expect(result.stderr).toContain("not a positive number");
   });
 
+  it("exits 0 against the real 1,000 KiB default when the override is omitted", () => {
+    // Every case above sets CHECK_PRECACHE_CEILING_KIB, so none of them ever
+    // exercises the default the real `pnpm check:precache` enforces — only
+    // config.test.ts's source-text regex did, which would still pass if the
+    // default moved. 999 KiB, just under it.
+    const root = makeFixture({
+      swBody: '{url:"a.js",revision:null}',
+      viteGlobPatterns: "**/*.{js}",
+      files: { "a.js": 999 * 1024 },
+    });
+    roots.push(root);
+
+    const result = run(root); // no ceilingKiB: exercises the 1000 default
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("999.00 KiB");
+  });
+
+  it("exits non-zero against the real 1,000 KiB default when the override is omitted", () => {
+    // The mirror case, 1001 KiB: over the default with nothing set.
+    const root = makeFixture({
+      swBody: '{url:"a.js",revision:null}',
+      viteGlobPatterns: "**/*.{js}",
+      files: { "a.js": 1001 * 1024 },
+    });
+    roots.push(root);
+
+    const result = run(root); // no ceilingKiB: exercises the 1000 default
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("exceeds the 1000 KiB ceiling");
+  });
+
   it("fails closed when the manifest format changes so only some entries parse", () => {
     // Single-quoted url: the pattern matches one of two, which must not yield
     // a plausible subtotal under the ceiling.

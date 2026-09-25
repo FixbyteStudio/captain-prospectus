@@ -97,7 +97,11 @@ try {
 }
 const globExtensions = /globPatterns:\s*\[\s*"\*\*\/\*\.\{([^}]+)\}"/
   .exec(viteConfig)?.[1]
-  ?.split(",");
+  // "{js, css}" (a space after the comma) is valid in vite.config.ts and must
+  // not silently shrink the total: an untrimmed " css" never matches a url's
+  // trailing ".css", so that entry would quietly stop counting.
+  ?.split(",")
+  .map((ext) => ext.trim());
 if (!globExtensions) {
   console.error(`check:precache — no globPatterns: ["**/*.{...}"] found in vite.config.ts.`);
   process.exit(1);
@@ -105,17 +109,23 @@ if (!globExtensions) {
 const countsTowardTotal = (url) => globExtensions.some((ext) => url.endsWith(`.${ext}`));
 
 const entries = urls.map((url) => {
-  const path = join(DIST_CLIENT, decodeURIComponent(url));
+  // Decode and stat in one try: a bad escape (a lone "%") must report its own
+  // message, not fall through into `join()` with `undefined` and throw a
+  // second, unrelated TypeError before the process actually exits.
   let bytes;
   try {
-    bytes = statSync(path).size;
-  } catch {
-    // A manifest entry with no file behind it is a broken build, not a
-    // precache problem — say which, rather than throwing a raw ENOENT stack
-    // that reads as a crashed CI step.
-    console.error(
-      `check:precache — ${SW_PATH} lists "${url}", which is not a file under ${DIST_CLIENT}.`,
-    );
+    bytes = statSync(join(DIST_CLIENT, decodeURIComponent(url))).size;
+  } catch (error) {
+    if (error instanceof URIError) {
+      console.error(`check:precache — ${SW_PATH} lists "${url}", which is not a valid URI.`);
+    } else {
+      // A manifest entry with no file behind it is a broken build, not a
+      // precache problem — say which, rather than throwing a raw ENOENT stack
+      // that reads as a crashed CI step.
+      console.error(
+        `check:precache — ${SW_PATH} lists "${url}", which is not a file under ${DIST_CLIENT}.`,
+      );
+    }
     process.exit(1);
   }
   return { url, bytes, counted: countsTowardTotal(url) };
@@ -124,7 +134,18 @@ const entries = urls.map((url) => {
 const totalBytes = entries.filter((e) => e.counted).reduce((sum, entry) => sum + entry.bytes, 0);
 const totalKiB = totalBytes / 1024;
 
-console.log(`check:precache — ${entries.length} entries (${totalKiB.toFixed(2)} KiB)`);
+// Self-describing: with the env-var seam set (only ever true under
+// check-precache.test.mjs), a passing run would otherwise say nothing about
+// measuring a different tree or a different ceiling than the real one.
+const overrides = [
+  process.env.CHECK_PRECACHE_ROOT ? `root ${ROOT}` : null,
+  process.env.CHECK_PRECACHE_CEILING_KIB ? `ceiling overridden` : null,
+]
+  .filter(Boolean)
+  .join(", ");
+console.log(
+  `check:precache — ${entries.length} entries (${totalKiB.toFixed(2)} KiB) against a ${CEILING_KIB} KiB ceiling${overrides ? ` [${overrides}]` : ""}`,
+);
 for (const entry of [...entries].sort((a, b) => b.bytes - a.bytes)) {
   const note = entry.counted
     ? ""

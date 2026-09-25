@@ -22,6 +22,10 @@ export const buttonVariants = cva(
         // text-destructive-foreground at full opacity: palette.test.ts asserts
         // ink-on-destructive at AA, and dark:bg-destructive/60 rendered a
         // different, untested pair — see badge.tsx's destructive variant.
+        // hover:bg-destructive/90 stays: it renders only while the pointer is
+        // over the button, not the resting fill the contrast pair asserts, so
+        // dimming it there does not make that proof vacuous the way dimming
+        // the resting fill did.
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
         outline:

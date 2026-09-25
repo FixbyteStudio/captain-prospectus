@@ -112,12 +112,15 @@ Each is forced by a measurement rather than taste.
 `src/client/styles/palette.test.ts` asserts the tokens behind each rule in
 light, in dark pinned with `data-theme`, and in dark from the system: nudging a
 hex so that one breaks fails CI and names the theme. A second tier scans every
-`src/client/ui/*.tsx|ts` variant string for rule 4 (a `bg-primary` fill with no
-`primary-edge` boundary) and for rule 2's destructive pairing (`text-white`, or
-a `dark:bg-destructive/*` opacity that makes the asserted ink-on-`destructive`
-pair vacuous) — GH #67, after both slipped past the token tier once each (#69,
-#70). Rule 1 stays a usage rule, kept in review: nothing scans arbitrary
-component markup for gold text on a light surface.
+class string in `src/client` (excluding tests) for rule 4 (a `bg-primary` fill
+with no `primary-edge` boundary under the same variant-prefix chain, or one
+that applies whenever it does — `dark:` stacked on top of an already-guarded
+state, say) and for rule 2's destructive pairing (`text-white`, or a dimmed
+`bg-destructive/NN` fill under any prefix chain except a transient `hover:`
+one, which makes the asserted ink-on-`destructive` pair vacuous) — GH #67,
+after both slipped past the token tier once each (#69, #70). Rule 1 stays a
+usage rule, kept in review: nothing scans arbitrary component markup for gold
+text on a light surface.
 
 1. **Gold is never text on a light surface.** It is 2.4:1 on white. This keeps
    every word legible: gold only ever says "act here" or "chosen" as a fill.
@@ -249,7 +252,12 @@ anchor to `/cdn-cgi/access/logout` rather than a router link — see
 Safe-area insets go on `.safe-top` (the band) and `.safe-bottom` (the field's
 bottommost fixed element — the tab bar below 768px, GH #66), never on `body`,
 so the band stays flush with the top of a notched phone and the tab bar stays
-flush with the bottom.
+flush with the bottom. Both live in `app.css`'s `@layer utilities`, not
+`@layer base`: Tailwind v4 orders `utilities` after `base`, so a plain `py-*`
+there always wins over the inset (GH #80). A `<main>` that needs both its own
+bottom margin and the inset — everywhere a screen is not directly above the
+tab bar — uses `.pb-page` instead of stacking `.safe-bottom` and `pb-6` on one
+element, which cannot own `padding-bottom` twice.
 
 ### One toolbar slot
 

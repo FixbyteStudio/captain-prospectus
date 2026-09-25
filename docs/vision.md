@@ -109,9 +109,12 @@ is tied to a city — moving is changing those three places, not a migration.
   tab-bar icons) measured **144.49 kB and 811.75 KiB**. The entry chunk would have passed, while the
   phone downloaded 202 KiB more, so the budget now caps the precache at 1,000 KiB instead.
 
-  **Measured on 2026-09-25 after the epic's refactor sweep (GH #67): entry chunk 163.91 kB, precache
-  677.36 KiB**, against 163.93 kB and 676.52 KiB at the same baseline — the sweep costs 0.84 KiB, all
-  of it CSS. From here the ceiling is no longer read by hand: `pnpm check:precache` sums the same
-  manifest after every CI build and fails over 1,000 KiB. Headroom is **322.64 KiB**, and about 66 KiB
-  of genuinely precached icons sit outside the figure Workbox prints
+  **Measured on 2026-09-25 after the epic's refactor sweep (GH #67): entry chunk 163.92 kB, precache
+  677.09 KiB**, against 163.93 kB and 676.52 KiB at the same baseline — the sweep costs 0.57 KiB, all
+  of it CSS. (An interim measurement of this same change read 677.36 KiB: Tailwind's automatic source
+  detection was scanning the new tests' own class-shaped fixture strings as if they were markup,
+  which `@source not "**/*.test.ts(x)"` in `app.css` now excludes.) From here the ceiling is no
+  longer read by hand: `pnpm check:precache` sums the same manifest after every CI build and fails
+  over 1,000 KiB. Headroom is **322.91 KiB**, and about 66 KiB of genuinely precached icons sit
+  outside the figure Workbox prints
   ([issue #88](https://github.com/FixbyteStudio/captain-prospectus/issues/88)).
