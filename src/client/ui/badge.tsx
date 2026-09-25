@@ -8,10 +8,17 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        // border-primary-edge: the fill is 2.2:1 against the page, so without
+        // its own edge the badge has no discernible boundary (WCAG 1.4.11) —
+        // button-variants.ts:21 carries the same reason.
+        default: "bg-primary text-primary-foreground border-primary-edge [a&]:hover:bg-primary/90",
         secondary: "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+        // text-destructive-foreground at full opacity, not text-white on a
+        // dimmed dark:bg-destructive/60: palette.test.ts asserts ink-on-
+        // destructive at AA, and that pair is only the one actually rendered
+        // when the fill stays at full opacity.
         destructive:
-          "bg-destructive text-white focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
         outline:
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",

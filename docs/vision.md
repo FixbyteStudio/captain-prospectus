@@ -36,7 +36,8 @@ is tied to a city — moving is changing those three places, not a migration.
 - An agent can complete a visit with zero network in under 60 seconds.
 - A visit logged offline reaches the admin within 1 minute of the phone regaining signal.
 - Monthly infrastructure bill: 0.
-- **The field route's precache stays under 1,000 KiB**, as `pnpm build` prints it
+- **The field route's precache stays under 1,000 KiB**, as `pnpm build` prints it and
+  `pnpm check:precache` fails CI over it
   ([ADR-0026](adr/0026-budget-the-field-precache-not-the-entry-chunk.md)). That is what an agent's phone downloads, on a bad connection, when it
   installs the app or takes an update. The entry chunk has no cap but is recorded beside it. The
   history below is how the budget got here: until ADR-0026 it was **the entry chunk under 150 kB
@@ -107,3 +108,10 @@ is tied to a city — moving is changing those three places, not a migration.
   of the dashboard redesign (a lazy Carte tab with Leaflet, shadcn Dialog in the visit chunk, four
   tab-bar icons) measured **144.49 kB and 811.75 KiB**. The entry chunk would have passed, while the
   phone downloaded 202 KiB more, so the budget now caps the precache at 1,000 KiB instead.
+
+  **Measured on 2026-09-25 after the epic's refactor sweep (GH #67): entry chunk 163.91 kB, precache
+  677.36 KiB**, against 163.93 kB and 676.52 KiB at the same baseline — the sweep costs 0.84 KiB, all
+  of it CSS. From here the ceiling is no longer read by hand: `pnpm check:precache` sums the same
+  manifest after every CI build and fails over 1,000 KiB. Headroom is **322.64 KiB**, and about 66 KiB
+  of genuinely precached icons sit outside the figure Workbox prints
+  ([issue #88](https://github.com/FixbyteStudio/captain-prospectus/issues/88)).

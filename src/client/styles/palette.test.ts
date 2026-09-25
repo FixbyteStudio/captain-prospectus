@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { classLiterals } from "./class-literals";
 
 /**
  * docs/design.md › Colour states five palette rules and a set of contrast
@@ -394,5 +395,60 @@ describe("rule 5: status and outcome badge text reaches 4.5:1 on its tint", () =
       }
       expect(contrast(solid(t, text), solid(t, fill))).toBeGreaterThanOrEqual(TEXT);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The component tier: rules 1–5 above prove the tokens, which let three real
+// bugs through (#69, #70) because nothing checked whether a *component*
+// actually pairs a fill with its edge, or a destructive fill with the text
+// palette.test.ts already asserts. This scans every vendored shadcn variant's
+// class string — not the DOM, no new dependency, same spirit as
+// config.test.ts. A string is the unit, not the file, so badge.tsx's
+// `default` and `destructive` variants are judged separately (GH #67).
+
+const UI_DIR = new URL("../ui/", import.meta.url);
+const UI_FILES = readdirSync(UI_DIR).filter((name) => /\.(tsx|ts)$/.test(name));
+
+/** True for a bare `bg-primary` token — the full-opacity fill rule 4 governs. */
+function isBareGoldFill(token: string): boolean {
+  const parts = token.split(":");
+  // `selection:bg-primary` (input.tsx) colours the browser's own text-
+  // selection highlight, not a persistent control WCAG 1.4.11 governs, so it
+  // is not a "fill" in this rule's sense. `bg-primary/NN` (a tint, e.g.
+  // progress.tsx's track) and `bg-primary-foreground` are excluded by the
+  // exact-token match below.
+  return parts.at(-1) === "bg-primary" && parts.at(-2) !== "selection";
+}
+
+/** A border, ring or inset shadow that carries the darker gold edge. */
+const HAS_EDGE_BOUNDARY = /(?:border|ring)-primary-edge|shadow-\[inset[^\]]*primary-edge/;
+
+describe("rule 4, in the components: every gold fill carries primary-edge", () => {
+  it.each(UI_FILES)("%s", (file) => {
+    const source = readFileSync(new URL(file, UI_DIR), "utf8");
+    for (const literal of classLiterals(source)) {
+      const hasFill = literal.split(/\s+/).some(isBareGoldFill);
+      if (!hasFill) continue;
+      expect(HAS_EDGE_BOUNDARY.test(literal), `${file}: "${literal}"`).toBe(true);
+    }
+  });
+});
+
+describe("rule 2, in the components: text on a destructive fill comes from the token", () => {
+  it.each(UI_FILES)("%s", (file) => {
+    const source = readFileSync(new URL(file, UI_DIR), "utf8");
+    for (const literal of classLiterals(source)) {
+      const tokens = literal.split(/\s+/);
+      // Not "never white": `--on-destructive` *is* #ffffff in light mode, so
+      // what this forbids is the hardcoded `text-white` utility, which pins
+      // white in both themes and ignores the token's dark ink. The
+      // `dark:bg-destructive/NN` override is forbidden for the same reason —
+      // the contrast pair asserted above only holds at full opacity, so
+      // dimming the fill made the proof vacuous (#70).
+      if (!tokens.includes("bg-destructive")) continue;
+      expect(literal, `${file}: "${literal}"`).not.toMatch(/\btext-white\b/);
+      expect(literal, `${file}: "${literal}"`).not.toMatch(/dark:bg-destructive\//);
+    }
   });
 });

@@ -1,11 +1,12 @@
 /**
  * « Retour à la tournée ».
  *
- * The arrow is an inline path rather than a lucide import: lucide costs 2.4 kB
- * gzipped in the field entry chunk and this is the only icon the field screens
- * use. ADR-0015's rule is that the cheap thing has to cite a measurement, and
- * that is this one. The admin side keeps lucide — it is a lazy chunk.
+ * Lucide, not a hand-rolled path: the field entry chunk already carries it
+ * for `App.tsx`'s empty-state icons and `SyncIndicator.tsx`'s sync icons, so
+ * there is no per-icon budget left to save here (ADR-0026 budgets the field
+ * route by its precache total, not by counting icons into the entry chunk).
  */
+import { ArrowLeftIcon } from "lucide-react";
 import { Link } from "react-router";
 import { copy } from "../copy";
 
@@ -15,15 +16,7 @@ export function BackLink() {
       to="/tournee"
       className="text-muted-foreground hover:text-foreground inline-flex min-h-touch items-center gap-2 text-sm"
     >
-      <svg viewBox="0 0 16 16" aria-hidden className="size-4" fill="none">
-        <path
-          d="M10 3.5L5.5 8l4.5 4.5"
-          stroke="currentColor"
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <ArrowLeftIcon aria-hidden className="size-4" />
       {copy.visit.back}
     </Link>
   );

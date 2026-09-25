@@ -111,8 +111,13 @@ the two would stop being separable.
 Each is forced by a measurement rather than taste.
 `src/client/styles/palette.test.ts` asserts the tokens behind each rule in
 light, in dark pinned with `data-theme`, and in dark from the system: nudging a
-hex so that one breaks fails CI and names the theme. It does not check every
-place a component uses them; rules 1 and 4 are usage rules, kept in review.
+hex so that one breaks fails CI and names the theme. A second tier scans every
+`src/client/ui/*.tsx|ts` variant string for rule 4 (a `bg-primary` fill with no
+`primary-edge` boundary) and for rule 2's destructive pairing (`text-white`, or
+a `dark:bg-destructive/*` opacity that makes the asserted ink-on-`destructive`
+pair vacuous) — GH #67, after both slipped past the token tier once each (#69,
+#70). Rule 1 stays a usage rule, kept in review: nothing scans arbitrary
+component markup for gold text on a light surface.
 
 1. **Gold is never text on a light surface.** It is 2.4:1 on white. This keeps
    every word legible: gold only ever says "act here" or "chosen" as a fill.
@@ -124,7 +129,9 @@ place a component uses them; rules 1 and 4 are usage rules, kept in review.
    wiring (`ring` follows `primary`) is broken.
 4. **Every gold fill carries `primary-edge`.** The fill is 2.2:1 against the
    page, below the 3:1 WCAG 1.4.11 wants for a control's boundary; the darker
-   gold edge gives 3.4:1 and still reads as gold.
+   gold edge gives 3.4:1 and still reads as gold. `progress.tsx`'s indicator
+   bar carries it too (an inset shadow, since the track's `overflow-hidden`
+   already clips it to the rounded shape).
 5. **Status and outcome badge text reaches 4.5:1 on its tint.** This keeps a
    badge's word legible, not just its colour. A tint that fails drops below 12 %
    in that theme until it passes, which is why dark `tint-destructive` is 10 %.

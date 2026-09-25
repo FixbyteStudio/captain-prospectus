@@ -19,8 +19,11 @@ export const buttonVariants = cva(
         // discernible boundary (WCAG 1.4.11). The darker gold gives 3.4:1.
         default:
           "bg-primary text-primary-foreground border-primary-edge border hover:bg-primary/90",
+        // text-destructive-foreground at full opacity: palette.test.ts asserts
+        // ink-on-destructive at AA, and dark:bg-destructive/60 rendered a
+        // different, untested pair — see badge.tsx's destructive variant.
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",

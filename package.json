@@ -11,6 +11,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "check:precache": "node scripts/check-precache.mjs",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",

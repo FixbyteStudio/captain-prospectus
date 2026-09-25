@@ -55,7 +55,7 @@ export function AdminLayout({
           <TopBar pathname={pathname} email={email} />
         </header>
         {banner}
-        <main className="safe-bottom px-4 py-6">{children}</main>
+        <main className="px-4 pt-6 pb-page">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );
