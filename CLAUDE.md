@@ -20,6 +20,8 @@ One concern per change. When you find a bug, inconsistency or code/doc drift tha
 
 Fix it in the current change only when the task cannot be finished or verified without it, and say so in the PR description. If you are unsure whether it blocks you, ask.
 
+A deferral repeated across two stories with the same reason schedules the enabler story instead of a third deferral (retro epic #59).
+
 ## Non-negotiable invariants
 Each is one line; its reasons live behind the link.
 1. **Nothing bills without the owner's consent.** A paid service or plan needs an ADR and a row in `docs/free-tier-budget.md`. Only Google Places has one, and it stays inert without `GOOGLE_PLACES_KEY` ([ADR-0002](docs/adr/0002-zero-cost-constraint.md), [ADR-0020](docs/adr/0020-google-places-as-a-second-map-provider.md)).
