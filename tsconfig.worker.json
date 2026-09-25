@@ -4,5 +4,8 @@
     "lib": ["ES2022"],
     "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"]
   },
-  "include": ["src/worker", "src/shared", "worker-configuration.d.ts", "test"]
+  "include": ["src/worker", "src/shared", "worker-configuration.d.ts", "test"],
+  // The DOM harness's own setup has no place in a workerd config;
+  // tsconfig.client.json typechecks it instead.
+  "exclude": ["test/setup-dom.ts", "test/stubs"]
 }

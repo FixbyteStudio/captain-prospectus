@@ -27,6 +27,7 @@ The PR template enforces it: tests, docs, ADR, migration safety, zero-cost check
 | Shared | dedupe key, status mapping, schemas, `chunk()` | Vitest |
 | Worker | routes against a real local D1 in workerd | Vitest + `@cloudflare/vitest-pool-workers` |
 | Client | sync engine against a mocked API | Vitest + `fake-indexeddb` |
+| DOM | the shell's components: routes and frames, sync strip, admin top bar, field tabs | Vitest (`dom` project) + `happy-dom` + Testing Library, `*.test.tsx` |
 | E2E | one happy-path visit offline → online | Playwright, added in M2 |
 
 Run everything with `pnpm test`. `pnpm lint` (ESLint + Prettier) runs in CI too.

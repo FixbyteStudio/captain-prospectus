@@ -1,7 +1,8 @@
 /**
  * The field tab bar's contents — GH #66. Pure so the matrix in the spec can be
- * asserted without a DOM: this repo has no DOM test harness, so anything only
- * reachable through JSX (FieldTabs.tsx) is untested.
+ * asserted without a DOM, in the `unit` project. What the component does with
+ * these tabs is covered separately, in `FieldTabs.test.tsx` (the `dom`
+ * project, GH #83).
  */
 import type { ComponentType } from "react";
 import { LayoutGrid, MapPinPlus, Route } from "lucide-react";

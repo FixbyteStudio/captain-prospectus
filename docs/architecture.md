@@ -55,6 +55,21 @@ docs/            this documentation
 
 `src/shared` is the contract. Both sides import the same zod schemas; no duplicated types.
 
+### Tests
+
+`pnpm test` runs three vitest projects, one per runtime (`vitest.config.ts`):
+
+| Project | Environment | Covers |
+|---|---|---|
+| `unit` | node + fake-indexeddb | `src/shared/**/*.test.ts`, `src/client/**/*.test.ts`, `config.test.ts` — pure rules, the Dexie store and the sync engine |
+| `worker` | workerd + a local D1 built from `drizzle/` | `src/worker/**/*.test.ts` — routes, auth and queries |
+| `dom` | happy-dom + Testing Library | `src/client/**/*.test.tsx` — components: which frame and redirect each route and role gets, the sync strip's live regions, the admin top bar's controls, the field tab bar's leave guard |
+
+The file extension is the whole selector between `unit` and `dom`, so no test
+moves between runtimes by accident. The `dom` project stubs
+`virtual:pwa-register/react` (`test/stubs/`), since VitePWA is not in the test
+pipeline. Testing Library is dev-only and reaches no bundle.
+
 ## 4. Key flows
 
 ### 4.1 Agent sync (the heart of the system)
