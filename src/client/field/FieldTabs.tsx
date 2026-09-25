@@ -59,7 +59,7 @@ export function FieldTabs({ isAdmin }: { isAdmin: boolean }) {
           and preflight's `box-sizing: border-box` would otherwise squeeze
           that height to fit the inset *inside* it, shrinking every tab below
           its 48px target on a notched phone (same split as the band itself —
-          `.safe-top` on `App.tsx`'s `<header>`, `h-band-height` on the row
+          `.safe-top` on `Band`'s `<header>`, `h-band-height` on the row
           inside it). `md:contents` below removes this wrapper's own box
           entirely from 768px, so its fixed position, fill and border stop
           applying and the `<nav>` becomes the real (and only) flex item in
