@@ -1,7 +1,25 @@
+import type { ReactNode } from "react";
 import { copy } from "./copy";
 import { Alert, AlertTitle } from "@/ui/alert";
 import { buttonVariants } from "@/ui/button-variants";
 import type { PwaState } from "./pwa";
+
+/**
+ * The band header itself: every frame that shows one renders it through here,
+ * and `children` are the contents of its row (GH #59 retro, F1 — the same two
+ * elements had been written out at four sites in `App.tsx`).
+ *
+ * `.safe-top` is padding, not height, so the notch inset goes on the header
+ * and the 56px `band-height` goes on the row inside it — putting both on the
+ * header would grow it by the inset instead of just moving its content down.
+ */
+export function Band({ children }: { children: ReactNode }) {
+  return (
+    <header className="safe-top bg-band text-band-foreground">
+      <div className="flex h-band-height items-center gap-3 px-4">{children}</div>
+    </header>
+  );
+}
 
 /**
  * The mark and wordmark, shared by the field band and the admin sidebar header.
