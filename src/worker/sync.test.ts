@@ -2,15 +2,12 @@ import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:
 import { beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
 import { eq } from "drizzle-orm";
-import { getDb } from "./db/client";
+import { boundParamsPerRow, getDb } from "./db/client";
+import { chunk } from "../shared/chunk";
 import { prospects, scripts, visits, visitsOrphaned } from "./db/schema";
 import { visitHistoryResponseSchema } from "../shared/schemas";
 import type { Outcome } from "../shared/constants";
-import {
-  MAX_REQUEST_BYTES,
-  SYNC_PROSPECTS_PER_REQUEST,
-  SYNC_VISITS_PER_REQUEST,
-} from "../shared/constants";
+import { MAX_REQUEST_BYTES, SYNC_VISITS_PER_REQUEST } from "../shared/constants";
 import type { SyncRequest, SyncResponse } from "../shared/schemas";
 
 /**
@@ -37,26 +34,35 @@ async function sync(body: Partial<SyncRequest>): Promise<Response> {
 }
 
 async function seedProspect(id: string, owner: string | null = AGENT): Promise<void> {
+  await seedProspects([id], owner);
+}
+
+/** Many at once: 150 sequential inserts would dominate a test's runtime. */
+async function seedProspects(ids: readonly string[], owner: string | null = AGENT): Promise<void> {
   const db = getDb(env.DB);
-  await db.insert(prospects).values({
+  const now = Date.now();
+  const rows = ids.map((id) => ({
     id,
     name: "Le Bistrot",
-    type: "restaurant",
+    type: "restaurant" as const,
     lat: 48.85,
     lng: 2.35,
     address: null,
     phone: null,
     website: null,
     cuisine: null,
-    source: "csv",
+    source: "csv" as const,
     sourceRef: null,
     dedupeKey: `test:${id}`,
-    status: "assigned",
+    status: "assigned" as const,
     assignedTo: owner,
     createdBy: AGENT,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
+    createdAt: now,
+    updatedAt: now,
+  }));
+  for (const batch of chunk(rows, boundParamsPerRow(prospects))) {
+    await db.insert(prospects).values(batch);
+  }
 }
 
 beforeEach(async () => {
@@ -247,15 +253,11 @@ describe("POST /api/agent/sync", () => {
    */
   it("accepts a full batch of visits carrying maximum-length notes", async () => {
     const db = getDb(env.DB);
-    // Two visits each to 100 prospects rather than one each to 200: a payload
-    // referencing more than 100 distinct prospects trips D1's bound-parameter
-    // limit in the route's own lookup, which is a separate bug (INVARIANT 7,
-    // filed). The byte size this test is about is the same either way.
-    const ids = Array.from({ length: SYNC_PROSPECTS_PER_REQUEST }, () => crypto.randomUUID());
-    for (const id of ids) await seedProspect(id);
+    const ids = Array.from({ length: SYNC_VISITS_PER_REQUEST }, () => crypto.randomUUID());
+    await seedProspects(ids);
 
     const response = await sync({
-      visits: [...ids, ...ids].map((prospectId) => ({
+      visits: ids.map((prospectId) => ({
         id: crypto.randomUUID(),
         prospectId,
         visitedAt: Date.now(),
@@ -268,6 +270,39 @@ describe("POST /api/agent/sync", () => {
 
     expect(response.status).toBe(200);
     expect(await db.select().from(visits)).toHaveLength(SYNC_VISITS_PER_REQUEST);
+  });
+
+  /**
+   * #30, INVARIANT 7. A week offline is enough to reach 150 distinct doors, and
+   * every id in the route's prospect lookup binds one parameter: unchunked, the
+   * statement breaches D1's 100 and 500s. A 500 rightly keeps the outbox
+   * (INVARIANT 5), so the phone would rebuild the same payload for ever.
+   *
+   * The orphan assertion is the other half: a lookup that chunked but kept only
+   * one batch's rows would still answer 200, quietly quarantining the visits it
+   * could no longer match to a prospect.
+   */
+  it("accepts visits spread over more distinct prospects than D1 can bind", async () => {
+    const db = getDb(env.DB);
+    const ids = Array.from({ length: 150 }, () => crypto.randomUUID());
+    await seedProspects(ids);
+
+    const response = await sync({
+      visits: ids.map((prospectId) => ({
+        id: crypto.randomUUID(),
+        prospectId,
+        visitedAt: Date.now(),
+        flyerGiven: true,
+        outcome: "interested" as const,
+        answers: {},
+      })),
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as SyncResponse;
+    expect(body.accepted.visits).toHaveLength(150);
+    expect(await db.select().from(visits)).toHaveLength(150);
+    expect(await db.select().from(visitsOrphaned)).toHaveLength(0);
   });
 
   it("returns the existing prospect's id when a field prospect already exists", async () => {
@@ -549,6 +584,38 @@ describe("POST /api/agent/sync — the script a visit was answered with", () => 
 
     const body = (await response.json()) as SyncResponse;
     expect(body.accepted.visits).toEqual(expect.arrayContaining([good, stale]));
+  });
+
+  /**
+   * The script lookup is chunked for the same reason as the prospect one (#30,
+   * INVARIANT 7): nothing caps how many distinct script ids a batch names, so
+   * 150 of them bound 150 parameters and 500d.
+   *
+   * The known id goes first, in the first chunk: a lookup that kept only the
+   * last chunk's rows would null it and still answer 200.
+   */
+  it("resolves more distinct script ids than D1 can bind", async () => {
+    const scriptId = await seedScript();
+    const prospectId = crypto.randomUUID();
+    await seedProspect(prospectId);
+
+    const base = { prospectId, visitedAt: Date.now(), flyerGiven: false, outcome: "interested" };
+    const response = await sync({
+      visits: Array.from({ length: 150 }, (_, i) => ({
+        ...base,
+        id: crypto.randomUUID(),
+        // Distinct and unknown, except the first — 424_242 upwards is nobody's id.
+        scriptId: i === 0 ? scriptId : 424_242 + i,
+        answers: {},
+      })) as SyncRequest["visits"],
+    });
+
+    expect(response.status).toBe(200);
+    const db = getDb(env.DB);
+    const stored = await db.select({ scriptId: visits.scriptId }).from(visits);
+    expect(stored).toHaveLength(150);
+    expect(stored.filter((r) => r.scriptId === scriptId)).toHaveLength(1);
+    expect(stored.filter((r) => r.scriptId === null)).toHaveLength(149);
   });
 });
 
