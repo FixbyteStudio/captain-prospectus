@@ -38,11 +38,19 @@ const stub = vi.hoisted(() => ({
   needRefresh: false,
   /** True while `/api/me` should never settle, for the loading-state case. */
   identityPending: false,
+  /** True while `/api/me` should fail unreachably, for the error-state case. */
+  identityUnreachable: false,
 }));
 
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
-  apiFetch: () => (stub.identityPending ? new Promise(() => {}) : Promise.resolve(stub.me)),
+  apiFetch: () => {
+    if (stub.identityPending) return new Promise(() => {});
+    // Not an ApiError: a bare failure is "unreachable", which with no cached
+    // identity is resolveIdentity's offline-first-run error (identity.ts).
+    if (stub.identityUnreachable) return Promise.reject(new Error("unreachable"));
+    return Promise.resolve(stub.me);
+  },
 }));
 
 vi.mock("./field/useSync", () => ({
@@ -81,16 +89,33 @@ function renderApp(path: string) {
 /** Present only inside `FieldFrame` (its `FieldTabs`), never in the admin frame. */
 const fieldBand = () => screen.queryByRole("navigation", { name: copy.nav.tabsLabel });
 
+/**
+ * The band header `Band` draws, by the two classes that are its whole job:
+ * `.safe-top` on the header for the notch inset, `h-band-height` on the row
+ * inside it for the 56px (GH #59 retro, F1). Class-based because the band is
+ * a plain `<header>` with no accessible name of its own — the brand text and
+ * the tab nav inside it are asserted separately above.
+ */
+function bandHeader(container: HTMLElement) {
+  return container.querySelector("header.safe-top.bg-band > .h-band-height");
+}
+
 // `stub` is module scope and every case writes to it, so without this the
 // suite would only pass in the order it happens to be written in. The Dexie
 // row goes too: `App`'s identity effect writes `meta.identity` without
 // awaiting it, so a case's write can land during the next one and make it
 // look like a different agent just signed in.
-beforeEach(() => {
+beforeEach(async () => {
+  // Cleared here as well as in `afterEach`: the write above is not awaited,
+  // so it can land *after* the clear that was meant to catch it. The
+  // identity-error case below reads `offlineFirstRun` only with nothing
+  // cached (identity.ts), so for that one the row decides the outcome.
+  await fieldDb.meta.clear();
   stub.me = AGENT;
   stub.sync = QUIET;
   stub.needRefresh = false;
   stub.identityPending = false;
+  stub.identityUnreachable = false;
 });
 
 afterEach(async () => {
@@ -98,14 +123,15 @@ afterEach(async () => {
 });
 
 describe("App routing", () => {
-  it("shows the band over a busy main while /api/me is still in flight", () => {
+  it("marks main busy while /api/me is still in flight", () => {
     stub.identityPending = true;
     const { container } = renderApp("/");
 
-    // The brand, not the field band's nav (FieldTabs needs `me` to decide
-    // isAdmin, so it cannot render yet) — GH #67 review: a bandless loading
-    // frame flashed blank before every field session until this was added.
-    expect(screen.getByText(copy.appName)).toBeTruthy();
+    // Not the field band's nav: FieldTabs needs `me` to decide isAdmin, so it
+    // cannot render yet. That the band itself is there — GH #67 review: a
+    // bandless loading frame flashed blank before every field session until
+    // it was added — is asserted in "App band header" below.
+    expect(fieldBand()).toBeNull();
     const main = container.querySelector("main");
     expect(main?.getAttribute("aria-busy")).toBe("true");
   });
@@ -147,6 +173,39 @@ describe("App routing", () => {
 
     expect(await screen.findByText(copy.errors.notFound)).toBeTruthy();
     expect(fieldBand()).toBeTruthy();
+  });
+});
+
+describe("App band header", () => {
+  // One component, four call sites (GH #59 retro, F1 — it had been written out
+  // verbatim at each of them, and the sweep that was closing the epic's gaps
+  // added the fourth). These pin the three frames a test can reach; the
+  // fourth, `AdminFrameFallback`, needs a real lazy admin chunk and this suite
+  // mocks it away.
+  it("draws the band in the loading frame, while /api/me is still in flight", () => {
+    stub.identityPending = true;
+    const { container } = renderApp("/");
+
+    expect(bandHeader(container)?.textContent).toContain(copy.appName);
+  });
+
+  it("draws the band in the identity-error frame", async () => {
+    stub.identityUnreachable = true;
+    const { container } = renderApp("/");
+
+    expect(await screen.findByText(copy.errors.offlineFirstRun)).toBeTruthy();
+    expect(bandHeader(container)?.textContent).toContain(copy.appName);
+  });
+
+  it("draws the band in the field frame", async () => {
+    const { container } = renderApp("/tournee");
+
+    expect(await screen.findByRole("navigation", { name: copy.nav.tabsLabel })).toBeTruthy();
+    // The field band's row carries the tabs, the sync dot and the avatar too,
+    // so this also pins that they are inside the band and not beside it.
+    const band = bandHeader(container);
+    expect(band?.textContent).toContain(copy.appName);
+    expect(band?.querySelector("nav")).toBeTruthy();
   });
 });
 

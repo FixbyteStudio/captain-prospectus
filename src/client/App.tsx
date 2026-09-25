@@ -11,7 +11,7 @@ import {
 } from "react-router";
 import { LockIcon, MapPinOffIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import { apiFetch } from "./api";
-import { BandBrand, UpdatePrompt } from "./Band";
+import { Band, BandBrand, UpdatePrompt } from "./Band";
 import { copy } from "./copy";
 import { initials } from "./format";
 import type { MeResponse } from "../shared/schemas";
@@ -90,12 +90,9 @@ function FieldRoutes() {
 }
 
 /**
- * The field-only band. Admin screens get their own frame instead of this one:
- * `AdminApp` renders as a sibling route, not nested inside `FieldFrame`.
- *
- * `.safe-top` is padding, not height, so the notch inset goes on the header
- * and the 56px `band-height` goes on the row inside it — putting both on the
- * header would grow it by the inset instead of just moving its content down.
+ * The field-only band: the one frame whose band row carries more than the
+ * brand. Admin screens get their own frame instead of this one: `AdminApp`
+ * renders as a sibling route, not nested inside `FieldFrame`.
  */
 function FieldFrame({ isAdmin, pwa, email }: { isAdmin: boolean; pwa: PwaState; email: string }) {
   // `FieldFrame` also wraps the forbidden and not-found fallbacks (neither is
@@ -114,32 +111,30 @@ function FieldFrame({ isAdmin, pwa, email }: { isAdmin: boolean; pwa: PwaState; 
 
   return (
     <LeaveGuardProvider>
-      <header className="safe-top bg-band text-band-foreground">
-        <div className="flex h-band-height items-center gap-3 px-4">
-          <BandBrand subtitle={subtitle} />
-          {/* Below 768px this detaches to a fixed bar at the bottom of the
-              screen; from 768px it sits right here, in the band's own row.
-              Below 768px it is `position: fixed` (out of flow) and claims no
-              width here at all, so it cannot push the sync pill and avatar to
-              the row's right edge the way the band nav it replaced used to —
-              `ml-auto` on the wrapper below does that instead, standing down
-              once the tab bar is back in flow and doing that job itself. */}
-          <FieldTabs isAdmin={isAdmin} />
-          <span className="ml-auto md:ml-0">
-            <SyncDot />
-          </span>
-          {/* Static, no menu (2026-09-24 decision, spec-gh-65): it only names
-              who is signed in, which the outbox and every visit already
-              assume. */}
-          <span
-            role="img"
-            aria-label={copy.nav.avatar(email)}
-            className="bg-primary text-primary-foreground ring-primary-edge flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ring-inset"
-          >
-            {initials(email)}
-          </span>
-        </div>
-      </header>
+      <Band>
+        <BandBrand subtitle={subtitle} />
+        {/* Below 768px this detaches to a fixed bar at the bottom of the
+            screen; from 768px it sits right here, in the band's own row.
+            Below 768px it is `position: fixed` (out of flow) and claims no
+            width here at all, so it cannot push the sync pill and avatar to
+            the row's right edge the way the band nav it replaced used to —
+            `ml-auto` on the wrapper below does that instead, standing down
+            once the tab bar is back in flow and doing that job itself. */}
+        <FieldTabs isAdmin={isAdmin} />
+        <span className="ml-auto md:ml-0">
+          <SyncDot />
+        </span>
+        {/* Static, no menu (2026-09-24 decision, spec-gh-65): it only names
+            who is signed in, which the outbox and every visit already
+            assume. */}
+        <span
+          role="img"
+          aria-label={copy.nav.avatar(email)}
+          className="bg-primary text-primary-foreground ring-primary-edge flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ring-inset"
+        >
+          {initials(email)}
+        </span>
+      </Band>
 
       {!hideUpdatePrompt && <UpdatePrompt pwa={pwa} />}
       <SyncStrip pwa={pwa} />
@@ -195,11 +190,9 @@ function FieldEmptyState({
 function AdminFrameFallback() {
   return (
     <>
-      <header className="safe-top bg-band text-band-foreground">
-        <div className="flex h-band-height items-center gap-3 px-4">
-          <BandBrand />
-        </div>
-      </header>
+      <Band>
+        <BandBrand />
+      </Band>
       <main className="px-4 pt-6 pb-page">
         <p className="text-muted-foreground" aria-busy="true" />
       </main>
@@ -289,27 +282,23 @@ export function App() {
   if (error) {
     return (
       <>
-        <header className="safe-top bg-band text-band-foreground">
-          <div className="flex h-band-height items-center gap-3 px-4">
-            <BandBrand />
-          </div>
-        </header>
+        <Band>
+          <BandBrand />
+        </Band>
         <main className="px-4 pt-6 pb-page">
           <FieldEmptyState icon={TriangleAlertIcon} message={error} />
         </main>
       </>
     );
   }
-  // Same band-plus-<main> shape as the error state above: an agent should not
-  // see a blank, unbranded screen for the moment /api/me is still in flight.
+  // An agent should not see a blank, unbranded screen for the moment
+  // /api/me is still in flight, so this carries the band too.
   if (!me) {
     return (
       <>
-        <header className="safe-top bg-band text-band-foreground">
-          <div className="flex h-band-height items-center gap-3 px-4">
-            <BandBrand />
-          </div>
-        </header>
+        <Band>
+          <BandBrand />
+        </Band>
         <main className="px-4 pt-6 pb-page" aria-busy="true" />
       </>
     );
