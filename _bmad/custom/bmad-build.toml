@@ -1,0 +1,106 @@
+# Team override for bmad-build. Committed.
+#
+# From the epic #59 retrospective (2026-09-25),
+# `_bmad-output/implementation-artifacts/epic-59-retro-2026-09-25.md`:
+# action 6 (finding F2) and action 8 (finding F1).
+
+[workflow]
+
+# Action 6, retro F2. `spec-gh-67-refactor-sweep.md` recorded a baseline one
+# merge behind the branch it was built on — the merge that brought in a
+# 1,300-line test harness — so any tool deriving the sweep's diff from its
+# frontmatter attributed that harness to the sweep. The cause was the pairing of
+# two defaults: the baseline is stamped from HEAD at implementation time, and a
+# resumed run preserves whatever is already there. A story whose branch is cut
+# after its spec was drafted is stale by construction.
+persistent_facts = [
+  """
+Team policy on `baseline_commit` (epic #59 retro, action 6 / finding F2).
+
+`baseline_commit` records the commit the story's branch was cut from, not the commit that happened
+to be HEAD when the spec was drafted. Stamp it at branch time and re-stamp it at PR time:
+
+1. Before implementing, resolve the baseline from version control rather than from the spec: it is
+   the merge-base of the working branch and the default branch. Write the full canonical sha.
+2. On a resumed run, this overrides the default's "preserve the existing value": if the recorded
+   value is not that merge-base, re-stamp it and note the old value and why it moved in the
+   frontmatter or `## Implementation Notes`. Never silently drop the old value.
+3. When the change is handed over as a pull request, re-stamp from the merge-base once more, since
+   the base branch may have moved while the story was in flight, and state the baseline in the PR
+   description alongside the verification results.
+""",
+]
+
+# Action 8, retro F1. The band header had been written out verbatim at four
+# sites in `App.tsx`; the sweep whose job was to close the epic's gaps added
+# the fourth, and its four lenses stayed silent. They hunt defects, and
+# aggregate repetition is invisible to a defect hunt by construction — a
+# duplicated block is only a finding once you see every site at once.
+#
+# Gated to sweep stories, and added to both lens sets so the gate decides,
+# not the route: a sweep that plans small enough to run oneshot gets the lens
+# too.
+
+[[workflow.quick_lenses]]
+id = "duplication-map"
+name = "Duplication Map"
+when = """
+Run this lens only when the story is a refactor or cleanup sweep — its title contains "Refactor
+sweep", or its stated job is to close gaps, tidy, consolidate or sweep across a surface rather than
+to add one behavior. Skip it otherwise.
+"""
+instruction = """
+Launch a context-free subagent with this prompt:
+
+You are a duplication mapper. You are not hunting defects — another reviewer does that, and a duplicated block is not a defect at any single one of its sites. Your subject is repetition that is only visible when every site is in view at once.
+
+Read the unified diff at `{diff_file}` to learn which files the change touches. Then read each of those files **in full, as they now stand** — not just the diff hunks. A diff shows one site at a time, which is exactly why this kind of finding gets missed.
+
+For every block of markup, logic or configuration that now appears more than once — whether this change added a copy, moved one, or merely left the copies standing — report:
+
+1. Every site, as `path:line`, with the count. All of them, not a representative one.
+2. Whether this change created a copy, and if so which.
+3. Whether a home for the shared version already exists in the repository — an existing module, component or helper the copies could move into — naming it.
+4. Whether the repetition is forced. Some duplication is correct: a chunk or bundle boundary the codebase's own rules impose, a deliberate difference the code documents in a comment. Say which, and quote the comment or rule. Report it as accepted, not as a finding.
+
+Also report the inverse where you see it: one name or symbol carrying two unrelated jobs.
+
+Search beyond the touched files where a copy plausibly lives elsewhere — a repeated class string, literal or shape is worth one grep across the source tree.
+
+Output a Markdown list of findings only — no severity, priority, or ranking. If you find no unforced repetition, say so plainly and name what you checked.
+
+Do not invoke any skill, and do not spawn subagents of your own — you are the reviewer. Return your findings as text in your final message; do not route them through any findings-reporting tool the host may offer.
+
+"""
+
+[[workflow.thorough_lenses]]
+id = "duplication-map"
+name = "Duplication Map"
+when = """
+Run this lens only when the story is a refactor or cleanup sweep — its title contains "Refactor
+sweep", or its stated job is to close gaps, tidy, consolidate or sweep across a surface rather than
+to add one behavior. Skip it otherwise.
+"""
+instruction = """
+Launch a context-free subagent with this prompt:
+
+You are a duplication mapper. You are not hunting defects — the other lenses in this set do that, and a duplicated block is not a defect at any single one of its sites. Your subject is repetition that is only visible when every site is in view at once.
+
+Read the unified diff at `{diff_file}` to learn which files the change touches. Then read each of those files **in full, as they now stand** — not just the diff hunks. A diff shows one site at a time, which is exactly why this kind of finding gets missed.
+
+For every block of markup, logic or configuration that now appears more than once — whether this change added a copy, moved one, or merely left the copies standing — report:
+
+1. Every site, as `path:line`, with the count. All of them, not a representative one.
+2. Whether this change created a copy, and if so which.
+3. Whether a home for the shared version already exists in the repository — an existing module, component or helper the copies could move into — naming it.
+4. Whether the repetition is forced. Some duplication is correct: a chunk or bundle boundary the codebase's own rules impose, a deliberate difference the code documents in a comment. Say which, and quote the comment or rule. Report it as accepted, not as a finding.
+
+Also report the inverse where you see it: one name or symbol carrying two unrelated jobs.
+
+Search beyond the touched files where a copy plausibly lives elsewhere — a repeated class string, literal or shape is worth one grep across the source tree.
+
+Output a Markdown list of findings only — no severity, priority, or ranking. If you find no unforced repetition, say so plainly and name what you checked.
+
+Do not invoke any skill, and do not spawn subagents of your own — you are the reviewer. Return your findings as text in your final message; do not route them through any findings-reporting tool the host may offer.
+
+"""
