@@ -187,3 +187,21 @@ export function toVisit(
   }
   return { ok: false, errors };
 }
+
+/**
+ * How many of `keys` the agent actually answered — the save confirmation's
+ * « {n} réponses » (docs/design.md, "Saving asks once").
+ *
+ * Counted as `answersSchemaFor` reads an answer, not as the draft stores it: a
+ * text cleared back to blanks trims to nothing, and a multi-choice with every
+ * box unticked is `[]`. Neither is an answer, so neither is counted — the
+ * summary must never claim more than the agent gave.
+ */
+export function answeredCount(answers: Answers, keys: readonly string[]): number {
+  return keys.filter((key) => {
+    const answer = answers[key];
+    if (typeof answer === "string") return answer.trim() !== "";
+    if (Array.isArray(answer)) return answer.length > 0;
+    return answer !== undefined && answer !== null;
+  }).length;
+}
