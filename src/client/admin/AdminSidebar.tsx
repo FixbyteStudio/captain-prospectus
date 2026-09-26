@@ -63,7 +63,7 @@ export function AdminSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
-                  const isActive = isCurrent(pathname, item.path);
+                  const isActive = isCurrent(pathname, item.path, item.end);
                   const count = badgeCount(item.count ? counts[item.count] : undefined);
                   const accessibleLabel =
                     count === null ? item.label : copy.nav.withCount(item.label, count);
@@ -75,7 +75,7 @@ export function AdminSidebar() {
                         isActive={isActive}
                         tooltip={rail ? accessibleLabel : undefined}
                       >
-                        <NavLink to={item.path} aria-label={accessibleLabel}>
+                        <NavLink to={item.path} end={item.end} aria-label={accessibleLabel}>
                           <item.icon aria-hidden="true" />
                           {!rail && <span className="truncate">{item.label}</span>}
                           {!rail && count !== null && <SidebarMenuBadge>{count}</SidebarMenuBadge>}

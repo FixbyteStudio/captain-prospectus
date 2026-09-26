@@ -10,11 +10,12 @@ import {
 } from "./nav";
 
 /**
- * The six routes AdminApp.tsx renders under `/admin/*` today, copied here by
- * hand — this file never reads AdminApp.tsx, so update both together if a
- * route there ever changes.
+ * The seven routes AdminApp.tsx renders under `/admin/*` today, the index
+ * included, copied here by hand — this file never reads AdminApp.tsx, so
+ * update both together if a route there ever changes.
  */
 const ADMIN_APP_ROUTES = [
+  "/admin",
   "/admin/prospects",
   "/admin/import",
   "/admin/doublons",
@@ -28,6 +29,10 @@ describe("NAV_GROUPS", () => {
     expect(
       NAV_GROUPS.map((group) => ({ label: group.label, paths: group.items.map((i) => i.path) })),
     ).toEqual([
+      {
+        label: "Pilotage",
+        paths: ["/admin"],
+      },
       {
         label: "Prospects",
         paths: ["/admin/prospects", "/admin/import", "/admin/doublons"],
@@ -82,9 +87,30 @@ describe("queueCount", () => {
 describe("isCurrent", () => {
   it("marks a deep link's own item", () => {
     const current = NAV_GROUPS.flatMap((group) => group.items).filter((item) =>
-      isCurrent("/admin/a-rattacher", item.path),
+      isCurrent("/admin/a-rattacher", item.path, item.end),
     );
     expect(current.map((item) => item.path)).toEqual(["/admin/a-rattacher"]);
+  });
+
+  it("marks only Tableau de bord on /admin (I/O matrix, sidebar current)", () => {
+    const current = NAV_GROUPS.flatMap((group) => group.items).filter((item) =>
+      isCurrent("/admin", item.path, item.end),
+    );
+    expect(current.map((item) => item.path)).toEqual(["/admin"]);
+  });
+
+  it("never marks Tableau de bord on another admin path (I/O matrix, sidebar current)", () => {
+    const current = NAV_GROUPS.flatMap((group) => group.items).filter((item) =>
+      isCurrent("/admin/prospects", item.path, item.end),
+    );
+    expect(current.map((item) => item.path)).toEqual(["/admin/prospects"]);
+    expect(isCurrent("/admin/inconnu", "/admin", true)).toBe(false);
+  });
+
+  it("with end, matches the path alone, exactly as NavLink's end does", () => {
+    expect(isCurrent("/admin", "/admin", true)).toBe(true);
+    expect(isCurrent("/admin/", "/admin", true)).toBe(false);
+    expect(isCurrent("/admin/visites", "/admin", true)).toBe(false);
   });
 
   it("matches a trailing slash or a nested path, not a sibling prefix", () => {
@@ -95,6 +121,10 @@ describe("isCurrent", () => {
 });
 
 describe("breadcrumbFor", () => {
+  it("names Pilotage › Tableau de bord on /admin", () => {
+    expect(breadcrumbFor("/admin")).toEqual({ group: "Pilotage", page: "Tableau de bord" });
+  });
+
   it("names the group and page for a deep link (I/O matrix)", () => {
     expect(breadcrumbFor("/admin/a-rattacher")).toEqual({ group: "Terrain", page: "À rattacher" });
   });
@@ -113,6 +143,7 @@ describe("breadcrumbFor", () => {
 
   it("has nothing to show for a path outside every group (I/O matrix, unknown path)", () => {
     expect(breadcrumbFor("/admin/xyz")).toEqual({ group: null, page: null });
+    expect(breadcrumbFor("/admin/inconnu")).toEqual({ group: null, page: null });
   });
 });
 

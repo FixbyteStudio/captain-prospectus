@@ -1,5 +1,13 @@
 import type { ComponentType } from "react";
-import { CloudUpload, Copy, FileText, Link as LinkIcon, MapPin, Store } from "lucide-react";
+import {
+  CloudUpload,
+  Copy,
+  FileText,
+  LayoutGrid,
+  Link as LinkIcon,
+  MapPin,
+  Store,
+} from "lucide-react";
 import { copy } from "../copy";
 
 /** Which query's result the item's badge counts (AdminSidebar reads both). */
@@ -10,6 +18,11 @@ export type NavItem = {
   path: string;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
   count?: NavCountSource;
+  /**
+   * Current on its own path only, never on one under it — NavLink's `end`.
+   * Tableau de bord sits at `/admin`, which every admin path starts with.
+   */
+  end?: boolean;
 };
 
 export type NavGroup = {
@@ -19,14 +32,18 @@ export type NavGroup = {
 
 /**
  * The admin sidebar's groups and order — GH #63. nav.test.ts checks these
- * paths against a hand-copied list of the six routes AdminApp.tsx renders
- * under `/admin/*` today — it does not read AdminApp.tsx, so update both
- * together if a route there ever changes.
+ * paths against a hand-copied list of the seven routes AdminApp.tsx renders
+ * under `/admin/*` today (the index included) — it does not read
+ * AdminApp.tsx, so update both together if a route there ever changes.
  *
- * Pilotage, Tableau de bord and Tournée du jour are not here on purpose: this
- * story's "Never" list keeps them out until their screens ship.
+ * Pilotage holds Tableau de bord since GH #107. Tournée du jour is still not
+ * here on purpose: it stays out until its screen ships.
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
+  {
+    label: copy.nav.groups.pilotage,
+    items: [{ label: copy.nav.dashboard, path: "/admin", icon: LayoutGrid, end: true }],
+  },
   {
     label: copy.nav.groups.prospects,
     items: [
@@ -61,8 +78,13 @@ export function queueCount<T>(
   return query.isSuccess && query.data !== undefined ? list(query.data).length : undefined;
 }
 
-/** Same rule as NavLink's own: the item's path, or anything under it. */
-export function isCurrent(pathname: string, path: string): boolean {
+/**
+ * Same rule as NavLink's own: the item's path, or anything under it — or, with
+ * `end`, the path alone. NavLink's `end` compares the pathname exactly, so a
+ * trailing slash does not count there, and must not here either.
+ */
+export function isCurrent(pathname: string, path: string, end = false): boolean {
+  if (end) return pathname === path;
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
@@ -78,7 +100,7 @@ export type Breadcrumb = { group: string | null; page: string | null };
  */
 export function breadcrumbFor(pathname: string): Breadcrumb {
   for (const group of NAV_GROUPS) {
-    const item = group.items.find((item) => isCurrent(pathname, item.path));
+    const item = group.items.find((item) => isCurrent(pathname, item.path, item.end));
     if (item) return { group: group.label, page: item.label };
   }
   return { group: null, page: null };

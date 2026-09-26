@@ -16,6 +16,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   ne,
   sql,
@@ -26,6 +27,7 @@ import {
   DUPLICATES_SCAN_LIMIT,
   EXPORT_ROWS,
   ORPHAN_CANDIDATES,
+  OPEN_STATUSES,
   ORPHANS_PAGE_SIZE,
   OVERPASS_CACHE_TTL_MS,
   PLACES_CACHE_TTL_MS,
@@ -39,10 +41,12 @@ import {
   csvTimestamp,
 } from "../../shared/csv";
 import { dedupeKey, normalize } from "../../shared/dedupe";
+import { brusselsPeriod, deltaOf } from "../../shared/period";
 import { cellAndNeighbours, cellOf, distanceMeters } from "../../shared/geo";
 import { isProbablySamePlace } from "../../shared/similarity";
 import {
   assignSchema,
+  dashboardQuerySchema,
   mergeSchema,
   orphanRepairSchema,
   overpassImportSchema,
@@ -65,6 +69,7 @@ import type {
   OrphansResponse,
   AgentsResponse,
   AssignResult,
+  DashboardResponse,
   DuplicatesResponse,
   ImportResult,
   MergeResult,
@@ -181,6 +186,54 @@ adminRoutes.get("/agents", (c) => {
 function unknownAssignee(email: string | null, env: AppEnv["Bindings"]): boolean {
   return email !== null && !assignableEmails(env).includes(email);
 }
+
+/* ---------------------------------------------------------------- dashboard */
+
+/**
+ * Tableau de bord — docs/api.md › The dashboard, which defines every figure.
+ *
+ * Read-only, and computed here rather than on the client, so each figure has
+ * one definition (docs/api.md › The dashboard).
+ */
+adminRoutes.get("/dashboard", validate("query", dashboardQuerySchema), async (c) => {
+  const { period } = c.req.valid("query");
+  const { from, to, previousFrom } = brusselsPeriod(Date.now(), period);
+  const db = getDb(c.env.DB);
+  // 1 for a visit in the current period, 0 for one in the previous period.
+  const inCurrent = sql`(case when ${visits.visitedAt} >= ${from} then 1 else 0 end)`;
+
+  const [visitCounts, open] = await Promise.all([
+    /**
+     * Both periods in one range read, which `visits_visited_idx` serves.
+     * Not filtered on `merged_into`: an absorbed prospect keeps its visits and
+     * they still happened. Quarantined visits live in another table, so they
+     * are out by construction. `visited_at` is already clamped (INVARIANT 12).
+     */
+    db
+      .select({
+        value: sql<number>`coalesce(sum(${inCurrent}), 0)`.mapWith(Number),
+        previous: sql<number>`coalesce(sum(1 - ${inCurrent}), 0)`.mapWith(Number),
+      })
+      .from(visits)
+      .where(and(gte(visits.visitedAt, previousFrom), lt(visits.visitedAt, to))),
+    // A snapshot of now: the period does not apply.
+    db
+      .select({ n: count() })
+      .from(prospects)
+      .where(and(isNull(prospects.mergedInto), inArray(prospects.status, [...OPEN_STATUSES]))),
+  ]);
+
+  const value = visitCounts[0]?.value ?? 0;
+  const previous = visitCounts[0]?.previous ?? 0;
+
+  return c.json<DashboardResponse>({
+    period,
+    from,
+    to,
+    visits: { value, previous, delta: deltaOf(value, previous) },
+    openProspects: open[0]?.n ?? 0,
+  });
+});
 
 /* ---------------------------------------------------------------- prospects */
 

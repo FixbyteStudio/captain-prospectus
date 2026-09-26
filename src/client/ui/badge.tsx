@@ -21,6 +21,11 @@ const badgeVariants = cva(
         // asserts, so dimming it there does not make that proof vacuous.
         destructive:
           "bg-destructive text-destructive-foreground focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
+        // Ours, not shadcn's: the KPI delta chip (docs/design.md › Tableau de
+        // bord). The colour on its own ≤ 12 % tint, a pair palette.test.ts
+        // asserts at AA — never a full fill, which is reserved for actions.
+        "tint-success": "bg-tint-success text-success",
+        "tint-destructive": "bg-tint-destructive text-destructive",
         outline:
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",

@@ -136,6 +136,14 @@ export const MAX_REQUEST_BYTES = 2_097_152;
  */
 export const SCRIPTS_PAGE_SIZE = 100;
 
+/**
+ * The Tableau de bord's period selector, in Brussels calendar days (GH #107).
+ * `src/shared/period.ts` turns one into bounds.
+ */
+export const DASHBOARD_PERIODS = [7, 30, 90] as const;
+export type DashboardPeriod = (typeof DASHBOARD_PERIODS)[number];
+export const DASHBOARD_DEFAULT_PERIOD: DashboardPeriod = 30;
+
 /** Past visits shown on the visit form. Enough context, one D1 page. */
 export const VISIT_HISTORY_LIMIT = 20;
 

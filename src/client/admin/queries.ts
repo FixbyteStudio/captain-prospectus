@@ -4,7 +4,7 @@
  * is how visits get lost.
  */
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "../api";
 import { copy } from "../copy";
 import { IMPORT_ROWS_PER_REQUEST } from "../../shared/constants";
@@ -15,6 +15,7 @@ import type {
   AdminVisitsResponse,
   AgentsResponse,
   AssignResult,
+  DashboardResponse,
   DuplicatesResponse,
   ImportResult,
   ImportRow,
@@ -28,7 +29,7 @@ import type {
   OrphansResponse,
   OrphanRepairResult,
 } from "../../shared/schemas";
-import type { Source, Status } from "../../shared/constants";
+import type { DashboardPeriod, Source, Status } from "../../shared/constants";
 
 export type ProspectFilters = {
   status?: Status;
@@ -39,6 +40,9 @@ export type ProspectFilters = {
 
 /** One factory, so an invalidation can never miss a key by spelling it differently. */
 export const adminKeys = {
+  /** Every period's entry at once — what a mutation invalidates (query-client.ts). */
+  dashboards: () => ["admin", "dashboard"] as const,
+  dashboard: (period: DashboardPeriod) => ["admin", "dashboard", period] as const,
   prospects: (filters: ProspectFilters) => ["admin", "prospects", filters] as const,
   agents: () => ["admin", "agents"] as const,
   duplicates: () => ["admin", "duplicates"] as const,
@@ -46,6 +50,22 @@ export const adminKeys = {
   scripts: () => ["admin", "scripts"] as const,
   orphans: () => ["admin", "visits", "orphans"] as const,
 };
+
+/**
+ * Tableau de bord's figures for one period (GH #107).
+ *
+ * No polling in this story. `keepPreviousData` keeps the last period's cards on
+ * screen while another period loads, instead of flashing back to skeletons.
+ * Every mutation marks it stale (query-client.ts), so it refetches as soon as
+ * it is on screen, whatever staleTime a later story sets.
+ */
+export function useDashboard(period: DashboardPeriod) {
+  return useQuery({
+    queryKey: adminKeys.dashboard(period),
+    queryFn: () => apiFetch<DashboardResponse>(`/api/admin/dashboard?period=${period}`),
+    placeholderData: keepPreviousData,
+  });
+}
 
 function toQueryString(filters: ProspectFilters): string {
   const params = new URLSearchParams();
@@ -124,6 +144,7 @@ export function useAssign() {
  * on the dedupe key — which is what the failure copy tells them.
  */
 export function useImportBatches(source: Source = "csv") {
+  const client = useQueryClient();
   const invalidate = useInvalidateProspects();
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -156,7 +177,12 @@ export function useImportBatches(source: Source = "csv") {
       setError(cause instanceof ApiError ? cause.message : copy.import.failed);
     } finally {
       setIsRunning(false);
-      await invalidate();
+      // Not a useMutation, so the MutationCache in query-client.ts never sees
+      // it: an import adds open prospects, so the dashboard is stale too.
+      await Promise.all([
+        invalidate(),
+        client.invalidateQueries({ queryKey: adminKeys.dashboards() }),
+      ]);
     }
   }
 
