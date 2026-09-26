@@ -50,3 +50,4 @@ Start from [000-template.md](000-template.md).
 | [010](010-offline-admin-dom-test.md) | Pin that an offline admin opens the field side (#85) | ready |
 | [011](011-top-bar-secondary-handlers-dom-tests.md) | Pin the admin top bar's remaining handlers (part of #86) | ready |
 | [012](012-evict-expired-map-cache-rows.md) | Evict expired map-cache rows in the daily sweep (#25) | ready |
+| [013](013-sync-identity-from-cache.md) | Do not stamp or sync under an unconfirmed cached identity | needs-decision |
