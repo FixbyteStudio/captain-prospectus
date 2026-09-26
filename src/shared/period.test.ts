@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brusselsPeriod, deltaOf } from "./period";
+import { DAY_MS, brusselsPeriod, deltaOf, periodDates, periodOffsets } from "./period";
 
 const at = (iso: string) => Date.parse(iso);
 const HOUR = 60 * 60 * 1000;
@@ -110,5 +110,74 @@ describe("deltaOf", () => {
     expect(deltaOf(15, 10)).toBe(0.5);
     expect(deltaOf(5, 10)).toBe(-0.5);
     expect(deltaOf(0, 4)).toBe(-1);
+  });
+});
+
+describe("periodOffsets (GH #110)", () => {
+  /** The Brussels day number periodOffsets lets SQL compute. */
+  const dayNumber = (t: number, o: ReturnType<typeof periodOffsets>) =>
+    Math.floor((t + (t >= o.changeAt ? o.after : o.before)) / DAY_MS);
+
+  it("has one offset and no change inside a winter period", () => {
+    const { from, to } = brusselsPeriod(at("2026-01-15T12:00:00.000Z"), 30);
+    expect(periodOffsets(from, to)).toEqual({ before: HOUR, after: HOUR, changeAt: to });
+  });
+
+  it("finds the spring change, 29 March 2026 at 01:00 UTC", () => {
+    const { from, to } = brusselsPeriod(at("2026-04-10T12:00:00.000Z"), 30);
+    expect(periodOffsets(from, to)).toEqual({
+      before: HOUR,
+      after: 2 * HOUR,
+      changeAt: at("2026-03-29T01:00:00.000Z"),
+    });
+  });
+
+  it("finds the autumn change, 25 October 2026 at 01:00 UTC, in a 90-day period", () => {
+    const { from, to } = brusselsPeriod(at("2026-11-20T12:00:00.000Z"), 90);
+    expect(periodOffsets(from, to)).toEqual({
+      before: 2 * HOUR,
+      after: HOUR,
+      changeAt: at("2026-10-25T01:00:00.000Z"),
+    });
+  });
+
+  it.each([
+    // 23:30 Brussels on the 23 h day, and on the 25 h day.
+    ["2026-03-29T21:30:00.000Z", "2026-03-29T22:00:00.000Z"],
+    ["2026-10-25T22:30:00.000Z", "2026-10-25T23:00:00.000Z"],
+  ])("puts %s on the DST day and the next midnight on the next day", (late, midnight) => {
+    const { from, to } = brusselsPeriod(at(midnight) + HOUR, 7);
+    const o = periodOffsets(from, to);
+    const first = dayNumber(from, o);
+    expect(dayNumber(at(late), o) - first).toBe(5);
+    expect(dayNumber(at(midnight), o) - first).toBe(6);
+    expect(dayNumber(at(midnight) - 1, o) - first).toBe(5);
+  });
+
+  it("gives every Brussels midnight of a period its own day number, DST included", () => {
+    for (const now of ["2026-04-10T12:00:00.000Z", "2026-11-20T12:00:00.000Z"]) {
+      const { from, to } = brusselsPeriod(at(now), 90);
+      const o = periodOffsets(from, to);
+      expect(dayNumber(to - 1, o) - dayNumber(from, o)).toBe(89);
+    }
+  });
+});
+
+describe("periodDates (GH #110)", () => {
+  it("lists the Brussels dates from `from`, across a month, a year and a clock change", () => {
+    const { from } = brusselsPeriod(at("2026-01-02T12:00:00.000Z"), 7);
+    expect(periodDates(from, 7)).toEqual([
+      "2025-12-27",
+      "2025-12-28",
+      "2025-12-29",
+      "2025-12-30",
+      "2025-12-31",
+      "2026-01-01",
+      "2026-01-02",
+    ]);
+    const spring = brusselsPeriod(at("2026-03-30T12:00:00.000Z"), 3);
+    expect(periodDates(spring.from, 3)).toEqual(["2026-03-28", "2026-03-29", "2026-03-30"]);
+    const autumn = brusselsPeriod(at("2026-10-26T12:00:00.000Z"), 3);
+    expect(periodDates(autumn.from, 3)).toEqual(["2026-10-24", "2026-10-25", "2026-10-26"]);
   });
 });

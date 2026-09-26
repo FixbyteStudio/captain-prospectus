@@ -536,6 +536,19 @@ export const dashboardResponseSchema = z.object({
     /** The denominator: distinct prospects with a visit in each period. */
     visitedProspects: z.object({ value: countSchema, previous: countSchema }),
   }),
+  /**
+   * Visites dans le temps: one entry per Brussels calendar day of the period,
+   * oldest first, with that day's visits per outcome. Always `period` entries;
+   * a day without visits has five zeros.
+   */
+  visitsByDay: z.array(
+    z.object({
+      /** The Brussels calendar date, `YYYY-MM-DD`. */
+      date: z.iso.date(),
+      /** Exhaustive: zod's enum-keyed record requires every outcome. */
+      counts: z.record(outcomeSchema, countSchema),
+    }),
+  ),
 });
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
 

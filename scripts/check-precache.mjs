@@ -47,8 +47,22 @@ const SW_PATH = join(DIST_CLIENT, "sw.js");
 const MAP_PATH = join(ROOT, "dist", "client-chunk-modules.json");
 
 // Packages only the admin side imports. Leaflet, Radix and sonner are left out
-// on purpose: the field shares them (ADR-0026) or may.
-const ADMIN_ONLY = ["@tanstack/*", "cmdk", "recharts", "papaparse", "@dnd-kit/*"];
+// on purpose: the field shares them (ADR-0026) or may. Recharts' chart-only
+// dependencies are listed too, so a chunk split that moves them out of
+// AdminApp without Recharts itself still fails (GH #110); its generic ones
+// (immer, es-toolkit, react-is…) are not, since the field may use them.
+const ADMIN_ONLY = [
+  "@tanstack/*",
+  "cmdk",
+  "recharts",
+  "victory-vendor",
+  "@reduxjs/*",
+  "react-redux",
+  "redux",
+  "decimal.js-light",
+  "papaparse",
+  "@dnd-kit/*",
+];
 const isAdminOnly = (name) =>
   ADMIN_ONLY.some((p) => (p.endsWith("/*") ? name.startsWith(p.slice(0, -1)) : name === p));
 

@@ -94,3 +94,55 @@ export function brusselsPeriod(now: number, days: number): Period {
 export function deltaOf(value: number, previous: number): number | null {
   return previous === 0 ? null : (value - previous) / previous;
 }
+
+/** A day in ms. Brussels days are not all this long, which is why `offsets` exists. */
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type PeriodOffsets = {
+  /** Brussels minus UTC, in ms, from `from` until `changeAt`. */
+  before: number;
+  /** Brussels minus UTC, in ms, from `changeAt` on. Equals `before` when the clocks do not change. */
+  after: number;
+  /** The instant the clocks change inside `[from, to)`, or `to` when they do not. */
+  changeAt: number;
+};
+
+/**
+ * The Brussels offsets in force over `[from, to)`, so SQL can turn an instant
+ * into a Brussels day number with one switch point instead of one bound
+ * parameter per day (INVARIANT 7): `floor((t + offset(t)) / DAY_MS)`.
+ *
+ * At most one change: Brussels changes its clocks 5 to 7 months apart and a
+ * period is at most 90 days. The change is found by bisection to the hour —
+ * offsets are whole hours and change on the hour — so about a dozen `Intl`
+ * calls, not one per day (INVARIANT 13).
+ */
+export function periodOffsets(from: number, to: number): PeriodOffsets {
+  const before = offsetAt(from);
+  const after = offsetAt(to - 1);
+  if (before === after) return { before, after, changeAt: to };
+  const HOUR = 60 * 60 * 1000;
+  // Both bounds are Brussels midnights, hence whole UTC hours, and the clocks
+  // never change at midnight, so offsetAt(to) is `after`. The loop keeps
+  // offsetAt(lo) === before and offsetAt(hi) === after, both on the hour.
+  let lo = from;
+  let hi = to;
+  while (hi - lo > HOUR) {
+    const mid = lo + Math.floor((hi - lo) / 2 / HOUR) * HOUR;
+    if (offsetAt(mid) === before) lo = mid;
+    else hi = mid;
+  }
+  return { before, after, changeAt: hi };
+}
+
+/**
+ * The Brussels calendar dates `YYYY-MM-DD` of the `days` days starting at
+ * `from`, which is a Brussels midnight. One `Intl` call, then calendar
+ * arithmetic — not one per day (INVARIANT 13).
+ */
+export function periodDates(from: number, days: number): string[] {
+  const { year, month, day } = wallClock(from);
+  return Array.from({ length: days }, (_, i) =>
+    new Date(Date.UTC(year, month - 1, day + i)).toISOString().slice(0, 10),
+  );
+}

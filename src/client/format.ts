@@ -11,6 +11,38 @@ export function formatDate(epochMs: number): string {
   return date.format(new Date(epochMs));
 }
 
+/*
+ * A Brussels calendar day arrives as "YYYY-MM-DD" (GH #110). Read and written
+ * in UTC, so the date shown is the date sent, whatever the browser's zone.
+ */
+const weekdayDay = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  weekday: "short",
+  day: "numeric",
+});
+const dayMonth = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  day: "2-digit",
+  month: "2-digit",
+});
+const longDay = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+const utcDay = (isoDate: string) => new Date(`${isoDate}T00:00:00Z`);
+
+/** A chart tick: "lun. 21" over a week, "21/09" over longer periods. */
+export function formatDayTick(isoDate: string, weekday: boolean): string {
+  return (weekday ? weekdayDay : dayMonth).format(utcDay(isoDate));
+}
+
+/** A day in full: "lundi 21 septembre". */
+export function formatDay(isoDate: string): string {
+  return longDay.format(utcDay(isoDate));
+}
+
 export function formatDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`;
   return `${(meters / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km`;

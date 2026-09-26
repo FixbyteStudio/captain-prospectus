@@ -300,6 +300,22 @@ dashboard](api.md#the-dashboard), and the Worker computes it.
   24px apart, in this order: Prospects ouverts, Visites, Convertis, Taux de
   conversion. The stories that add figures add cards or panels to the same
   grid.
+- **Visites dans le temps** (GH #110). Under the KPIs, 2:1 with the pipeline
+  at ≥ lg (the third is empty until the pipeline lands), full width below. A
+  `Card` titled in `text-heading` holds shadcn Chart (`src/client/ui/chart.tsx`,
+  Recharts, admin chunk only): a stacked bar per Brussels day, Personne sur
+  place at the bottom through Converti at the top, coloured `outcome-no-contact`,
+  `outcome-interested`, `outcome-not-interested`, `warn`, `success`. Each
+  segment under a drawn neighbour takes a 1px `card` line on its top edge. A
+  segment ≥ 22px tall **and** wide enough for its digits (14px for one, ~7px
+  more per digit) prints its count, centred, in
+  `primary-foreground` on no-contact and `card` on the others in light,
+  `primary-foreground` on all five in dark (palette.test.ts rule 7); so 90 days
+  and the narrower 30-day bars read from the tooltip. The legend sits above the
+  plot and never toggles a series. Hovering a day shows all five counts, zeros
+  included, under "lundi 21 septembre". Ticks read "lun. 21" over 7 days and
+  "21/09" beyond, thinned by Recharts. A visually hidden table ("Visites par
+  jour et par résultat") gives each day's counts and total.
 - **Loading.** Skeleton cards of the same shape stand in until the first
   answer, with a visually hidden "Chargement du tableau de bord…". Switching
   period keeps the last period's cards on screen, dimmed, until the new

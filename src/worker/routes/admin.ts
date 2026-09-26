@@ -29,9 +29,11 @@ import {
   ORPHAN_CANDIDATES,
   OPEN_STATUSES,
   ORPHANS_PAGE_SIZE,
+  OUTCOMES,
   OVERPASS_CACHE_TTL_MS,
   PLACES_CACHE_TTL_MS,
   SCRIPTS_PAGE_SIZE,
+  type Outcome,
   type Status,
 } from "../../shared/constants";
 import {
@@ -42,7 +44,7 @@ import {
   csvTimestamp,
 } from "../../shared/csv";
 import { dedupeKey, normalize } from "../../shared/dedupe";
-import { brusselsPeriod, deltaOf } from "../../shared/period";
+import { DAY_MS, brusselsPeriod, deltaOf, periodDates, periodOffsets } from "../../shared/period";
 import { cellAndNeighbours, cellOf, distanceMeters } from "../../shared/geo";
 import { isProbablySamePlace } from "../../shared/similarity";
 import {
@@ -203,7 +205,7 @@ adminRoutes.get("/dashboard", validate("query", dashboardQuerySchema), async (c)
   // 1 for a visit in the current period, 0 for one in the previous period.
   const inCurrent = sql`(case when ${visits.visitedAt} >= ${from} then 1 else 0 end)`;
 
-  const [visitCounts, open, conversions] = await Promise.all([
+  const [visitCounts, open, conversions, byDay] = await Promise.all([
     /**
      * Both periods in one range read, which `visits_visited_idx` serves.
      * Not filtered on `merged_into`: an absorbed prospect keeps its visits and
@@ -223,6 +225,7 @@ adminRoutes.get("/dashboard", validate("query", dashboardQuerySchema), async (c)
       .from(prospects)
       .where(and(isNull(prospects.mergedInto), inArray(prospects.status, [...OPEN_STATUSES]))),
     conversionCounts(db, { from, to, previousFrom }),
+    visitsByDay(db, { from, to }, period),
   ]);
 
   const value = visitCounts[0]?.value ?? 0;
@@ -248,11 +251,55 @@ adminRoutes.get("/dashboard", validate("query", dashboardQuerySchema), async (c)
       delta: rate === null || previousRate === null ? null : rate - previousRate,
       visitedProspects: { value: conversions.visited, previous: conversions.visitedPrevious },
     },
+    visitsByDay: byDay,
   });
 });
 
 function rateOf(n: number, d: number): number | null {
   return d === 0 ? null : n / d;
+}
+
+/**
+ * Visites dans le temps: the period's visits per Brussels day and outcome, in
+ * one range read that `visits_visited_idx` serves. Same visits as `visits`
+ * above: merged prospects' in, quarantined ones out, `visited_at` clamped.
+ *
+ * `(visited_at + offset) / DAY_MS` is the Brussels day number; the offset
+ * switches once at most (`periodOffsets`), which keeps the statement at a
+ * handful of bound parameters however long the period (INVARIANT 7).
+ */
+async function visitsByDay(
+  db: Db,
+  { from, to }: { from: number; to: number },
+  days: number,
+): Promise<DashboardResponse["visitsByDay"]> {
+  const { before, after, changeAt } = periodOffsets(from, to);
+  const firstDay = Math.floor((from + before) / DAY_MS);
+  const rows = await db.all<{ day: number; outcome: Outcome; n: number }>(sql`
+    select
+      -- D1 binds a JS number as REAL, so the division is a float one: the
+      -- cast floors it (the operand is never negative).
+      cast(
+        (${visits.visitedAt} + case when ${visits.visitedAt} >= ${changeAt} then ${after} else ${before} end)
+          / ${DAY_MS} as integer
+      ) - ${firstDay} as day,
+      ${visits.outcome} as outcome,
+      count(*) as n
+    from ${visits}
+    where ${visits.visitedAt} >= ${from} and ${visits.visitedAt} < ${to}
+    group by day, outcome
+  `);
+  const result = periodDates(from, days).map((date) => ({
+    date,
+    counts: Object.fromEntries(OUTCOMES.map((o) => [o, 0])) as Record<Outcome, number>,
+  }));
+  for (const row of rows) {
+    const entry = result[Number(row.day)];
+    // Out of range cannot happen for a visit in [from, to); skip rather than
+    // grow the array if it ever did.
+    if (entry && row.outcome in entry.counts) entry.counts[row.outcome] = Number(row.n);
+  }
+  return result;
 }
 
 type ConversionCounts = {
