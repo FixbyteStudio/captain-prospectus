@@ -1,11 +1,11 @@
 import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "./index";
 import { getDb } from "./db/client";
 import { eq, sql } from "drizzle-orm";
 import { prospects, scripts, visits, visitsOrphaned } from "./db/schema";
-import { DASHBOARD_PERIODS, type Outcome, type Status } from "../shared/constants";
-import { brusselsPeriod } from "../shared/period";
+import { DASHBOARD_PERIODS, OUTCOMES, type Outcome, type Status } from "../shared/constants";
+import { DAY_MS, brusselsPeriod, periodDates } from "../shared/period";
 import type { DashboardResponse } from "../shared/schemas";
 
 /**
@@ -170,6 +170,14 @@ describe("GET /api/admin/dashboard", () => {
     expect(body.visits.value).toBe(2);
     // The quarantined visit is `converted`, and still not a conversion.
     expect(body.converted.value).toBe(0);
+    // Visites dans le temps counts the same rows as the card (GH #110).
+    expect(body.visitsByDay[0]?.counts).toEqual({
+      no_contact: 0,
+      interested: 2,
+      not_interested: 0,
+      follow_up: 0,
+      converted: 0,
+    });
   });
 
   it("counts open, live prospects as a snapshot the period does not move (I/O matrix, snapshot)", async () => {
@@ -380,4 +388,108 @@ describe("GET /api/admin/dashboard › Convertis and Taux de conversion", () => 
     expect(body.converted.value).toBe(1);
     expect(body.conversionRate.value).toBe(1);
   });
+});
+
+describe("GET /api/admin/dashboard › Visites dans le temps (GH #110)", () => {
+  const HOUR = 60 * 60 * 1000;
+  /** Brussels midnight of the period's day `i`; noon keeps clear of a DST hour. */
+  const dayStart = (from: number, i: number) =>
+    brusselsPeriod(from + i * DAY_MS + 12 * HOUR, 1).from;
+  const zeros = () => Object.fromEntries(OUTCOMES.map((o) => [o, 0])) as Record<Outcome, number>;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(DASHBOARD_PERIODS)(
+    "has one entry per Brussels day of period %i, oldest first (I/O matrix, shape and empty)",
+    async (period) => {
+      const { from } = brusselsPeriod(Date.now(), period);
+      const body = await dashboard(`?period=${period}`);
+      expect(body.visitsByDay).toHaveLength(period);
+      expect(body.visitsByDay.map((d) => d.date)).toEqual(periodDates(from, period));
+      for (const day of body.visitsByDay) expect(day.counts).toEqual(zeros());
+    },
+  );
+
+  it.each(DASHBOARD_PERIODS)(
+    "counts period %i's visits per day and outcome (I/O matrix, per outcome)",
+    async (period) => {
+      const { from } = brusselsPeriod(Date.now(), period);
+      const prospectId = await seedProspect();
+      await seedVisits(prospectId, [dayStart(from, 0), dayStart(from, 0) + HOUR], "no_contact");
+      await seedVisits(prospectId, [dayStart(from, 0) + 2 * HOUR], "converted");
+      await seedVisits(prospectId, [dayStart(from, 3) + 5 * HOUR], "follow_up");
+
+      const { visitsByDay, visits: total } = await dashboard(`?period=${period}`);
+      const expected = visitsByDay.map(() => zeros());
+      expected[0] = { ...zeros(), no_contact: 2, converted: 1 };
+      expected[3] = { ...zeros(), follow_up: 1 };
+      expect(visitsByDay.map((d) => d.counts)).toEqual(expected);
+      // I/O matrix, totals: the chart and the Visites card agree.
+      const sum = visitsByDay.reduce(
+        (n, d) => n + OUTCOMES.reduce((m, o) => m + d.counts[o], 0),
+        0,
+      );
+      expect(sum).toBe(total.value);
+    },
+  );
+
+  it.each(DASHBOARD_PERIODS)(
+    "puts a day's midnight and its last millisecond on that day, and leaves the period's outside out, for %i (I/O matrix, day and period bounds)",
+    async (period) => {
+      const { from, to } = brusselsPeriod(Date.now(), period);
+      const prospectId = await seedProspect();
+      const last = period - 1;
+      await seedVisits(prospectId, [
+        from,
+        dayStart(from, 1) - 1,
+        dayStart(from, last),
+        to - 1,
+        // Neither
+        from - 1,
+        to,
+      ]);
+
+      const { visitsByDay } = await dashboard(`?period=${period}`);
+      expect(visitsByDay[0]?.counts.interested).toBe(2);
+      expect(visitsByDay[last]?.counts.interested).toBe(2);
+      const inside = visitsByDay.slice(1, last).reduce((n, d) => n + d.counts.interested, 0);
+      expect(inside).toBe(0);
+    },
+  );
+
+  it.each([
+    // 23:30 Brussels on the 23 h day and on the 25 h day, then that night's
+    // midnight: the last visit of the day and the first of the next.
+    [
+      "2026-04-03T10:00:00.000Z",
+      "2026-03-29",
+      "2026-03-29T21:30:00.000Z",
+      "2026-03-29T22:00:00.000Z",
+    ],
+    [
+      "2026-10-30T10:00:00.000Z",
+      "2026-10-25",
+      "2026-10-25T22:30:00.000Z",
+      "2026-10-25T23:00:00.000Z",
+    ],
+  ])(
+    "on %s, counts 23:30 on the DST day %s on that date (I/O matrix, DST)",
+    async (now, dstDate, late, midnight) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.parse(now));
+      const prospectId = await seedProspect();
+      await seedVisits(prospectId, [Date.parse(late)], "no_contact");
+      await seedVisits(prospectId, [Date.parse(midnight)], "converted");
+
+      for (const period of DASHBOARD_PERIODS) {
+        const { visitsByDay } = await dashboard(`?period=${period}`);
+        const i = visitsByDay.findIndex((d) => d.date === dstDate);
+        expect(i, `period ${period}`).toBeGreaterThanOrEqual(0);
+        expect(visitsByDay[i]?.counts).toEqual({ ...zeros(), no_contact: 1 });
+        expect(visitsByDay[i + 1]?.counts).toEqual({ ...zeros(), converted: 1 });
+      }
+    },
+  );
 });

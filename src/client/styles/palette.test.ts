@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { OUTCOMES } from "../../shared/constants";
+import { SERIES_INK, SERIES_TOKEN } from "../admin/dashboard/outcome-series";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { classLiterals } from "./class-literals";
@@ -421,6 +423,19 @@ describe("rule 6: every outcome colour clears 3:1 on its theme's card", () => {
   describe.each(THEMES)("%s", (_theme, t) => {
     it.each(OUTCOME_COLOURS)("%s", (token) => {
       expect(contrast(solid(t, token), solid(t, "--card"))).toBeGreaterThanOrEqual(CONTROL);
+    });
+  });
+});
+
+describe("rule 7: every chart segment label clears 4.5:1 on its series (GH #110)", () => {
+  // The pairs Visites dans le temps actually draws, read from the chart's own
+  // map (outcome-series.ts), so changing an ink or a series colour there is
+  // what this checks. Never foreground-dark on a dark series (DESIGN.md).
+  describe.each(THEMES)("%s", (theme, t) => {
+    const mode = theme.startsWith("dark") ? "dark" : "light";
+    it.each(OUTCOMES)("%s", (outcome) => {
+      const ink = SERIES_INK[outcome][mode];
+      expect(contrast(solid(t, ink), solid(t, SERIES_TOKEN[outcome]))).toBeGreaterThanOrEqual(TEXT);
     });
   });
 });

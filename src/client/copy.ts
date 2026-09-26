@@ -133,6 +133,14 @@ export const copy = {
     visits: "Visites",
     converted: "Convertis",
     conversionRate: "Taux de conversion",
+    /** Visites dans le temps (GH #110); series labels are OUTCOME_LABELS. */
+    visitsChart: {
+      title: "Visites dans le temps",
+      /** The visually hidden table that is the chart's text equivalent. */
+      tableCaption: "Visites par jour et par résultat",
+      day: "Jour",
+      total: "Total",
+    },
     /** Follows the delta chip: "+12,4 % vs période précédente". */
     vsPrevious: "vs période précédente",
     /** Read out while the skeletons stand in for the cards. */
