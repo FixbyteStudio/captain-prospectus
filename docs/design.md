@@ -222,12 +222,16 @@ sequence rather than compared. Figures are formatted for fr-FR: "1 284",
 
 ## Layout
 
-The admin side has a navy sidebar (GH #63): **Prospects** (Prospects, Import,
-Doublons) and **Terrain** (Visites, À rattacher, Scripts), each item a 36px row
+The admin side has a navy sidebar (GH #63): **Pilotage** (Tableau de bord),
+**Prospects** (Prospects, Import, Doublons) and **Terrain** (Visites, À
+rattacher, Scripts), each item a 36px row
 with an icon and a label, group labels in the overline style. The current item
 is a gold fill with navy text and a `primary-edge` inset; item text otherwise
 stays `band-foreground` in every state, including the `band-accent` hover
-wash — `band-muted` is for group labels only, which never take the wash. The
+wash — `band-muted` is for group labels only, which never take the wash.
+Tableau de bord lives at `/admin` itself, so it matches exactly (`end`): it is
+current on `/admin` and never on a path under it. An `/admin/*` path no route
+knows shows "Page introuvable." inside the admin frame. The
 width follows the viewport: full (`16rem`) at ≥ 1024px, an icon rail (`3rem`)
 from 768 to 1023px with a Tooltip naming each item, and a Sheet drawer below
 768px behind a menu button in the top bar. Doublons and À rattacher carry a
@@ -264,6 +268,42 @@ there always wins over the inset (GH #80). A `<main>` that needs both its own
 bottom margin and the inset — everywhere a screen is not directly above the
 tab bar — uses `.pb-page` instead of stacking `.safe-bottom` and `pb-6` on one
 element, which cannot own `padding-bottom` twice.
+
+### Tableau de bord
+
+`/admin` opens here (GH #107). It says how canvassing is going over the last 7,
+30 or 90 days; every figure is defined once, in [api.md › The
+dashboard](api.md#the-dashboard), and the Worker computes it.
+
+- **Header.** The title (`text-title`) and "Où en est la prospection." on the
+  left; on the right the period selector, a shadcn `ToggleGroup` of "7 jours",
+  "30 jours", "90 jours" on a `secondary` track, the chosen one lifted onto
+  `card` with a shadow — a segmented control, not a gold fill. 30 is the
+  default, and pressing the chosen period again keeps it. It is the only
+  selector on the screen. It wraps under the title on a phone.
+- **KPI card.** A shadcn `Card` with no coloured edge — on this app an edge
+  means a status. Top to bottom: the label in `text-overline` with a 32px
+  `secondary` icon tile at the top right (Lucide `Store` for Prospects
+  ouverts, `MapPin` for Visites), the figure in `text-display` with tabular
+  figures, then the delta chip and "vs période précédente" in meta. The chip
+  is a `rounded-sm` Badge: `tint-success` with an up arrow when the rounded
+  delta is up, `tint-destructive` with a down arrow when it is down, and
+  neutral `secondary` with no arrow for "0,0 %" and for "—" (no previous
+  period). The figure is signed, with a real minus: "+12,4 %", "−3,0 %".
+  Prospects ouverts is a snapshot, so it has no delta row; an empty row of
+  the same height keeps its figure level with its neighbours'.
+- **Grid.** Cards are 4 across at ≥ lg, 2 × 2 at md and one column below,
+  24px apart. Only Prospects ouverts and Visites exist so far; the stories
+  that add figures add cards to the same grid.
+- **Loading.** Skeleton cards of the same shape stand in until the first
+  answer, with a visually hidden "Chargement du tableau de bord…". Switching
+  period keeps the last period's cards on screen, dimmed, until the new
+  figures land — never back to skeletons.
+- **Failure.** An inline destructive Alert, "Impossible de charger le tableau
+  de bord.", with a "Réessayer" button that refetches, in place of the cards.
+- **Freshness.** No polling yet. Every admin mutation marks the dashboard's
+  query stale (`createAdminQueryClient`), so it refetches as soon as it is on
+  screen, whatever `staleTime` a later story sets.
 
 ### One toolbar slot
 

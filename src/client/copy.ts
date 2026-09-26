@@ -9,6 +9,7 @@
  * CLAUDE.md: sentence case, active verbs, errors say what happened and what to do.
  */
 import type {
+  DashboardPeriod,
   OrphanReason,
   Outcome,
   ProspectType,
@@ -30,6 +31,7 @@ export const copy = {
   breadcrumb: "Fil d'Ariane",
 
   nav: {
+    dashboard: "Tableau de bord",
     prospects: "Prospects",
     visits: "Visites",
     scripts: "Scripts",
@@ -66,6 +68,7 @@ export const copy = {
 
     /** Admin sidebar group labels, rendered uppercase through CSS (GH #63). */
     groups: {
+      pilotage: "Pilotage",
       prospects: "Prospects",
       terrain: "Terrain",
     },
@@ -113,6 +116,27 @@ export const copy = {
   account: {
     menu: (email: string) => `Menu du compte de ${email}`,
     logout: "Se déconnecter",
+  },
+
+  /** Tableau de bord at /admin (GH #107). */
+  dashboard: {
+    title: "Tableau de bord",
+    subtitle: "Où en est la prospection.",
+    /** The period selector's own accessible name. */
+    periodLabel: "Période",
+    periods: {
+      7: "7 jours",
+      30: "30 jours",
+      90: "90 jours",
+    } satisfies Record<DashboardPeriod, string>,
+    openProspects: "Prospects ouverts",
+    visits: "Visites",
+    /** Follows the delta chip: "+12,4 % vs période précédente". */
+    vsPrevious: "vs période précédente",
+    /** Read out while the skeletons stand in for the cards. */
+    loading: "Chargement du tableau de bord…",
+    loadFailed: "Impossible de charger le tableau de bord.",
+    retry: "Réessayer",
   },
 
   prospects: {

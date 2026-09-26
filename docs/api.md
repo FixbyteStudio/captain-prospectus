@@ -21,6 +21,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Admin
 | Route | Purpose |
 |---|---|
+| `GET /api/admin/dashboard?period=7\|30\|90` | Tableau de bord's figures, `dashboardResponseSchema`: `{period, from, to, visits: {value, previous, delta}, openProspects}`. `period` defaults to 30; any other value is **400**. Read-only. See [The dashboard](#the-dashboard) |
 | `GET /api/admin/agents` | `{agents: [{email, role}]}` — everyone a prospect can be assigned to |
 | `GET /api/admin/prospects?status=&assignedTo=&source=&limit=&offset=` | `{prospects[], total}`, newest edit first |
 | `POST /api/admin/prospects/batch` | Upsert `{source: "csv" \| "osm", rows[]}` by dedupe key → `{created, updated}` |
@@ -102,6 +103,29 @@ Two endpoints, one serialiser (`src/shared/csv.ts`, unit-tested away from D1).
 - A leading `=` is **not** escaped. Excel reads it as a formula; changing that is
   a decision about who the reader is, not a fix, and a test pins the current
   behaviour so the decision stays visible.
+
+## The dashboard
+
+`GET /api/admin/dashboard` backs Tableau de bord at `/admin`. The Worker computes
+every figure, and this section is where each one is defined; later stories add
+figures to the same response, additively.
+
+- **Periods are Europe/Brussels calendar days.** A period of N days runs from
+  Brussels midnight N − 1 days ago to Brussels midnight tomorrow, exclusive —
+  `[from, to)` in the response. The previous period is the N days before it,
+  `[previousFrom, from)`. A day that changes the clocks is 23 h or 25 h, so a
+  period is never `N × 24 h` across one. `brusselsPeriod` in
+  `src/shared/period.ts` is the one place this is computed.
+- **Delta** = (value − previous) ÷ previous, as a ratio (`0.124` is +12,4 %).
+  It is `null` when previous is 0, and the screen shows "—".
+- **Visites** (`visits`): rows in `visits` whose `visited_at` — already clamped
+  (INVARIANT 12) — falls in the period. Visits of merged prospects count,
+  because they still happened; quarantined visits do not, because they are in
+  `visits_orphaned` until repaired. `previous` is the same count over the
+  previous period, and both come from one range read on `visits_visited_idx`.
+- **Prospects ouverts** (`openProspects`): live prospects (`merged_into IS NULL`)
+  whose status is in `OPEN_STATUSES` (new, assigned, follow_up). A snapshot of
+  now: it ignores the period and has no delta.
 
 ## The repair queue
 

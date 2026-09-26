@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initials } from "./format";
+import { deltaTone, formatCount, formatDelta, initials } from "./format";
 
 describe("initials", () => {
   it("takes the first letter of the first two dot-separated parts", () => {
@@ -43,5 +43,57 @@ describe("initials", () => {
 
   it("drops a numeric part entirely instead of pairing it with the next one", () => {
     expect(initials("1.john@example.com")).toBe("JO");
+  });
+});
+
+describe("formatDelta", () => {
+  it.each([
+    [0.124, "+12,4\u00a0%"],
+    [-0.03, "\u22123,0\u00a0%"],
+    [0, "0,0\u00a0%"],
+    [null, "—"],
+    [2.5, "+250,0\u00a0%"],
+    [-1, "\u2212100,0\u00a0%"],
+  ])("formatDelta(%s) -> %s", (delta, expected) => {
+    expect(formatDelta(delta)).toBe(expected);
+  });
+
+  it("rounds half-tenths away from zero, the same both ways", () => {
+    expect(formatDelta(0.0005)).toBe("+0,1\u00a0%");
+    expect(formatDelta(-0.0005)).toBe("\u22120,1\u00a0%");
+    expect(formatDelta(0.0125)).toBe("+1,3\u00a0%");
+    expect(formatDelta(-0.0125)).toBe("\u22121,3\u00a0%");
+  });
+
+  it("drops the sign of a delta too small to show", () => {
+    expect(formatDelta(0.0004)).toBe("0,0\u00a0%");
+    expect(formatDelta(-0.0004)).toBe("0,0\u00a0%");
+  });
+});
+
+describe("deltaTone", () => {
+  it.each([
+    [0.124, "up"],
+    [-0.03, "down"],
+    [0, "flat"],
+    [null, "flat"],
+    // Rounds to "0,0 %", so no arrow either way.
+    [0.0004, "flat"],
+    [-0.0004, "flat"],
+    // Half a tenth rounds away from zero, symmetrically.
+    [0.0005, "up"],
+    [-0.0005, "down"],
+    [0.0125, "up"],
+    [-0.0125, "down"],
+  ] as const)("deltaTone(%s) -> %s", (delta, expected) => {
+    expect(deltaTone(delta)).toBe(expected);
+  });
+});
+
+describe("formatCount", () => {
+  it("groups thousands the French way", () => {
+    expect(formatCount(386)).toBe("386");
+    // fr-FR groups with a narrow no-break space.
+    expect(formatCount(1284)).toBe("1\u202f284");
   });
 });

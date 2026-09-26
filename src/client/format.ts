@@ -16,6 +16,50 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km`;
 }
 
+const count = new Intl.NumberFormat("fr-FR");
+const tenth = new Intl.NumberFormat("fr-FR", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+/** A KPI figure: "1 284". */
+export function formatCount(n: number): string {
+  return count.format(n);
+}
+
+/** Up, down, or neither once rounded to the tenth of a percent shown. */
+export type DeltaTone = "up" | "down" | "flat";
+
+/** In tenths of a percent, so the tone and the figure round the same way. */
+function tenths(delta: number): number {
+  // Round the magnitude, so ±x land on the same figure (Math.round alone takes
+  // halves toward +∞: −0.0005 would be flat while +0.0005 is up).
+  const magnitude = Math.round(Math.abs(delta) * 1000);
+  return delta < 0 ? -magnitude : magnitude;
+}
+
+/**
+ * Which way a delta points. `null` (no previous period) and anything that
+ * rounds to "0,0 %" are flat, so a green arrow never sits beside a zero.
+ */
+export function deltaTone(delta: number | null): DeltaTone {
+  if (delta === null) return "flat";
+  const t = tenths(delta);
+  return t > 0 ? "up" : t < 0 ? "down" : "flat";
+}
+
+/**
+ * A delta chip's figure — "+12,4 %", "−3,0 %", "0,0 %", or "—" when there is
+ * no previous period to compare with (docs/api.md › The dashboard). The
+ * minus is U+2212 and the space before % is non-breaking.
+ */
+export function formatDelta(delta: number | null): string {
+  if (delta === null) return "—";
+  const t = tenths(delta);
+  const sign = t > 0 ? "+" : t < 0 ? "\u2212" : "";
+  return `${sign}${tenth.format(Math.abs(t) / 10)}\u00a0%`;
+}
+
 /** Only letters count, so a digit-only alias never survives into the
  * initial. `\p{L}` (not `a-zA-Z`) so an accented letter counts too. */
 function letters(part: string): string {

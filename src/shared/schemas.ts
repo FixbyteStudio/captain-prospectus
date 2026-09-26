@@ -21,6 +21,8 @@
 import * as z from "zod/mini";
 import {
   ADMIN_VISITS_PAGE_SIZE,
+  DASHBOARD_DEFAULT_PERIOD,
+  DASHBOARD_PERIODS,
   EXPORT_DEFAULT_WINDOW_MS,
   IMPORT_ROWS_PER_REQUEST,
   ORPHAN_CANDIDATES,
@@ -481,6 +483,39 @@ export const visitsSinceQuerySchema = z.object({
     ADMIN_VISITS_PAGE_SIZE,
   ),
 });
+
+/* ----------------------------------------------------------------- dashboard */
+
+/** One of the selector's three values — anything else is a 400, not a guess. */
+export const dashboardPeriodSchema = z.literal(DASHBOARD_PERIODS);
+
+/** Query string, so the period arrives as text (docs/api.md › The dashboard). */
+export const dashboardQuerySchema = z.object({
+  period: z._default(z.pipe(z.coerce.number(), dashboardPeriodSchema), DASHBOARD_DEFAULT_PERIOD),
+});
+
+const countSchema = z.int().check(z.nonnegative());
+
+/**
+ * `GET /api/admin/dashboard` — every figure is computed by the Worker and
+ * defined in docs/api.md › The dashboard. Later stories extend it additively.
+ */
+export const dashboardResponseSchema = z.object({
+  period: dashboardPeriodSchema,
+  /** The period's Brussels bounds, `[from, to)`. */
+  from: epochMsSchema,
+  to: epochMsSchema,
+  visits: z.object({
+    value: countSchema,
+    /** The same count over the `period` days before `from`. */
+    previous: countSchema,
+    /** `null` when `previous` is 0: there is nothing to compare against. */
+    delta: z.nullable(z.number()),
+  }),
+  /** A snapshot of now, so it carries no delta and ignores the period. */
+  openProspects: countSchema,
+});
+export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
 
 export const overpassImportSchema = z.object({
   polygon: z

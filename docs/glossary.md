@@ -23,6 +23,8 @@ lives in `src/client/copy.ts`, so the whole UI vocabulary stays reviewable in on
 | **Dedupe key** | — (internal) | Stable key that makes re-imports update instead of duplicate | |
 | **Today list** | Tournée du jour | The agent's open prospects, ordered by distance | route |
 | **Flyer** | Flyer | The leaflet handed over during a visit | prospectus, brochure |
+| **Dashboard** | Tableau de bord | The admin's landing screen at `/admin`: how canvassing is going over 7, 30 or 90 days | home, overview |
+| **Open prospect** | Prospect ouvert | A live prospect (`merged_into IS NULL`) whose status is `new`, `assigned` or `follow_up` | active lead |
 
 ## Enum values
 
