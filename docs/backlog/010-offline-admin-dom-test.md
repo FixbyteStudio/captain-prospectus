@@ -1,11 +1,21 @@
 ---
 id: 010
-status: ready
+status: done
 implements: docs/domains/identity-access.md#offline-and-session-expiry
 depends_on: []
 ---
 
 # Pin that an offline admin opens the field side, with no Tableau de bord tab
+
+**Superseded by #115** (spec-gh-115-admin-tab-offline): the DOM cases this
+task asked for — a cache-started admin's `/` redirect, its `/admin` deep
+link, and its missing tab — are covered by `App.test.tsx`'s new cases, built
+against `adminAccess` rather than the `isAdmin` this task's own acceptance
+criteria named. Its mutation check (deleting `&& !fromCache`) is #115's own
+acceptance criterion. The acceptance criteria below are kept as filed, for the
+record, and are themselves superseded — they still name `isAdmin`,
+`me.role === "admin"` and `/admin/prospects`, none of which exist after #115;
+do not implement them as written.
 
 ## Goal
 

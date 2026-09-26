@@ -37,11 +37,11 @@ import {
 import { shouldAsk, useLeaveGuard } from "./leave-guard";
 import { fieldTabs, isCurrentTab, type FieldTab } from "./tabs";
 
-export function FieldTabs({ isAdmin }: { isAdmin: boolean }) {
+export function FieldTabs({ adminOnline }: { adminOnline: boolean }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { dirty } = useLeaveGuard();
-  const tabs = fieldTabs({ isAdmin });
+  const tabs = fieldTabs({ adminOnline });
 
   /** The tab a dirty form's tap is waiting on a confirm for; null closes the dialog. */
   const [pendingTo, setPendingTo] = useState<string | null>(null);

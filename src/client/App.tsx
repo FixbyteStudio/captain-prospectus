@@ -25,7 +25,8 @@ import { hasReconnectMarker, withoutReconnectMarker } from "./field/reconnect-ma
 import { hidesUpdateBanner } from "./field/sync-view";
 import { SyncProvider } from "./field/useSync";
 import { clearAgentCache, fieldDb, getMeta, setMeta } from "./field/db";
-import { resolveIdentity } from "./field/identity";
+import { adminAccess, resolveIdentity } from "./field/identity";
+import { useOnline } from "./hooks/use-online";
 
 /**
  * The admin side is a separate chunk, fetched only when an admin opens one of
@@ -94,7 +95,15 @@ function FieldRoutes() {
  * brand. Admin screens get their own frame instead of this one: `AdminApp`
  * renders as a sibling route, not nested inside `FieldFrame`.
  */
-function FieldFrame({ isAdmin, pwa, email }: { isAdmin: boolean; pwa: PwaState; email: string }) {
+function FieldFrame({
+  adminOnline,
+  pwa,
+  email,
+}: {
+  adminOnline: boolean;
+  pwa: PwaState;
+  email: string;
+}) {
   // `FieldFrame` also wraps the forbidden and not-found fallbacks (neither is
   // under /tournee), so the subtitle names a tab only when there is one.
   const onTournee = useMatch("/tournee/*");
@@ -120,7 +129,7 @@ function FieldFrame({ isAdmin, pwa, email }: { isAdmin: boolean; pwa: PwaState; 
             the row's right edge the way the band nav it replaced used to —
             `ml-auto` on the wrapper below does that instead, standing down
             once the tab bar is back in flow and doing that job itself. */}
-        <FieldTabs isAdmin={isAdmin} />
+        <FieldTabs adminOnline={adminOnline} />
         <span className="ml-auto md:ml-0">
           <SyncDot />
         </span>
@@ -203,8 +212,15 @@ function AdminFrameFallback() {
 export function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** True when the identity came from the cache rather than from the server. */
-  const [offline, setOffline] = useState(false);
+  /** True when the identity came from the cache rather than from the server.
+   * Not a network signal — a Worker 500 or a captive portal lands here too —
+   * so it must never be read as "offline" (that conflation is the bug
+   * spec-gh-115 removes; see `useOnline` below for the real one). */
+  const [identityFromCache, setIdentityFromCache] = useState(false);
+  /** Bumped to re-run the identity effect once the network is confirmed live
+   * for a session that started on a cached identity (spec-gh-115). */
+  const [recheck, setRecheck] = useState(0);
+  const online = useOnline();
 
   // Registers the service worker on mount, before and regardless of whether
   // `/api/me` answers. See the note on `UpdatePrompt`.
@@ -262,7 +278,7 @@ export function App() {
         await clearAgentCache(fieldDb);
       }
       setMe(outcome.identity);
-      setOffline(outcome.offline);
+      setIdentityFromCache(outcome.offline);
       // The cached copy is never treated as proof, online or offline: the
       // Worker re-derives identity from the verified Access JWT on every
       // request (INVARIANT 10). Only overwrite the cache with a live answer,
@@ -277,7 +293,26 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [recheck]);
+
+  // Only a session running on a cached identity gains from re-asking
+  // `/api/me`, and only once the browser actually reports a live network —
+  // a raw `online` *event* listener would miss one that fires while the
+  // first fetch is still in flight, and would never fire at all for a
+  // cache-sourced identity produced with `navigator.onLine` still true (a
+  // Worker 500, a captive portal, a DNS failure — every case `resolveIdentity`
+  // funnels to the cache branch with no `offline` event to catch). Reading
+  // both `identityFromCache` and `online` as state instead catches the
+  // transition however it was reached. This cannot loop: a re-check that
+  // fails leaves both unchanged, so it fires once per true transition.
+  useEffect(() => {
+    // `recheck` exists precisely to convert "these two external signals both
+    // read true" into one `/api/me` attempt, decoupled from the fetch
+    // effect's own dependency array so that effect setting
+    // `identityFromCache` cannot retrigger this one (see above).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate
+    if (identityFromCache && online) setRecheck((n) => n + 1);
+  }, [identityFromCache, online]);
 
   if (error) {
     return (
@@ -304,25 +339,27 @@ export function App() {
     );
   }
 
-  // Admin screens are useless without the network, so a cached identity opens
-  // the field side only, whatever role it happens to record.
-  const isAdmin = me.role === "admin" && !offline;
+  // Two gates, not one (spec-gh-115): `screens` is the security decision
+  // (invariant 10, unchanged) — admin screens are useless without the
+  // network, so a cached identity opens the field side only, whatever role
+  // it happens to record. `entry` additionally requires a live network for
+  // the tab and the `/` redirect, so an admin never sees a door that cannot
+  // open (ADR-0019) — but an admin already on an /admin screen keeps it when
+  // the network drops (#97's offline-admin screen to design).
+  const { screens, entry } = adminAccess({ role: me.role, fromCache: identityFromCache, online });
 
   return (
     <SyncProvider identity={me.email}>
       <Routes>
         {/* Not under FieldFrame: the redirect target decides which frame
             shows, so the field band must not render even for one commit. */}
-        <Route
-          path="/"
-          element={<Navigate to={isAdmin ? "/admin/prospects" : "/tournee"} replace />}
-        />
+        <Route path="/" element={<Navigate to={entry ? "/admin" : "/tournee"} replace />} />
 
         {/* The field-only band. The forbidden and not-found fallbacks live
             here too, since neither screen is admin chrome. */}
-        <Route element={<FieldFrame isAdmin={isAdmin} pwa={pwa} email={me.email} />}>
+        <Route element={<FieldFrame adminOnline={entry} pwa={pwa} email={me.email} />}>
           <Route path="/tournee/*" element={<FieldRoutes />} />
-          {!isAdmin && (
+          {!screens && (
             <Route
               path="/admin/*"
               element={
@@ -347,7 +384,7 @@ export function App() {
         </Route>
 
         {/* Admin screens get their own frame instead of the field band. */}
-        {isAdmin && (
+        {screens && (
           <Route
             path="/admin/*"
             element={

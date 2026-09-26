@@ -32,11 +32,11 @@ service worker precaches all of them" ([vision.md](../vision.md)).
 Two facts make the admin chunk different from the field ones:
 
 - **It is already unreachable offline.** `src/client/App.tsx` computes
-  `isAdmin = me.role === "admin" && !offline`, where `offline` means `/api/me`
-  could not be reached and the identity came from the Dexie cache. An admin with
-  no network is shown the field side, whatever role the cached identity records
-  (`docs/domains/identity-access.md`). Precaching the chunk buys nothing, because
-  the router will not render it.
+  `adminAccess(...).screens` (`src/client/field/identity.ts`, spec-gh-115),
+  which is `false` whenever the identity came from the Dexie cache rather than
+  a live `/api/me` answer. An admin with no network is shown the field side,
+  whatever role the cached identity records (`docs/domains/identity-access.md`).
+  Precaching the chunk buys nothing, because the router will not render it.
 - **Every admin screen is a network screen.** The prospect list, the import, the
   duplicate sweep, the script editor and the live feed are all a query away from
   D1. There is no offline admin experience to preserve — unlike the round, the

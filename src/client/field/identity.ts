@@ -38,6 +38,36 @@ export type IdentityOutcome =
       revoked: boolean;
     };
 
+export type AdminAccess = {
+  /** Gates the admin routes themselves (invariant 10). Unchanged from the
+   * one-signal rule this replaces: a cached identity never opens them. */
+  screens: boolean;
+  /** Gates the tab and the `/` redirect target — usability layered on top of
+   * `screens`, so an admin never sees a door that cannot open (ADR-0019). */
+  entry: boolean;
+};
+
+/**
+ * The one function that decides which of the app's two admin gates is open
+ * (spec-gh-115). `screens` is the security decision the shell has always
+ * made; `entry` additionally requires a live network, because the admin
+ * chunk is a network fetch whose failure is a blank `aria-busy` hang
+ * (ADR-0019) — showing the tab for a door that cannot open is the bug this
+ * closes.
+ */
+export function adminAccess({
+  role,
+  fromCache,
+  online,
+}: {
+  role: MeResponse["role"];
+  fromCache: boolean;
+  online: boolean;
+}): AdminAccess {
+  const screens = role === "admin" && !fromCache;
+  return { screens, entry: screens && online };
+}
+
 /**
  * Decide what to show, given how `/api/me` went and what (if anything) is
  * cached. Both `body` and `cached` are untrusted input parsed here, the same

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api";
 import { copy } from "../copy";
-import { resolveIdentity } from "./identity";
+import { adminAccess, resolveIdentity } from "./identity";
 
 /**
  * The security review that named this file's reason for existing: the first
@@ -137,5 +137,55 @@ describe("a genuine network failure (fetch itself threw)", () => {
   it("treats a plain thrown string the same as any other non-ApiError failure", () => {
     const outcome = resolveIdentity({ ok: false, error: "some string" }, AGENT_A);
     expect(outcome.kind).toBe("ready");
+  });
+});
+
+describe("adminAccess (spec-gh-115)", () => {
+  // The full role × fromCache × online matrix. Deleting `&& online` or
+  // `&& !fromCache` from `entry`/`screens` must fail one of these.
+  it("an online, server-confirmed admin gets both gates", () => {
+    expect(adminAccess({ role: "admin", fromCache: false, online: true })).toEqual({
+      screens: true,
+      entry: true,
+    });
+  });
+
+  it("an offline, server-confirmed admin keeps the screens but loses the tab", () => {
+    // `screens` never reads `online` — an admin already on /admin keeps the
+    // route when the network drops (#97 owns what that screen then says).
+    expect(adminAccess({ role: "admin", fromCache: false, online: false })).toEqual({
+      screens: true,
+      entry: false,
+    });
+  });
+
+  it("a cache-started admin gets neither gate, online or not", () => {
+    // Deleting `&& !fromCache` from `screens` would open the admin routes to
+    // a cached identity the server never confirmed this session — invariant 10.
+    expect(adminAccess({ role: "admin", fromCache: true, online: true })).toEqual({
+      screens: false,
+      entry: false,
+    });
+    expect(adminAccess({ role: "admin", fromCache: true, online: false })).toEqual({
+      screens: false,
+      entry: false,
+    });
+  });
+
+  it("an agent never gets either gate, online or not, cached or not", () => {
+    expect(adminAccess({ role: "agent", fromCache: false, online: true })).toEqual({
+      screens: false,
+      entry: false,
+    });
+    expect(adminAccess({ role: "agent", fromCache: true, online: false })).toEqual({
+      screens: false,
+      entry: false,
+    });
+  });
+
+  it("entry never opens wider than screens: deleting `&& online` would show a tab with no working screen behind it", () => {
+    const { screens, entry } = adminAccess({ role: "admin", fromCache: false, online: false });
+    expect(entry).toBe(false);
+    expect(screens).toBe(true);
   });
 });
