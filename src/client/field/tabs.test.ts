@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { fieldTabs, isCurrentTab } from "./tabs";
 
 describe("fieldTabs", () => {
-  it("gives an agent two tabs: Tournée, then Ajouter", () => {
+  it("gives an agent three tabs, in order: Tournée, Carte, Ajouter", () => {
     expect(fieldTabs({ adminOnline: false }).map((t) => t.path)).toEqual([
       "/tournee",
+      "/tournee/carte",
       "/tournee/nouveau",
     ]);
   });
@@ -12,15 +13,14 @@ describe("fieldTabs", () => {
   it("appends Tableau de bord last for an admin", () => {
     expect(fieldTabs({ adminOnline: true }).map((t) => t.path)).toEqual([
       "/tournee",
+      "/tournee/carte",
       "/tournee/nouveau",
       "/admin",
     ]);
   });
 
-  it("never adds a fourth tab or a Carte tab", () => {
-    const paths = fieldTabs({ adminOnline: true }).map((t) => t.path);
-    expect(paths).toHaveLength(3);
-    expect(paths).not.toContain("/carte");
+  it("never adds a fifth tab", () => {
+    expect(fieldTabs({ adminOnline: true })).toHaveLength(4);
   });
 
   it("gives every tab a non-empty label and aria-label", () => {
@@ -33,6 +33,7 @@ describe("fieldTabs", () => {
   it("marks `end` true only for the index tab /tournee, so NavLink's own matcher agrees with isCurrentTab", () => {
     expect(fieldTabs({ adminOnline: true }).map((t) => [t.path, t.end])).toEqual([
       ["/tournee", true],
+      ["/tournee/carte", false],
       ["/tournee/nouveau", false],
       ["/admin", false],
     ]);
@@ -62,6 +63,11 @@ describe("isCurrentTab", () => {
 
   it("Admin online: Tableau de bord is not current on /tournee", () => {
     expect(isCurrentTab("/tournee", "/admin")).toBe(false);
+  });
+
+  it("On Carte: /tournee/carte is Carte current, Tournée is not (spec-gh-121)", () => {
+    expect(isCurrentTab("/tournee/carte", "/tournee/carte")).toBe(true);
+    expect(isCurrentTab("/tournee/carte", "/tournee")).toBe(false);
   });
 
   it("does not let a sibling prefix pass, same rule as admin/nav.ts", () => {

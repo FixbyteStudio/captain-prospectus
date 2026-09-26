@@ -5,7 +5,7 @@
  * project, GH #83).
  */
 import type { ComponentType } from "react";
-import { LayoutGrid, MapPinPlus, Route } from "lucide-react";
+import { LayoutGrid, Map as MapIcon, MapPinPlus, Route } from "lucide-react";
 import { copy } from "../copy";
 
 export type FieldTab = {
@@ -25,13 +25,10 @@ export type FieldTab = {
 };
 
 /**
- * Tournée and Ajouter for every role; Tableau de bord last, only when the
- * caller's `adminOnline` is true — `adminAccess(...).entry` from
+ * Tournée, Carte and Ajouter for every role; Tableau de bord last, only when
+ * the caller's `adminOnline` is true — `adminAccess(...).entry` from
  * `field/identity.ts` (spec-gh-115), the tab-and-redirect gate layered on top
  * of the admin-screens one, never a second signal of its own.
- *
- * No Carte tab: epic-field-screens ships that screen, and nothing here links
- * to a screen that does not exist yet.
  */
 export function fieldTabs({ adminOnline }: { adminOnline: boolean }): readonly FieldTab[] {
   const tabs: FieldTab[] = [
@@ -41,6 +38,13 @@ export function fieldTabs({ adminOnline }: { adminOnline: boolean }): readonly F
       ariaLabel: copy.nav.tabs.today,
       icon: Route,
       end: true,
+    },
+    {
+      path: "/tournee/carte",
+      label: copy.nav.tabs.map,
+      ariaLabel: copy.nav.tabs.map,
+      icon: MapIcon,
+      end: false,
     },
     {
       path: "/tournee/nouveau",

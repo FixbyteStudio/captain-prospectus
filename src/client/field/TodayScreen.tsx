@@ -6,18 +6,15 @@
  * 117.3) and no navigation on tap. Follow-ups not yet due sit in "Plus tard",
  * visible but not walkable from here.
  */
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router";
-import { useLiveQuery } from "dexie-react-hooks";
 import { copy } from "../copy";
 import { formatDate } from "../format";
 import { cn } from "../lib/utils";
-import { fieldDb } from "./db";
 import { NextStopCard } from "./NextStopCard";
 import { edgeFor, StopRow } from "./StopRow";
-import { buildTodayList, type TodayItem } from "./today";
-import { useAgentPosition } from "./useAgentPosition";
-import { useSyncState } from "./useSync";
+import type { TodayItem } from "./today";
+import { useRound } from "./useRound";
 
 /** A follow-up not yet due. Visible and subordinate — it "can't be visited
  * from here" (EXPERIENCE.md), so it is a plain `<li>`, never a link or button. */
@@ -57,34 +54,10 @@ function LaterSection({ items }: { items: readonly TodayItem[] }) {
 type RoundState = { saved?: boolean; added?: boolean };
 
 export function TodayScreen() {
-  const { point, locating, denied, refresh } = useAgentPosition();
-  const { lastSyncAt } = useSyncState();
+  const { list, locating, denied, refresh } = useRound();
   const { state } = useLocation();
   const justSaved = (state as RoundState | null) ?? null;
 
-  /**
-   * "Now", for deciding which follow-ups are not due yet.
-   *
-   * Taken from the last successful sync rather than read during render, which
-   * would be an impure call. It refreshes on every heartbeat, so the boundary
-   * is at most 60 s stale — and the boundary is a local midnight, so that is
-   * nowhere near enough to matter. The mount time covers the first render,
-   * before any sync has landed.
-   */
-  const [openedAt] = useState(() => Date.now());
-  const now = lastSyncAt ?? openedAt;
-
-  const prospects = useLiveQuery(() => fieldDb.prospects.toArray(), [], []);
-  const outbox = useLiveQuery(() => fieldDb.outboxProspects.toArray(), [], []);
-  const outboxVisits = useLiveQuery(() => fieldDb.outboxVisits.toArray(), [], []);
-  const queuedVisitProspectIds = useMemo(
-    () => new Set(outboxVisits.map((v) => v.prospectId)),
-    [outboxVisits],
-  );
-
-  // Recomputed when the position or any of the three tables changes. Cheap:
-  // the round is tens of prospects, and orderByNearestNext is O(n²) on that.
-  const list = buildTodayList(prospects, outbox, point, now, queuedVisitProspectIds);
   const [next, ...rest] = list.now;
 
   // One row expanded at a time (CAP-6): expanding row 3 collapses row 2.

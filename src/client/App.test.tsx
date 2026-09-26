@@ -454,6 +454,26 @@ describe("App band header", () => {
     expect(band?.textContent).toContain(copy.appName);
     expect(band?.querySelector("nav")).toBeTruthy();
   });
+
+  it("names Carte in the band subtitle on /tournee/carte, not Tournée, and actually renders CarteScreen there rather than falling through to :id (spec-gh-121)", async () => {
+    // Offline, so this waits on the lazy chunk itself but not on a real
+    // Leaflet map settling — `copy.carte.offline` only ever comes from
+    // `CarteScreen`, so seeing it (rather than, say, VisitScreen reading
+    // "carte" as a prospect id) is the proof this route resolved to the right
+    // screen at all.
+    const onlineSpy = mockOffline();
+    try {
+      const { container } = renderApp("/tournee/carte");
+
+      await screen.findByRole("navigation", { name: copy.nav.tabsLabel });
+      const band = bandHeader(container);
+      expect(band?.querySelector(".text-band-muted")?.textContent).toBe(copy.nav.subtitle.map);
+
+      expect(await screen.findByText(copy.carte.offline)).toBeTruthy();
+    } finally {
+      onlineSpy.mockRestore();
+    }
+  });
 });
 
 describe("App update prompt", () => {

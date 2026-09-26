@@ -43,12 +43,14 @@ export const copy = {
     subtitle: {
       today: "Tournée",
       add: "Ajouter",
+      map: "Carte",
     },
 
     /** The field tab bar's labels (spec-gh-66), bottom on a phone, in the band
      * from 768px. Tableau de bord only renders for an admin who is online. */
     tabs: {
       today: "Tournée",
+      map: "Carte",
       add: "Ajouter",
       dashboard: "Tableau de bord",
     },
@@ -507,6 +509,17 @@ export const copy = {
       inactive: "Inactive",
       questionsCount: (n: number) => (n === 1 ? "1 question" : `${n} questions`),
     },
+  },
+
+  /** Carte (spec-gh-121): the round on a map, sharing `useRound()`'s list with
+   * `today` below rather than a second vocabulary for the same stops. */
+  carte: {
+    offline: "Carte indisponible hors ligne. La liste reste à jour.",
+    showList: "Voir la liste",
+    recentre: "Me recentrer",
+    /** The map canvas's own accessible name (`role="application"`, same
+     * pattern as MapCanvas's `aria-label`). */
+    label: "Carte de la tournée du jour",
   },
 
   today: {
