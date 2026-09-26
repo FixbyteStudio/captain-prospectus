@@ -62,14 +62,32 @@ const VisitScreen = lazy(() =>
 const AddProspectScreen = lazy(() =>
   import("./field/AddProspectScreen").then((module) => ({ default: module.AddProspectScreen })),
 );
+/**
+ * Leaflet lives in this chunk (RoundMap.tsx), not the entry one (ADR-0026):
+ * an agent who never opens Carte should not have it block the round's first
+ * paint. It is still precached regardless (spec-gh-121, VitePWA's
+ * globPatterns), so "lazy" here means off the first paint, not off the
+ * download — Carte still works the first time it is opened offline.
+ */
+const CarteScreen = lazy(() =>
+  import("./field/CarteScreen").then((module) => ({ default: module.CarteScreen })),
+);
 
 /** The field routes, which every role can reach. */
 function FieldRoutes() {
   return (
     <Routes>
-      {/* Relative to the parent's /tournee/*. "nouveau" comes before ":id" so
-          it is never read as a prospect id. */}
+      {/* Relative to the parent's /tournee/*. "carte" and "nouveau" come
+          before ":id" so neither is ever read as a prospect id. */}
       <Route index element={<TodayScreen />} />
+      <Route
+        path="carte"
+        element={
+          <Suspense fallback={<p className="text-muted-foreground" aria-busy="true" />}>
+            <CarteScreen />
+          </Suspense>
+        }
+      />
       <Route
         path="nouveau"
         element={
@@ -108,11 +126,14 @@ function FieldFrame({
   // under /tournee), so the subtitle names a tab only when there is one.
   const onTournee = useMatch("/tournee/*");
   const onAddProspect = useMatch("/tournee/nouveau/*");
+  const onCarte = useMatch("/tournee/carte/*");
   const subtitle = onAddProspect
     ? copy.nav.subtitle.add
-    : onTournee
-      ? copy.nav.subtitle.today
-      : undefined;
+    : onCarte
+      ? copy.nav.subtitle.map
+      : onTournee
+        ? copy.nav.subtitle.today
+        : undefined;
 
   // The update-needed strip already says a build is waiting; the banner
   // would repeat it (hidesUpdateBanner, sync-view.ts).

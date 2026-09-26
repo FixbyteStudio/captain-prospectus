@@ -876,6 +876,66 @@ in view while the list scrolls. The card is still first in the DOM — only its
 grid placement moves it to the right — so a screen reader or a keyboard tab
 order meets it before the list either way.
 
+### Carte
+
+`/tournee/carte`, the tab bar's second slot (spec-gh-121) — a lazy chunk, same
+as the visit form and Ajouter, so an agent who never opens the map never
+blocks the first paint on Leaflet loading; ADR-0026 still precaches the chunk
+regardless, so it is already on the phone and Carte works the first time it is
+opened offline. Built from the same `useRound()` the round itself reads: same
+rules and the same prospect data as Tournée, though each screen takes its own
+one-shot position reading (`useAgentPosition` has no shared state), so the two
+are read moments apart, not literally the same call.
+
+```
+┌──────────────────────────────────┐
+│ ▮ Captain Prospectus        ● 2  │
+├──────────────────────────────────┤
+│                                  │
+│        (1)                       │  gold pin, the next stop, 34px
+│          ╲                       │
+│           (2)                    │  card pin, 28px
+│             ╲                    │
+│              (3)                 │  dashed 3px gold line, stop to stop
+│     ◉ (you)                      │  navy dot with a halo
+│                                  │
+│                        [ ⌖ ]     │  44px "Me recentrer", bottom right
+│ © les contributeurs OpenStreetMap│
+├──────────────────────────────────┤
+│  ⬤       ⬤        ⬤              │  tab bar: Tournée, Carte, Ajouter…
+└──────────────────────────────────┘
+```
+
+**Pins carry the round's own walking order, never a second one.** Gold for the
+next stop, `card` for the rest, both `L.divIcon` so their size and colour are
+Tailwind classes rather than an image asset — no pin-tap selection yet (story
+117.5). A stop with no coordinates draws no pin, but keeps its number: the
+third pin can read "3" with no "2" on the map, because a row still shows "2".
+
+**The path joins the stops, not the agent.** A straight segment from wherever
+the agent happens to be would look like a route, and ADR-0002 rules out a
+routing service that could draw a real one. It is the one place colour comes
+from `readToken` (`MapCanvas`'s own pattern) rather than a Tailwind class:
+Leaflet's vector layers take a CSS colour string, not a class. The attribution
+is Leaflet's own control, fed `copy.attribution` (INVARIANT 11) — never a
+second line drawn by hand, which is the one way it could get laid out away.
+
+**Offline, the map is not mounted at all.** Leaflet requests a tile on every
+pan, so the only way to guarantee no request leaves the phone is to never
+create the map in the first place. A `bg-secondary` canvas and a card stand in
+instead — "Carte indisponible hors ligne. La liste reste à jour.", and "Voir
+la liste" back to Tournée — while the rest of the shell keeps working exactly
+as it does everywhere else. Position denied gets the same notice and
+"Réessayer" as Tournée, laid over the map rather than replacing it: the pins
+are still useful with no position.
+
+**Re-centre asks `useAgentPosition` for a reading — up to two minutes old**
+(its `maximumAge`), **never a continuous track** (no `watchPosition`, by
+design), and pans there once it lands; without one, it fits the view back to
+the pins instead of looking like it did nothing. The control is a 44px `card`
+square — DESIGN.md's one sanctioned exception below the field's usual 48px,
+because it floats over the map rather than sitting in the thumb's normal row.
+
 ### One decision per screen
 
 The today list asks *which door*. The visit form asks *what happened*. Nothing
@@ -1211,14 +1271,14 @@ tab's rule drift apart.
 
 ```
 ┌──────────────────────────────────┐
-│ ⬤ Tournée  ⬤ Ajouter  ▤ Tableau  │  ← 768px: inline in the band
+│ ⬤ Tournée ⬤ Carte ⬤ Ajouter ▤ Tab │  ← 768px: inline in the band
 ├──────────────────────────────────┤
 │                                  │
 │           (the round)            │
 │                                  │
 ├──────────────────────────────────┤
-│   ⬤        ⬤         ▤          │  < 768px: fixed at the bottom
-│ Tournée  Ajouter  Tableau de bord│
+│   ⬤       ⬤        ⬤        ▤   │  < 768px: fixed at the bottom
+│ Tournée  Carte  Ajouter  Tableau │
 └──────────────────────────────────┘
 ```
 
@@ -1247,18 +1307,16 @@ inset again. Scrolling content clears whichever bars sit below it —
 one that has one — both `calc()`'d off `--spacing-tab-bar-height` and the
 safe-area inset rather than a guessed pixel figure.
 
-**Four possible slots, two or three ship now.** Tournée and Ajouter for every
-role, Tableau de bord last for an admin — and two gates, not one, decide that
-last slot (spec-gh-115, `field/identity.ts`'s `adminAccess`). `screens` is the
-security decision (invariant 10): a server-confirmed admin in this session,
-unaffected by the network coming and going. `entry` — what the tab and the
-`/` redirect read — additionally requires a live network, read from `window`'s
-`online`/`offline` events (`useOnline`) rather than `useSync`'s trigger 2,
-which listens for `online` only, so the tab goes the instant the network
-drops and is back the instant it returns, with no reload. Carte is the fourth
-slot the mockup draws; it stays out until epic-field-screens ships the screen
-it would point to, same rule as the sidebar's own nav items. Tableau de bord
-disappears outright rather than showing disabled, because the admin side
+**Four possible slots, three or four ship now.** Tournée, Carte and Ajouter for
+every role, Tableau de bord last for an admin — and two gates, not one, decide
+that last slot (spec-gh-115, `field/identity.ts`'s `adminAccess`). `screens` is
+the security decision (invariant 10): a server-confirmed admin in this
+session, unaffected by the network coming and going. `entry` — what the tab
+and the `/` redirect read — additionally requires a live network, read from
+`window`'s `online`/`offline` events (`useOnline`) rather than `useSync`'s
+trigger 2, which listens for `online` only, so the tab goes the instant the
+network drops and is back the instant it returns, with no reload. Tableau de
+bord disappears outright rather than showing disabled, because the admin side
 needs the network to do anything at all. A session that opened offline on a
 cached admin identity re-asks `/api/me` once the network is confirmed live; a
 confirmed admin regains the tab and the admin screens without a reload.

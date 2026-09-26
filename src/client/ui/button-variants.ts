@@ -52,6 +52,13 @@ export const buttonVariants = cva(
          */
         touch: "h-touch rounded-md px-5 text-base has-[>svg]:px-4",
         "icon-touch": "size-touch [&_svg:not([class*='size-'])]:size-5",
+        /**
+         * The map's own controls only (Carte's "Me recentrer", spec-gh-121).
+         * DESIGN.md sets 44px there, not 48: it floats over the map rather
+         * than sitting in the thumb's normal row, so it keeps its own,
+         * slightly smaller minimum instead of `icon-touch`'s.
+         */
+        "icon-map": "size-11 rounded-lg [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

@@ -74,6 +74,22 @@ describe("FieldTabs", () => {
     ).toBeNull();
   });
 
+  it("lists Tournée, Carte, Ajouter in order and marks Carte current on /tournee/carte", () => {
+    renderTabs({ path: "/tournee/carte" });
+
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      copy.nav.tabs.today,
+      copy.nav.tabs.map,
+      copy.nav.tabs.add,
+    ]);
+    expect(screen.getByRole("link", { name: copy.nav.tabs.map }).getAttribute("aria-current")).toBe(
+      "page",
+    );
+    expect(
+      screen.getByRole("link", { name: copy.nav.tabs.today }).getAttribute("aria-current"),
+    ).toBeNull();
+  });
+
   it("shows Tableau de bord only for an online admin", () => {
     const { unmount } = renderTabs({ adminOnline: false });
     expect(screen.queryByRole("link", { name: copy.nav.tabs.dashboard })).toBeNull();
