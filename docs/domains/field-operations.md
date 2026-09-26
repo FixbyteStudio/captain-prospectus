@@ -57,8 +57,8 @@ identity opens the field screens only, never `/admin/*`.
 | Table | Content |
 |---|---|
 | `prospects` | Last pulled today list (replaced on each successful sync) |
-| `outboxProspects` | Field prospects not yet accepted |
-| `outboxVisits` | Visits not yet accepted |
+| `outboxProspects` | Field prospects not yet accepted, each stamped `writtenBy` (the email signed in when it was saved) |
+| `outboxVisits` | Visits not yet accepted, each stamped `writtenBy` the same way |
 | `visitHistory` | Cached `GET /api/agent/prospects/:id/visits` results, one prospect's cache replaced per pull, so the visit form's « Visites précédentes » still shows something with no signal |
 | `meta` | active script, last sync time, the last identity `/api/me` returned |
 
@@ -67,6 +67,12 @@ together: a field prospect the server has not accepted yet still has to be
 walkable and visitable in the same offline session that created it, so it is
 shown — with no status, since the server has not derived one — until the
 outbox row it came from is deleted.
+
+`writtenBy` never goes on the wire. `runSync` sends only the rows stamped with
+the identity signed in now (or unstamped, from before Dexie v3), so a row
+another agent queued on the same phone is held back, counted apart from the
+pending count («N éléments appartiennent à un autre agent…»), and waits until
+that agent signs in again — never sent under the wrong name, never dropped.
 
 ### Protocol
 `POST /api/agent/sync`

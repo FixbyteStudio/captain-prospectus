@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { copy } from "../copy";
-import { hidesUpdateBanner, stripEffect, syncView } from "./sync-view";
+import { heldBackMessage, hidesUpdateBanner, stripEffect, syncView } from "./sync-view";
 
 /**
  * One case per row of the spec's I/O matrix (spec-gh-65) — the seven states in
@@ -166,5 +166,16 @@ describe("stripEffect", () => {
 
   it("update reloads when the browser has not noticed a build yet", () => {
     expect(stripEffect("update", false, "/tournee")).toEqual({ kind: "reload" });
+  });
+});
+
+describe("heldBackMessage", () => {
+  it("says nothing when no other identity's rows are queued", () => {
+    expect(heldBackMessage(0)).toBeNull();
+  });
+
+  it("names the count apart from the pending one", () => {
+    expect(heldBackMessage(2)).toBe(copy.sync.heldBack(2));
+    expect(heldBackMessage(2)).not.toBe(copy.sync.pending(2));
   });
 });

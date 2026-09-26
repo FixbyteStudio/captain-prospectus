@@ -11,12 +11,13 @@
  * Every state is decided once, in `sync-view.ts`; this file only draws what
  * it returns.
  */
-import { ClockIcon, CloudUploadIcon, XIcon, type LucideIcon } from "lucide-react";
+import { ClockIcon, CloudUploadIcon, UserXIcon, XIcon, type LucideIcon } from "lucide-react";
 import { copy } from "../copy";
 import { cn } from "../lib/utils";
 import { buttonVariants } from "@/ui/button-variants";
 import type { PwaState } from "../pwa";
 import {
+  heldBackMessage,
   stripEffect,
   syncView,
   type SyncDotTone,
@@ -118,6 +119,7 @@ const STRIP_TONE: Readonly<Record<SyncStripTone, string>> = {
 export function SyncStrip({ pwa }: { pwa: PwaState }) {
   const view = useSyncView();
   const strip = view.strip;
+  const heldBack = heldBackMessage(useSyncState().heldBack);
 
   const runAction = () => {
     if (!strip?.action) return;
@@ -145,6 +147,12 @@ export function SyncStrip({ pwa }: { pwa: PwaState }) {
         strip={strip?.politeness === "assertive" ? strip : null}
         onAction={runAction}
       />
+      {heldBack && (
+        <p className="bg-secondary text-foreground flex min-h-8 items-center gap-2 px-4 py-1.5 text-xs font-medium">
+          <UserXIcon aria-hidden className="size-4 shrink-0" />
+          <span>{heldBack}</span>
+        </p>
+      )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Dexie from "dexie";
 import type { Visit } from "../../shared/schemas";
-import { cacheVisitHistory, clearAgentCache, FieldDb, getMeta, setMeta } from "./db";
+import { cacheVisitHistory, clearAgentCache, FieldDb, getMeta, outboxCounts, setMeta } from "./db";
 
 /**
  * INVARIANT 5 again, from the storage end. A schema upgrade is the one moment
@@ -72,8 +72,89 @@ describe("the v1 → v2 upgrade", () => {
     const db = new FieldDb(name);
     await db.open();
 
-    expect(db.verno).toBe(2);
+    expect(db.verno).toBe(3);
     await expect(db.visitHistory.count()).resolves.toBe(0);
+    db.close();
+  });
+});
+
+describe("the v2 → v3 upgrade", () => {
+  const openV2 = async (name: string) => {
+    const v2 = new Dexie(name);
+    v2.version(1).stores({
+      prospects: "id, status, assignedTo",
+      outboxProspects: "id",
+      outboxVisits: "id, prospectId",
+      meta: "key",
+    });
+    v2.version(2).stores({ visitHistory: "id, prospectId" });
+    await v2.open();
+    return v2;
+  };
+
+  it("carries the outbox across, stamped with the cached identity", async () => {
+    const name = dbName();
+    const v2 = await openV2(name);
+    const pending = [visit(), visit(), visit()];
+    await v2.table("outboxVisits").bulkPut(pending);
+    await v2.table("outboxProspects").put({
+      id: crypto.randomUUID(),
+      name: "Le camion",
+      type: "food_truck",
+      lat: null,
+      lng: null,
+      address: null,
+      phone: null,
+      createdAt: 1_700_000_000_000,
+    });
+    await v2
+      .table("meta")
+      .put({ key: "identity", value: { email: "a@example.com", role: "agent" } });
+    v2.close();
+
+    const v3 = new FieldDb(name);
+    await v3.open();
+
+    const kept = await v3.outboxVisits.toArray();
+    expect(kept.map((v) => v.id).sort()).toEqual(pending.map((v) => v.id).sort());
+    expect(kept.every((v) => v.writtenBy === "a@example.com")).toBe(true);
+    const { writtenBy, ...wire } = kept.find((v) => v.id === pending[0]?.id) ?? {};
+    expect(writtenBy).toBe("a@example.com");
+    expect(wire).toEqual(pending[0]);
+    const prospects = await v3.outboxProspects.toArray();
+    expect(prospects.map((p) => p.writtenBy)).toEqual(["a@example.com"]);
+    v3.close();
+  });
+
+  it("leaves rows unstamped, never dropped, when no identity is cached", async () => {
+    const name = dbName();
+    const v2 = await openV2(name);
+    const pending = [visit(), visit()];
+    await v2.table("outboxVisits").bulkPut(pending);
+    v2.close();
+
+    const v3 = new FieldDb(name);
+    await v3.open();
+
+    const kept = await v3.outboxVisits.toArray();
+    expect(kept).toHaveLength(2);
+    expect(kept.every((v) => v.writtenBy === undefined)).toBe(true);
+    v3.close();
+  });
+});
+
+describe("outboxCounts", () => {
+  it("splits the outbox between this identity's rows and another's", async () => {
+    const db = new FieldDb(dbName());
+    await db.open();
+    await db.outboxVisits.bulkPut([
+      { ...visit(), writtenBy: "a@example.com" },
+      { ...visit(), writtenBy: "b@example.com" },
+      visit(),
+    ]);
+
+    // The unstamped row counts as whoever is signed in: it would be sent.
+    await expect(outboxCounts(db, "b@example.com")).resolves.toEqual({ pending: 2, heldBack: 1 });
     db.close();
   });
 });

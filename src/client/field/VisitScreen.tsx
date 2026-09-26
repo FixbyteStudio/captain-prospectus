@@ -42,7 +42,7 @@ import { useSyncState } from "./useSync";
 export function VisitScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { syncNow } = useSyncState();
+  const { syncNow, identity } = useSyncState();
   const { point } = useAgentPosition();
 
   /** The outbox write itself failed, so nothing is queued. */
@@ -241,7 +241,7 @@ export function VisitScreen() {
       // visit. Nothing here touches the local copy — the new status arrives on
       // the next pull, in the list.
       try {
-        await fieldDb.outboxVisits.add(result.visit);
+        await fieldDb.outboxVisits.add({ ...result.visit, writtenBy: identity });
       } catch {
         // Until this row exists, the outbox is not the only copy of the visit —
         // there is no copy at all (INVARIANT 5). A quota-exhausted or evicted
@@ -254,7 +254,7 @@ export function VisitScreen() {
       void syncNow();
       await navigate("/tournee", { replace: true, state: { saved: true } });
     },
-    [id, navigate, point, syncNow, visitId],
+    [id, identity, navigate, point, syncNow, visitId],
   );
 
   const name = prospect?.name ?? pendingProspect?.name;

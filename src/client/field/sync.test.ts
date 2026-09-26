@@ -12,6 +12,8 @@ import { backoffDelayMs, runSync } from "./sync";
 let db: FieldDb;
 let dbCounter = 0;
 
+const AGENT = "agent@example.com";
+
 const visit = (over: Partial<Visit> = {}): Visit => ({
   id: crypto.randomUUID(),
   prospectId: crypto.randomUUID(),
@@ -55,6 +57,7 @@ describe("runSync — what clears the outbox", () => {
 
     const result = await runSync({
       db,
+      identity: AGENT,
       fetchFn: respondWith(okResponse({ accepted: { prospects: [], visits: [accepted.id] } })),
     });
 
@@ -65,7 +68,7 @@ describe("runSync — what clears the outbox", () => {
 
   it("keeps everything when the response omits accepted ids entirely", async () => {
     await db.outboxVisits.add(visit());
-    await runSync({ db, fetchFn: respondWith(okResponse()) });
+    await runSync({ db, identity: AGENT, fetchFn: respondWith(okResponse()) });
     expect(await db.outboxVisits.count()).toBe(1);
   });
 });
@@ -85,21 +88,21 @@ describe("runSync — the cached script", () => {
   };
 
   it("writes the active script into meta", async () => {
-    await runSync({ db, fetchFn: respondWith(okResponse({ script })) });
+    await runSync({ db, identity: AGENT, fetchFn: respondWith(okResponse({ script })) });
 
     expect(await getMeta(db, "script")).toEqual(script);
   });
 
   it("clears it when the server reports none, rather than keeping a stale one", async () => {
     await setMeta(db, "script", script);
-    await runSync({ db, fetchFn: respondWith(okResponse({ script: null })) });
+    await runSync({ db, identity: AGENT, fetchFn: respondWith(okResponse({ script: null })) });
 
     expect(await getMeta(db, "script")).toBeNull();
   });
 
   it("leaves the cached script alone when the sync failed", async () => {
     await setMeta(db, "script", script);
-    await runSync({ db, fetchFn: failWith(500) });
+    await runSync({ db, identity: AGENT, fetchFn: failWith(500) });
 
     expect(await getMeta(db, "script")).toEqual(script);
   });
@@ -115,7 +118,7 @@ describe("runSync — failures must never clear the outbox", () => {
     ["a payload too large (413)", 413],
   ])("keeps the outbox on %s", async (_label, status) => {
     await db.outboxVisits.add(visit());
-    const result = await runSync({ db, fetchFn: failWith(status) });
+    const result = await runSync({ db, identity: AGENT, fetchFn: failWith(status) });
 
     expect(result.status).not.toBe("ok");
     expect(await db.outboxVisits.count()).toBe(1);
@@ -124,8 +127,8 @@ describe("runSync — failures must never clear the outbox", () => {
 
   it("reports 426 as an upgrade, distinctly from an auth failure", async () => {
     await db.outboxVisits.add(visit());
-    expect((await runSync({ db, fetchFn: failWith(426) })).status).toBe("upgrade");
-    expect((await runSync({ db, fetchFn: failWith(401) })).status).toBe("auth");
+    expect((await runSync({ db, identity: AGENT, fetchFn: failWith(426) })).status).toBe("upgrade");
+    expect((await runSync({ db, identity: AGENT, fetchFn: failWith(401) })).status).toBe("auth");
   });
 
   it("keeps the outbox when the network is gone", async () => {
@@ -134,7 +137,7 @@ describe("runSync — failures must never clear the outbox", () => {
       throw new TypeError("Failed to fetch");
     }) as unknown as typeof fetch;
 
-    const result = await runSync({ db, fetchFn: offline });
+    const result = await runSync({ db, identity: AGENT, fetchFn: offline });
     expect(result.status).toBe("offline");
     expect(await db.outboxVisits.count()).toBe(1);
   });
@@ -149,7 +152,7 @@ describe("runSync — failures must never clear the outbox", () => {
       return r;
     }) as unknown as typeof fetch;
 
-    const result = await runSync({ db, fetchFn: redirected });
+    const result = await runSync({ db, identity: AGENT, fetchFn: redirected });
     expect(result.status).toBe("auth");
     expect(await db.outboxVisits.count()).toBe(1);
   });
@@ -161,7 +164,7 @@ describe("runSync — failures must never clear the outbox", () => {
         status: 200,
       })) as unknown as typeof fetch;
 
-    const result = await runSync({ db, fetchFn: garbage });
+    const result = await runSync({ db, identity: AGENT, fetchFn: garbage });
     expect(result.status).toBe("error");
     expect(await db.outboxVisits.count()).toBe(1);
   });
@@ -176,6 +179,7 @@ describe("runSync — dedupe collisions", () => {
 
     await runSync({
       db,
+      identity: AGENT,
       fetchFn: respondWith(
         okResponse({
           idMap: { [clientProspectId]: serverProspectId },
@@ -210,6 +214,7 @@ describe("runSync — the pull", () => {
 
     await runSync({
       db,
+      identity: AGENT,
       fetchFn: respondWith(
         okResponse({
           prospects: [
@@ -245,7 +250,7 @@ describe("runSync — the pull", () => {
       return new Response(JSON.stringify(okResponse()), { status: 200 });
     }) as unknown as typeof fetch;
 
-    await runSync({ db, fetchFn: capture });
+    await runSync({ db, identity: AGENT, fetchFn: capture });
     expect((sent as { clientVersion: number }).clientVersion).toBe(CLIENT_VERSION);
   });
 });
@@ -306,7 +311,7 @@ describe("runSync — staying under MAX_REQUEST_BYTES", () => {
     for (let i = 0; i < SYNC_VISITS_PER_REQUEST; i++) await db.outboxVisits.add(hugeVisit());
 
     const { only, fetchFn } = captureBody();
-    await runSync({ db, fetchFn });
+    await runSync({ db, identity: AGENT, fetchFn });
 
     const body = only();
     expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(MAX_REQUEST_BYTES);
@@ -323,7 +328,7 @@ describe("runSync — staying under MAX_REQUEST_BYTES", () => {
     await db.outboxVisits.add(hugeVisit());
 
     const { only, fetchFn } = captureBody();
-    await runSync({ db, fetchFn });
+    await runSync({ db, identity: AGENT, fetchFn });
 
     expect((JSON.parse(only()) as SyncRequest).visits).toHaveLength(1);
   });
@@ -332,8 +337,138 @@ describe("runSync — staying under MAX_REQUEST_BYTES", () => {
     for (let i = 0; i < 20; i++) await db.outboxVisits.add(visit());
 
     const { only, fetchFn } = captureBody();
-    await runSync({ db, fetchFn });
+    await runSync({ db, identity: AGENT, fetchFn });
 
     expect((JSON.parse(only()) as SyncRequest).visits).toHaveLength(20);
+  });
+});
+
+/**
+ * docs/backlog/005: the Worker files every visit under the identity that sends
+ * it, so a row another identity wrote must never be sent — nor dropped.
+ */
+describe("runSync — rows written by another identity", () => {
+  const A = "a@example.com";
+  const B = "b@example.com";
+
+  const captureAll = () => {
+    const sent: SyncRequest[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as SyncRequest;
+      sent.push(body);
+      const accepted = {
+        prospects: body.prospects.map((p) => p.id),
+        visits: body.visits.map((v) => v.id),
+      };
+      return new Response(JSON.stringify(okResponse({ accepted })), { status: 200 });
+    }) as unknown as typeof fetch;
+    return { sent, fetchFn };
+  };
+
+  it("holds back A's row when B syncs, and sends it once A syncs again", async () => {
+    const aVisit = visit();
+    await db.outboxVisits.add({ ...aVisit, writtenBy: A });
+
+    const { sent, fetchFn } = captureAll();
+    const asB = await runSync({ db, identity: B, fetchFn });
+
+    expect(sent[0]?.visits).toEqual([]);
+    expect(asB).toMatchObject({ status: "ok", remaining: 0, heldBack: 1 });
+    expect(await db.outboxVisits.get(aVisit.id)).toEqual({ ...aVisit, writtenBy: A });
+
+    const asA = await runSync({ db, identity: A, fetchFn });
+
+    expect(sent[1]?.visits.map((v) => v.id)).toEqual([aVisit.id]);
+    expect(asA).toMatchObject({ status: "ok", acceptedVisits: 1, remaining: 0, heldBack: 0 });
+  });
+
+  it("holds back another identity's field prospect the same way", async () => {
+    const prospect: FieldProspect = {
+      id: crypto.randomUUID(),
+      name: "Le camion",
+      type: "food_truck",
+      lat: null,
+      lng: null,
+      address: null,
+      phone: null,
+      createdAt: 1_700_000_000_000,
+    };
+    await db.outboxProspects.add({ ...prospect, writtenBy: A });
+
+    const { sent, fetchFn } = captureAll();
+    const result = await runSync({ db, identity: B, fetchFn });
+
+    expect(sent[0]?.prospects).toEqual([]);
+    expect(result.heldBack).toBe(1);
+    expect(await db.outboxProspects.count()).toBe(1);
+  });
+
+  it("never puts the stamp in the request body", async () => {
+    await db.outboxVisits.add({ ...visit(), writtenBy: A });
+
+    const { sent, fetchFn } = captureAll();
+    await runSync({ db, identity: A, fetchFn });
+
+    expect(sent[0]?.visits).toHaveLength(1);
+    expect(sent[0]?.visits[0]).not.toHaveProperty("writtenBy");
+  });
+
+  it("does not let held-back rows fill the slice and starve the current identity", async () => {
+    for (let i = 0; i < SYNC_VISITS_PER_REQUEST; i++) {
+      await db.outboxVisits.add({ ...visit(), writtenBy: A });
+    }
+    const own = visit();
+    await db.outboxVisits.add({ ...own, writtenBy: B });
+
+    const { sent, fetchFn } = captureAll();
+    await runSync({ db, identity: B, fetchFn });
+
+    expect(sent[0]?.visits.map((v) => v.id)).toEqual([own.id]);
+  });
+
+  it("sends an unstamped (pre-v3) row once, then keeps it with that identity", async () => {
+    const legacy = visit();
+    await db.outboxVisits.add(legacy);
+
+    // The server takes the request but does not accept this row (an orphan,
+    // say), so it stays queued: it must now belong to A, not to whoever next.
+    let body: SyncRequest | undefined;
+    const capture = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body)) as SyncRequest;
+      return new Response(JSON.stringify(okResponse()), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await runSync({ db, identity: A, fetchFn: capture });
+    expect(body?.visits.map((v) => v.id)).toEqual([legacy.id]);
+    expect((await db.outboxVisits.get(legacy.id))?.writtenBy).toBe(A);
+
+    const { sent, fetchFn } = captureAll();
+    const asB = await runSync({ db, identity: B, fetchFn });
+    expect(sent[0]?.visits).toEqual([]);
+    expect(asB.heldBack).toBe(1);
+  });
+
+  it("removes an unstamped row through the normal accept path", async () => {
+    const legacy = visit();
+    await db.outboxVisits.add(legacy);
+
+    const { fetchFn } = captureAll();
+    await runSync({ db, identity: A, fetchFn });
+
+    expect(await db.outboxVisits.count()).toBe(0);
+  });
+
+  it("counts held-back rows apart from remaining when the network is down", async () => {
+    await db.outboxVisits.add({ ...visit(), writtenBy: A });
+    await db.outboxVisits.add({ ...visit(), writtenBy: B });
+    await db.outboxVisits.add(visit());
+
+    const offline = (async () => {
+      throw new TypeError("Failed to fetch");
+    }) as unknown as typeof fetch;
+    const result = await runSync({ db, identity: B, fetchFn: offline });
+
+    expect(result).toMatchObject({ status: "offline", remaining: 2, heldBack: 1 });
+    expect(await db.outboxVisits.count()).toBe(3);
   });
 });

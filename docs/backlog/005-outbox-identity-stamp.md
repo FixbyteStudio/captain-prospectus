@@ -1,6 +1,6 @@
 ---
 id: 005
-status: ready
+status: done
 implements: docs/security.md#threat-model "Agent reading other agents' data", docs/domains/identity-access.md#offline-and-session-expiry
 depends_on: []
 ---

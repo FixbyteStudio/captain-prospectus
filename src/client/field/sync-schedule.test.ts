@@ -20,6 +20,7 @@ const result = (over: Partial<SyncResult> = {}): SyncResult => ({
   acceptedProspects: 0,
   acceptedVisits: 0,
   remaining: 0,
+  heldBack: 0,
   ...over,
 });
 
