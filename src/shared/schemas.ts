@@ -716,22 +716,56 @@ export type OrphanRepairResult = z.infer<typeof orphanRepairResultSchema>;
  * a seed that could not have been created through the UI is a local database
  * that does not match production, which is what this route exists to avoid.
  */
-export const devSeedSchema = z.object({
-  prospects: z
-    .array(
-      z.object({
-        name: shortTextRequired,
-        type: prospectTypeSchema,
-        lat: z.nullable(latSchema),
-        lng: z.nullable(lngSchema),
-        address: z.nullable(shortText),
-        assignedTo: z.nullable(emailSchema),
-      }),
-    )
-    .check(z.maxLength(IMPORT_ROWS_PER_REQUEST)),
-  script: scriptCreateSchema,
-});
+export const devSeedSchema = z
+  .object({
+    prospects: z
+      .array(
+        z.object({
+          name: shortTextRequired,
+          type: prospectTypeSchema,
+          lat: z.nullable(latSchema),
+          lng: z.nullable(lngSchema),
+          address: z.nullable(shortText),
+          assignedTo: z.nullable(emailSchema),
+          /** Set as an admin would by hand, once, after the visits are derived. */
+          manualStatus: z.optional(statusSchema),
+          /** The `name` of another prospect in this body to merge this one into. */
+          mergeInto: z.optional(shortTextRequired),
+        }),
+      )
+      .check(z.maxLength(IMPORT_ROWS_PER_REQUEST)),
+    script: scriptCreateSchema,
+  })
+  .check((ctx) => {
+    // A merge target is resolved by name within this one body, so a name that
+    // is not there — or is the row's own — has nothing to merge into.
+    const names = ctx.value.prospects.map((p) => p.name);
+    ctx.value.prospects.forEach((prospect, index) => {
+      const target = prospect.mergeInto;
+      if (target === undefined) return;
+      if (target === prospect.name || !names.includes(target)) {
+        ctx.issues.push({
+          code: "custom",
+          message: "mergeInto must name another prospect in this body",
+          path: ["prospects", index, "mergeInto"],
+          input: target,
+        });
+      }
+    });
+  });
 export type DevSeed = z.infer<typeof devSeedSchema>;
+
+export const devSeedResultSchema = z.object({
+  /** Prospects in the body, inserted or already there. */
+  seeded: z.int().check(z.nonnegative()),
+  /** Rows this call wrote. All 0 on a repeated seed (INVARIANT 4). */
+  inserted: z.object({
+    prospects: z.int().check(z.nonnegative()),
+    visits: z.int().check(z.nonnegative()),
+    orphans: z.int().check(z.nonnegative()),
+  }),
+});
+export type DevSeedResult = z.infer<typeof devSeedResultSchema>;
 
 /* -------------------------------------------------------------------- errors */
 
