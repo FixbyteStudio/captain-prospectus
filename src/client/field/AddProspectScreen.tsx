@@ -48,7 +48,7 @@ type AddProspectForm = z.infer<typeof addProspectFormSchema>;
 
 export function AddProspectScreen() {
   const navigate = useNavigate();
-  const { syncNow } = useSyncState();
+  const { syncNow, identity } = useSyncState();
   const { point, locating, refresh } = useAgentPosition();
 
   /** The outbox write itself failed, so nothing is queued. */
@@ -86,7 +86,7 @@ export function AddProspectScreen() {
       setSaveFailed(false);
 
       try {
-        await fieldDb.outboxProspects.add(parsed.data);
+        await fieldDb.outboxProspects.add({ ...parsed.data, writtenBy: identity });
       } catch {
         // Same rule as the visit form: the outbox row is the only copy of this
         // prospect, so a failed write is reported rather than navigated past.
@@ -97,7 +97,7 @@ export function AddProspectScreen() {
       void syncNow();
       await navigate("/tournee", { replace: true, state: { added: true } });
     },
-    [form, navigate, point, prospectId, syncNow],
+    [form, identity, navigate, point, prospectId, syncNow],
   );
 
   const saving = form.formState.isSubmitting;

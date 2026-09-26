@@ -30,12 +30,25 @@ export type MetaValues = {
   identity: MeResponse;
 };
 export type MetaKey = keyof MetaValues;
+
+/**
+ * The email of the identity that wrote an outbox row — docs/backlog/005.
+ *
+ * Dexie-only bookkeeping, never on the wire: the Worker takes `agentEmail`
+ * from the verified JWT (INVARIANT 10), so the stamp only decides whether this
+ * device may send the row *under the identity now signed in*. Optional because
+ * a row queued before v3 with no identity cached has none; `runSync` treats
+ * that row as the current identity's.
+ */
+export type OutboxStamp = { writtenBy?: string };
+export type StoredVisit = Visit & OutboxStamp;
+export type StoredFieldProspect = FieldProspect & OutboxStamp;
 export type MetaRow = { key: MetaKey; value: MetaValues[MetaKey] };
 
 export class FieldDb extends Dexie {
   prospects!: Table<Prospect, string>;
-  outboxProspects!: Table<FieldProspect, string>;
-  outboxVisits!: Table<Visit, string>;
+  outboxProspects!: Table<StoredFieldProspect, string>;
+  outboxVisits!: Table<StoredVisit, string>;
   meta!: Table<MetaRow, string>;
   /**
    * Past visits pulled from the server, so the visit form can still show
@@ -63,6 +76,25 @@ export class FieldDb extends Dexie {
     this.version(2).stores({
       visitHistory: "id, prospectId",
     });
+    /**
+     * v3 stamps every queued row with `writtenBy`. It modifies rows in place
+     * and deletes none (sync-contract-change step 3): a row queued before the
+     * upgrade takes the cached identity, the best guess at who wrote it, and
+     * stays unstamped when none is cached rather than being dropped.
+     */
+    this.version(3)
+      .stores({})
+      .upgrade(async (tx) => {
+        const row = (await tx.table("meta").get("identity" satisfies MetaKey)) as
+          { value?: { email?: unknown } } | undefined;
+        const email = row?.value?.email;
+        if (typeof email !== "string") return;
+        const stamp = (item: OutboxStamp) => {
+          item.writtenBy ??= email;
+        };
+        await tx.table("outboxVisits").toCollection().modify(stamp);
+        await tx.table("outboxProspects").toCollection().modify(stamp);
+      });
   }
 }
 
@@ -84,13 +116,32 @@ export async function setMeta<K extends MetaKey>(
   await db.meta.put({ key, value });
 }
 
-/** How many local writes are still waiting for the server to accept them. */
-export async function pendingCount(db: FieldDb): Promise<number> {
+/**
+ * Whether `identity` may send this outbox row. An unstamped row predates v3
+ * with no identity cached, and belongs to whoever syncs it first
+ * (docs/backlog/005) — holding it back would strand it for good.
+ */
+export function sendableBy(identity: string): (row: OutboxStamp) => boolean {
+  return (row) => row.writtenBy === undefined || row.writtenBy === identity;
+}
+
+export type OutboxCounts = {
+  /** Rows `identity` will send: waiting on the network, nothing else. */
+  pending: number;
+  /** Rows another identity wrote, which this one never sends. */
+  heldBack: number;
+};
+
+/** Split the outbox between what `identity` can send and what it holds back. */
+export async function outboxCounts(db: FieldDb, identity: string): Promise<OutboxCounts> {
+  const mine = sendableBy(identity);
   const [prospects, visits] = await Promise.all([
-    db.outboxProspects.count(),
-    db.outboxVisits.count(),
+    db.outboxProspects.toArray(),
+    db.outboxVisits.toArray(),
   ]);
-  return prospects + visits;
+  const rows: OutboxStamp[] = [...prospects, ...visits];
+  const pending = rows.filter(mine).length;
+  return { pending, heldBack: rows.length - pending };
 }
 
 /**
@@ -121,7 +172,8 @@ export async function cacheVisitHistory(
  *
  * The outbox is deliberately not touched: INVARIANT 5 lets only the server's
  * `accepted` list delete a queued visit, and a revoked session is not that.
- * The residual gap that leaves is `docs/backlog/005-outbox-identity-stamp.md`.
+ * The next identity does not send those rows either: each is stamped with its
+ * writer and `runSync` holds back any stamped by someone else.
  */
 export async function clearAgentCache(db: FieldDb): Promise<void> {
   await Promise.all([

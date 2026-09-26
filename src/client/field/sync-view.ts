@@ -162,6 +162,15 @@ export function syncView({ status, running, pending }: SyncViewInput): SyncView 
   };
 }
 
+/**
+ * The line under the strip when another agent's writes sit in this outbox
+ * (docs/backlog/005). Apart from the seven states on purpose: it is not a sync
+ * state, and "waiting for the network" must not be read as "wrong hands".
+ */
+export function heldBackMessage(heldBack: number): string | null {
+  return heldBack > 0 ? copy.sync.heldBack(heldBack) : null;
+}
+
 /* ------------------------------------------------------------- strip effect */
 
 export type StripEffect =

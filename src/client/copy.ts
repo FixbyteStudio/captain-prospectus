@@ -607,6 +607,11 @@ export const copy = {
     authExpired: "Votre session a expiré. Reconnectez-vous pour synchroniser.",
     upgrade: "Une mise à jour est nécessaire. Vos visites sont conservées.",
     failed: "La synchronisation a échoué. Nouvel essai automatique.",
+    /** Rows another agent queued on this device; never sent under this one. */
+    heldBack: (count: number) =>
+      count === 1
+        ? "1 élément appartient à un autre agent et n'a pas été envoyé"
+        : `${count} éléments appartiennent à un autre agent et n'ont pas été envoyés`,
     /** Reconnects through Access (docs/domains/identity-access.md); the
      * outbox is untouched. */
     reconnect: "Se reconnecter",

@@ -9,6 +9,9 @@
  *   INVARIANT 4  ids are client UUIDs and every insert is idempotent, so
  *                resending a payload is harmless.
  *
+ * A row stamped by another identity is never sent: the server would file it
+ * under whoever is signed in now (docs/backlog/005). It waits in the outbox.
+ *
  * Everything is injected (db, fetch, clock) so the failure paths can be tested
  * without a network or a browser.
  */
@@ -19,8 +22,8 @@ import {
   SYNC_VISITS_PER_REQUEST,
 } from "../../shared/constants";
 import { syncResponseSchema } from "../../shared/schemas";
-import type { SyncRequest } from "../../shared/schemas";
-import { type FieldDb, setMeta } from "./db";
+import type { FieldProspect, SyncRequest, Visit } from "../../shared/schemas";
+import { type FieldDb, type OutboxStamp, outboxCounts, sendableBy, setMeta } from "./db";
 
 export type SyncStatus =
   | "ok"
@@ -37,12 +40,16 @@ export type SyncResult = {
   status: SyncStatus;
   acceptedProspects: number;
   acceptedVisits: number;
-  /** Still pending after this attempt. */
+  /** Still pending after this attempt: rows this identity will send. */
   remaining: number;
+  /** Rows another identity wrote, left in the outbox and not sent. */
+  heldBack: number;
 };
 
 export type SyncDeps = {
   db: FieldDb;
+  /** The email signed in now. Only rows it wrote, or unstamped ones, are sent. */
+  identity: string;
   fetchFn?: typeof fetch;
   endpoint?: string;
 };
@@ -89,20 +96,34 @@ function serializeWithinCap(payload: SyncRequest): string {
   return serialized;
 }
 
+/** The wire shape of an outbox row: the stamp stays on the device. */
+function unstamped<T extends OutboxStamp>(row: T): Omit<T, "writtenBy"> {
+  const wire: T = { ...row };
+  delete wire.writtenBy;
+  return wire;
+}
+
 export async function runSync(deps: SyncDeps): Promise<SyncResult> {
-  const { db } = deps;
+  const { db, identity } = deps;
   const doFetch = deps.fetchFn ?? fetch;
   const endpoint = deps.endpoint ?? "/api/agent/sync";
+  const countPending = () => countOutbox(db, identity);
 
   // Bounded slices: a phone offline for a week must not build a payload that
   // blows the request size or the Worker's 10 ms CPU budget (INVARIANT 13).
-  const outboxProspects = await db.outboxProspects.limit(SYNC_PROSPECTS_PER_REQUEST).toArray();
-  const outboxVisits = await db.outboxVisits.limit(SYNC_VISITS_PER_REQUEST).toArray();
+  // Filtered before the limit, so another identity's rows cannot fill the
+  // slice and starve this one's.
+  const mine = sendableBy(identity);
+  const outboxProspects = await db.outboxProspects
+    .filter(mine)
+    .limit(SYNC_PROSPECTS_PER_REQUEST)
+    .toArray();
+  const outboxVisits = await db.outboxVisits.filter(mine).limit(SYNC_VISITS_PER_REQUEST).toArray();
 
   const requestBody = serializeWithinCap({
     clientVersion: CLIENT_VERSION,
-    prospects: outboxProspects,
-    visits: outboxVisits,
+    prospects: outboxProspects.map((row): FieldProspect => unstamped(row)),
+    visits: outboxVisits.map((row): Visit => unstamped(row)),
   });
 
   let response: Response;
@@ -117,24 +138,24 @@ export async function runSync(deps: SyncDeps): Promise<SyncResult> {
       redirect: "manual",
     });
   } catch {
-    return { status: "offline", ...EMPTY, remaining: await countPending(db) };
+    return { status: "offline", ...EMPTY, ...(await countPending()) };
   }
 
   if (response.type === "opaqueredirect" || response.status === 401 || response.status === 403) {
-    return { status: "auth", ...EMPTY, remaining: await countPending(db) };
+    return { status: "auth", ...EMPTY, ...(await countPending()) };
   }
   if (response.status === 426) {
-    return { status: "upgrade", ...EMPTY, remaining: await countPending(db) };
+    return { status: "upgrade", ...EMPTY, ...(await countPending()) };
   }
   if (!response.ok) {
-    return { status: "error", ...EMPTY, remaining: await countPending(db) };
+    return { status: "error", ...EMPTY, ...(await countPending()) };
   }
 
   const parsed = syncResponseSchema.safeParse(await response.json());
   if (!parsed.success) {
     // A response we cannot trust is treated as a failure: never delete an
     // outbox row on the strength of a payload we could not verify.
-    return { status: "error", ...EMPTY, remaining: await countPending(db) };
+    return { status: "error", ...EMPTY, ...(await countPending()) };
   }
   const body = parsed.data;
 
@@ -148,6 +169,21 @@ export async function runSync(deps: SyncDeps): Promise<SyncResult> {
         const affected = await db.outboxVisits.where("prospectId").equals(clientId).toArray();
         for (const visit of affected) {
           await db.outboxVisits.put({ ...visit, prospectId: serverId });
+        }
+      }
+
+      // An unstamped row in this slice went out as this identity's (or waits
+      // one pass behind the byte cap to do so). Stamping what the server did
+      // not accept keeps it theirs, so the next identity holds it back rather
+      // than sending it again under another name.
+      for (const row of outboxProspects) {
+        if (row.writtenBy === undefined) {
+          await db.outboxProspects.update(row.id, { writtenBy: identity });
+        }
+      }
+      for (const row of outboxVisits) {
+        if (row.writtenBy === undefined) {
+          await db.outboxVisits.update(row.id, { writtenBy: identity });
         }
       }
 
@@ -172,13 +208,16 @@ export async function runSync(deps: SyncDeps): Promise<SyncResult> {
     status: "ok",
     acceptedProspects: body.accepted.prospects.length,
     acceptedVisits: body.accepted.visits.length,
-    remaining: await countPending(db),
+    ...(await countPending()),
   };
 }
 
-async function countPending(db: FieldDb): Promise<number> {
-  const [p, v] = await Promise.all([db.outboxProspects.count(), db.outboxVisits.count()]);
-  return p + v;
+async function countOutbox(
+  db: FieldDb,
+  identity: string,
+): Promise<Pick<SyncResult, "remaining" | "heldBack">> {
+  const { pending, heldBack } = await outboxCounts(db, identity);
+  return { remaining: pending, heldBack };
 }
 
 /* ------------------------------------------------------------------ backoff */

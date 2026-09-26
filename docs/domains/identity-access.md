@@ -54,6 +54,7 @@ cached one — a different agent has signed in on this device — the locally
 cached round (`prospects`) and cached visit history are cleared before
 anything renders — the same `clearAgentCache` the 401 path uses — so one agent
 never sees another's list from cache. The
-outbox is never cleared this way (INVARIANT 5); a queued visit written under
-the previous identity and synced under the new one is a known, tracked gap
-(`docs/backlog/005-outbox-identity-stamp.md`).
+outbox is never cleared this way (INVARIANT 5), and it is not sent under the new
+identity either: every outbox row is stamped with the email that wrote it, and
+`runSync` holds back rows stamped by anyone else until that agent signs in
+again (`docs/domains/field-operations.md#local-store-dexie`, backlog 005).

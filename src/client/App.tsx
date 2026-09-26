@@ -255,9 +255,9 @@ export function App() {
       // A different agent signed in on this device since the last cached
       // identity: their round and visit-history cache are not this agent's
       // to see (docs/security.md: "Agent reading other agents' data"). The
-      // outbox is never touched here — INVARIANT 5 — see backlog/005 for the
-      // residual gap that leaves (a queued visit written under the previous
-      // identity still syncs under this one).
+      // outbox is never touched here — INVARIANT 5 — and the previous
+      // identity's rows in it are held back by `runSync`, which sends only
+      // rows stamped with the identity it is given (backlog/005).
       if (outcome.identitySwitched) {
         await clearAgentCache(fieldDb);
       }
@@ -309,7 +309,7 @@ export function App() {
   const isAdmin = me.role === "admin" && !offline;
 
   return (
-    <SyncProvider>
+    <SyncProvider identity={me.email}>
       <Routes>
         {/* Not under FieldFrame: the redirect target decides which frame
             shows, so the field band must not render even for one commit. */}
