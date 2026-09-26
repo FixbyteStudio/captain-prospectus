@@ -1,0 +1,1 @@
+CREATE INDEX `visits_visited_idx` ON `visits` (`visited_at`);
