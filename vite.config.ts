@@ -1,11 +1,44 @@
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { VitePWA } from "vite-plugin-pwa";
 import { ACCESS_PATH_PATTERN } from "./src/client/admin/access-logout";
 import { RECONNECT_MARKER_PATTERN } from "./src/client/field/reconnect-marker";
+import { chunkModuleName } from "./scripts/chunk-module-name";
+
+const REPO_ROOT = fileURLToPath(new URL(".", import.meta.url));
+
+/**
+ * Writes which modules each client chunk holds, so `check:precache` can fail
+ * when an admin-only package reaches the field precache (GH #95). Next to
+ * dist/client, never in it: that folder is deployed, and the map lists source
+ * paths.
+ */
+function chunkModuleMap(): Plugin {
+  return {
+    name: "captain-prospectus:chunk-module-map",
+    apply: "build",
+    applyToEnvironment: (env) => env.name === "client",
+    writeBundle(options, bundle) {
+      if (!options.dir) throw new Error("chunk-module-map: the client build has no output dir");
+      const map: Record<string, string[]> = {};
+      for (const output of Object.values(bundle)) {
+        if (output.type !== "chunk") continue;
+        map[output.fileName] = [
+          ...new Set(Object.keys(output.modules).map((id) => chunkModuleName(id, REPO_ROOT))),
+        ].sort();
+      }
+      writeFileSync(
+        resolve(options.dir, "..", "client-chunk-modules.json"),
+        `${JSON.stringify(map, null, 2)}\n`,
+      );
+    },
+  };
+}
 
 export default defineConfig({
   // shadcn generates imports as "@/ui/button". The alias is mirrored in
@@ -17,6 +50,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     cloudflare(),
+    chunkModuleMap(),
     VitePWA({
       registerType: "prompt",
       manifest: {
@@ -53,7 +87,9 @@ export default defineConfig({
         // admin side as one chunk per extension, so the glob is deliberately
         // extension-less: M4's Leaflet import emitted an `AdminApp-*.css` that
         // a `.js`-only rule silently kept precaching. A NEW admin-only chunk
-        // under a different name would still need adding here.
+        // under a different name still needs adding here by hand:
+        // `check:precache` fails only when such a chunk holds a package in its
+        // `ADMIN_ONLY` list (GH #95, the chunkModuleMap plugin above).
         // Asserted in config.test.ts.
         globIgnores: ["**/assets/AdminApp-*"],
         // INVARIANT 8: the service worker never caches /api/*.

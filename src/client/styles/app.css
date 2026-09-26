@@ -263,8 +263,8 @@
   --band-accent: #ffffff14;
   --band-border: #ffffff1f;
   --band-strip: #142038;
-  --outcome-no-contact: #dde0e5;
-  --outcome-interested: #4f5e81;
+  --outcome-no-contact: #8a92a4;
+  --outcome-interested: #2e3f63;
   --outcome-not-interested: #5b5f63;
 
   /* Nothing has happened here yet: present, but the quietest thing in the column. */
@@ -312,8 +312,8 @@
     --band-accent: #ffffff0f;
     --band-border: #ffffff14;
     --band-strip: #070b15;
-    --outcome-no-contact: #3a4356;
-    --outcome-interested: #98a6cd;
+    --outcome-no-contact: #7c87a0;
+    --outcome-interested: #aebbdb;
     --outcome-not-interested: #8e9399;
     /* At 12 % the rose text is 4.38:1 on its own tint; 10 % clears 4.5:1. */
     --tint-destructive: color-mix(in oklab, var(--destructive) 10%, var(--card));
@@ -343,8 +343,8 @@
   --band-accent: #ffffff0f;
   --band-border: #ffffff14;
   --band-strip: #070b15;
-  --outcome-no-contact: #3a4356;
-  --outcome-interested: #98a6cd;
+  --outcome-no-contact: #7c87a0;
+  --outcome-interested: #aebbdb;
   --outcome-not-interested: #8e9399;
   /* At 12 % the rose text is 4.38:1 on its own tint; 10 % clears 4.5:1. */
   --tint-destructive: color-mix(in oklab, var(--destructive) 10%, var(--card));

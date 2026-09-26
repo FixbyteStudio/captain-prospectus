@@ -5,7 +5,7 @@ import { classLiterals } from "./class-literals";
 import { walkSourceFiles } from "./scan-files";
 
 /**
- * docs/design.md › Colour states five palette rules and a set of contrast
+ * docs/design.md › Colour states six palette rules and a set of contrast
  * claims. This turns them into something that fails CI when a hex is nudged,
  * rather than something a reader has to take on trust.
  *
@@ -405,8 +405,28 @@ describe("rule 5: status and outcome badge text reaches 4.5:1 on its tint", () =
   });
 });
 
+describe("rule 6: every outcome colour clears 3:1 on its theme's card", () => {
+  // A chart series is a graphical object (WCAG 1.4.11), so each must stand out
+  // from the card it is drawn on. Never series against series: five mutually
+  // distinct colours would need an 81:1 luminance range, and sRGB has 21:1 (#91).
+  const OUTCOME_COLOURS = [
+    "--outcome-no-contact",
+    "--outcome-interested",
+    "--outcome-not-interested",
+    // follow_up and converted outcomes reuse the status colours.
+    "--warn",
+    "--success",
+  ];
+
+  describe.each(THEMES)("%s", (_theme, t) => {
+    it.each(OUTCOME_COLOURS)("%s", (token) => {
+      expect(contrast(solid(t, token), solid(t, "--card"))).toBeGreaterThanOrEqual(CONTROL);
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
-// The component tier: rules 1–5 above prove the tokens, which let three real
+// The component tier: rules 1–6 above prove the tokens, which let three real
 // bugs through (#69, #70) because nothing checked whether a *component*
 // actually pairs a fill with its edge, or a destructive fill with the text
 // palette.test.ts already asserts. This scans every real class string in
