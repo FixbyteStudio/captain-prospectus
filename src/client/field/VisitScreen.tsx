@@ -5,16 +5,18 @@
  * the one thing the whole app exists to capture, and it has to be hittable by a
  * thumb without the agent looking carefully.
  *
- * Saving writes to the Dexie outbox and asks for a sync. It does not wait for
- * one — INVARIANT 5 keeps the row until the server lists it in `accepted`, so
- * an agent with no signal is finished the moment they tap save.
+ * "Enregistrer la visite" validates, then asks once (`SaveConfirmation`, GH
+ * #125); only the confirmation's "Enregistrer" saves. Saving writes to the
+ * Dexie outbox and asks for a sync. It does not wait for one — INVARIANT 5
+ * keeps the row until the server lists it in `accepted`, so an agent with no
+ * signal is finished the moment they tap save.
  *
  * The form runs on react-hook-form (ADR-0018), but the rules do not live here:
  * the resolver calls `toVisit` from `visit-draft.ts`, the same pure function
  * the tests exercise. react-hook-form owns which control is marked and what is
  * announced; it owns no validation and, above all, no persistence.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
@@ -39,10 +41,11 @@ import { visitHistoryResponseSchema } from "../../shared/schemas";
 import { answerableQuestions } from "../../shared/answers";
 import type { Answers, Script } from "../../shared/schemas";
 import { cacheVisitHistory, fieldDb, getMeta, queueVisit } from "./db";
-import { emptyDraft, toVisit, withOutcome, type VisitDraft } from "./visit-draft";
+import { answeredCount, emptyDraft, toVisit, withOutcome, type VisitDraft } from "./visit-draft";
 import { useAgentPosition } from "./useAgentPosition";
 import { useRegisterDirty } from "./leave-guard";
 import { useSyncState } from "./useSync";
+import { SaveConfirmation, type SaveSummary } from "./SaveConfirmation";
 
 /** Ties the outcome radiogroup to its own error line (docs/design.md, "One
  * decision per screen": the message says why, the focus says where). */
@@ -56,6 +59,23 @@ export function VisitScreen() {
 
   /** The outbox write itself failed, so nothing is queued. */
   const [saveFailed, setSaveFailed] = useState(false);
+
+  /**
+   * The validated draft the confirmation is showing, or `null` when it is
+   * closed. The draft, not a built `Visit`: `save` builds the visit at the
+   * tap on "Enregistrer", so `visitedAt` and the position are that moment's.
+   * Closing it (Modifier) touches nothing — the form is still mounted
+   * underneath with every value in it.
+   */
+  const [pending, setPending] = useState<VisitDraft | null>(null);
+  /**
+   * Set for the length of the outbox write; it disables « Enregistrer », so a
+   * second tap cannot start a second `add` of the same visit id — that one
+   * would fail and report a save that had in fact succeeded.
+   */
+  const [saving, setSaving] = useState(false);
+  /** « Enregistrer la visite », where focus returns when the confirmation closes. */
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
 
   // The visit's id is minted once, not per validation attempt: it is the
   // idempotency key (INVARIANT 4), so re-validating must not mint a second one.
@@ -134,7 +154,6 @@ export function VisitScreen() {
   const outcome = useWatch({ control: form.control, name: "outcome" });
   const answers = useWatch({ control: form.control, name: "answers" });
   const errors = form.formState.errors;
-  const saving = form.formState.isSubmitting;
 
   // A tab tap unmounts this form (#74, spec-gh-66): the leave guard asks
   // before it does, unless save() has already navigated it away itself.
@@ -291,6 +310,7 @@ export function VisitScreen() {
       if (!result.ok) return;
 
       setSaveFailed(false);
+      setSaving(true);
 
       // INVARIANT 3: the prospect's status is the server's to derive from this
       // visit. Nothing here touches the local copy — the new status arrives on
@@ -303,6 +323,7 @@ export function VisitScreen() {
         // IndexedDB must therefore say so and leave the form standing, rather
         // than navigating away from a visit that was never queued.
         setSaveFailed(true);
+        setSaving(false);
         return;
       }
 
@@ -314,6 +335,24 @@ export function VisitScreen() {
 
   const name = prospect?.name ?? pendingProspect?.name;
   const type = prospect?.type ?? pendingProspect?.type;
+
+  // Only a validated draft reaches `pending`, so its outcome is set.
+  const summary: SaveSummary | null =
+    pending?.outcome && name
+      ? {
+          name,
+          outcome: pending.outcome,
+          flyerGiven: pending.flyerGiven,
+          answerCount: hasQuestions
+            ? answeredCount(
+                pending.answers,
+                questions.map((q) => q.key),
+              )
+            : null,
+          // Trimmed as `toVisit` queues it, so the summary shows what is sent.
+          notes: pending.notes.trim(),
+        }
+      : null;
 
   // useLiveQuery returns undefined until its first read resolves; null means
   // "looked and found nothing". Only the latter is a missing prospect.
@@ -336,7 +375,15 @@ export function VisitScreen() {
     <Form {...form}>
       <form
         className="pb-action-bar"
-        onSubmit={(e) => void form.handleSubmit(save, () => focusFirstProblem())(e)}
+        onSubmit={(e) =>
+          void form.handleSubmit(
+            (values) => {
+              setSaveFailed(false);
+              setPending(values);
+            },
+            () => focusFirstProblem(),
+          )(e)
+        }
         noValidate
       >
         <header>
@@ -513,11 +560,6 @@ export function VisitScreen() {
             (app.css); at that size the tab bar itself owns the safe-area
             inset, so this carries only its own breathing room. */}
         <div className="above-tab-bar bg-background border-border fixed inset-x-0 border-t px-4 pt-3">
-          {saveFailed && (
-            <p role="alert" className="text-destructive mb-2 text-sm">
-              {copy.visit.saveFailed}
-            </p>
-          )}
           {/* An action keeps its name through the flow, so « Enregistrer la
               visite » appears only on the screen that actually saves. */}
           {step === "outcome" && hasQuestions ? (
@@ -536,15 +578,29 @@ export function VisitScreen() {
           ) : (
             <button
               key="save"
+              ref={saveButtonRef}
               type="submit"
               className={cn(buttonVariants({ size: "touch" }), "w-full")}
-              disabled={saving}
             >
-              {saving ? copy.visit.saving : copy.visit.save}
+              {copy.visit.save}
             </button>
           )}
         </div>
       </form>
+
+      <SaveConfirmation
+        open={summary !== null}
+        onOpenChange={(open) => {
+          if (!open) setPending(null);
+        }}
+        summary={summary}
+        saving={saving}
+        saveFailed={saveFailed}
+        onConfirm={() => {
+          if (pending) void save(pending);
+        }}
+        returnFocusTo={saveButtonRef}
+      />
     </Form>
   );
 }

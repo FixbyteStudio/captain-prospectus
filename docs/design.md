@@ -392,11 +392,10 @@ Five rules this encodes:
   in this app avoids a confirmation dialog — a merge, an assignment, a status
   change are all either reversible or additive. Saving a script is neither: it
   silently reassigns what every agent is asked next, including mid-round, and
-  it is not append-only the way a visit is (compare "no confirmation dialog on
-  saving a visit" on the field side — that rule exists *because* a visit is
-  append-only and this action is not). So Save opens a dialog stating the
-  version number it is about to create and activate, and that is the only
-  place a confirmation dialog appears in this app.
+  it is not append-only the way a visit is. So Save opens a dialog stating the
+  version number it is about to create and activate. The field asks the same
+  once before a visit is saved ("Saving asks once"), for the reason given
+  there.
 - **Version history is a fact, not a feature.** The list on the right shows
   every version with its question count and Active/Inactive, in text — bold
   and `success`-toned for active, muted for inactive — never a coloured pill
@@ -1059,6 +1058,60 @@ questions, the first invalid one can easily sit below the fold, and a button tha
 appears to do nothing is how a form gets abandoned on a pavement. Saving with an
 invalid answer scrolls that question into view and focuses it, as well as marking
 it. This is the same trap `withOutcome` exists to dodge, one screen along.
+
+### Saving asks once
+
+```
+  phone (< 768px): bottom sheet
+┌──────────────────────────────────┐
+│              ────                │  handle, decorative
+│  VALIDATION                      │
+│  Enregistrer cette visite ?      │
+│ ┌──────────────────────────────┐ │
+│ │ Établissement   Curry House  │ │  on secondary
+│ │ Résultat        (Intéressé)  │ │  neutral badge
+│ │ Flyer         (✓ Flyer remis)│ │  only when ticked
+│ │ Questions         4 réponses │ │  only with a script
+│ │ Notes                        │ │  only when typed
+│ │ Repasser jeudi.              │ │
+│ └──────────────────────────────┘ │
+│  ☁ La visite reste sur ce        │
+│    téléphone jusqu'à la          │
+│    prochaine synchronisation.    │
+│  [        Enregistrer        ]   │
+│  [ ✎        Modifier         ]   │
+└──────────────────────────────────┘
+```
+
+« Enregistrer la visite » validates exactly as before, and a blocked save still
+moves the screen to the problem. A valid draft no longer queues at once: it
+opens a summary, and only that summary's « Enregistrer » writes the outbox row,
+through the same `queueVisit` the daily progress count reads. The agent is back
+on Tournée du jour with « Visite enregistrée… », and the count has risen by
+one. From 768px the same content is a centred Dialog, with « Modifier » and «
+Enregistrer » side by side, Enregistrer on the right.
+
+**Why a visit asks at all.** A visit is append-only (INVARIANT 2): once it syncs,
+the agent cannot take it back. The summary is the last look before that, on a
+pavement, at the one moment a wrong outcome tap is cheap to catch. It costs one
+tap, and it never waits on the network: the reassurance line says the visit
+stays on the phone until the next sync.
+
+**The summary names, it never previews.** The outcome is a neutral badge,
+never an `outcome-*` colour and never the status it leads to (INVARIANT 3). A
+row that does not apply is absent rather than "Non": no flyer row when none was
+left, no Notes row when none were typed, and no Questions row on a visit with no
+script. With a script, the row counts only what was answered — a cleared text
+or an unticked multi-choice is not an answer — so Personne sur place with
+nothing answered reads « 0 réponse ».
+
+**« Modifier » loses nothing.** It closes the summary and puts focus back on «
+Enregistrer la visite ». The form was never unmounted, so every answer, the
+note and step 1's choices are still there. Escape and the scrim do the same.
+While the write runs, both buttons are disabled and « Enregistrer » reads «
+Enregistrement… », so a second tap cannot queue the visit twice. If the write
+fails, the summary stays open with the storage error, and « Enregistrer » can
+be tapped again (INVARIANT 5).
 
 ### Adding a place
 
