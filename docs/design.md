@@ -774,6 +774,8 @@ instruction. So it gets a card: a gold 4px inset edge, its own `StopNumber` in
 ├──────────────────────────────────┤
 │ Tournée du jour                  │
 │ 5 arrêts                         │
+│ 2 visites sur 5 aujourd'hui      │
+│  ████████████░░░░░░░░░░░░░░░░░░  │
 │                                  │
 │▎ PROCHAIN ARRÊT                  │
 │▎ (1) Le Bouchon des Filles       │
@@ -799,6 +801,22 @@ instruction. So it gets a card: a gold 4px inset edge, its own `StopNumber` in
 │ Tournée  Ajouter                 │  fixed at the bottom below 768px
 └──────────────────────────────────┘
 ```
+
+**The day's progress sits between the header and the card** (GH #119,
+EXPERIENCE.md): a bold, tabular "{n} visites sur {total} aujourd'hui" and an
+8px bar under it, `--secondary` track and gold fill, `progress.tsx`'s
+indicator carrying its usual `primary-edge` inset (rule 4, "Every gold fill
+carries `primary-edge`", above). Neither the count nor the bar names a
+percentage or an ETA — the round's own header already gives "5 arrêts", and
+this line answers "how much of it", not "how much longer". `total` is the
+union of today's counted stops and the stops still on the list, not `n` plus
+the stops left, so a visited stop staying on the list (invariants 2, 3, "Pas
+encore envoyé" below) never counts twice. The one residual: a stop that has
+since left the list — moved to "Plus tard", or dropped by a pull — still
+holds its place in `total` once its visit is counted, so `total` is the
+day's round *including* stops that have since left it, not always today's
+visible list. Absent when there is nothing to count — nothing logged and no
+stops, which before the first sync is the ordinary case.
 
 **The stops are numbered, and here that is earned.** Numbered markers are
 usually decoration pretending to be structure — but `orderByNearestNext`

@@ -164,6 +164,10 @@ afterEach(async () => {
     fieldDb.outboxVisits.clear(),
     fieldDb.outboxProspects.clear(),
     fieldDb.visitHistory.clear(),
+    // Saving goes through `queueVisit`, which writes the daily-progress log
+    // beside the outbox row (GH #119), so this table needs clearing too or
+    // one test's visits are still counted in the next one's.
+    fieldDb.sentVisits.clear(),
     fieldDb.meta.clear(),
   ]);
 });
@@ -618,5 +622,28 @@ describe("VisitScreen — step 2 (Questions)", () => {
     const visits = await fieldDb.outboxVisits.toArray();
     expect(visits).toHaveLength(1);
     expect(visits[0]?.notes).toBe("Fermé le lundi");
+  });
+
+  /**
+   * The daily-progress count (GH #119) is only ever fed by this one save, so
+   * without this the log write could vanish — the outbox assertions above all
+   * still pass — and the count would silently fall back to zero the moment a
+   * sync accepted the visit and deleted its outbox row.
+   */
+  it("logs the visit for the day's progress count beside the outbox row", async () => {
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+
+    const [queued] = await fieldDb.outboxVisits.toArray();
+    const [loggedVisit] = await fieldDb.sentVisits.toArray();
+    expect(queued).toBeTruthy();
+    // Same visit id on both, so the union in `dailyProgress` counts it once,
+    // and the stop it belongs to so the denominator can exclude it.
+    expect(loggedVisit?.id).toBe(queued?.id);
+    expect(loggedVisit?.prospectId).toBe(queued?.prospectId);
+    expect(loggedVisit?.writtenBy).toBe(queued?.writtenBy);
   });
 });

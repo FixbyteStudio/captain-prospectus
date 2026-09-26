@@ -38,7 +38,7 @@ import { OUTCOMES, type Outcome } from "../../shared/constants";
 import { visitHistoryResponseSchema } from "../../shared/schemas";
 import { answerableQuestions } from "../../shared/answers";
 import type { Answers, Script } from "../../shared/schemas";
-import { cacheVisitHistory, fieldDb, getMeta } from "./db";
+import { cacheVisitHistory, fieldDb, getMeta, queueVisit } from "./db";
 import { emptyDraft, toVisit, withOutcome, type VisitDraft } from "./visit-draft";
 import { useAgentPosition } from "./useAgentPosition";
 import { useRegisterDirty } from "./leave-guard";
@@ -296,7 +296,7 @@ export function VisitScreen() {
       // visit. Nothing here touches the local copy — the new status arrives on
       // the next pull, in the list.
       try {
-        await fieldDb.outboxVisits.add({ ...result.visit, writtenBy: identity });
+        await queueVisit(fieldDb, result.visit, identity);
       } catch {
         // Until this row exists, the outbox is not the only copy of the visit —
         // there is no copy at all (INVARIANT 5). A quota-exhausted or evicted

@@ -20,7 +20,10 @@ import { TodayScreen } from "./TodayScreen";
 import type { SyncState } from "./useSync";
 
 const syncState = vi.hoisted(() => ({
-  current: { lastSyncAt: 1_700_000_000_000 } as Pick<SyncState, "lastSyncAt">,
+  current: { lastSyncAt: 1_700_000_000_000, identity: "agent@example.com" } as Pick<
+    SyncState,
+    "lastSyncAt" | "identity"
+  >,
 }));
 
 vi.mock("./useSync", () => ({
@@ -81,7 +84,7 @@ function renderScreen() {
 }
 
 beforeEach(() => {
-  syncState.current = { lastSyncAt: 1_700_000_000_000 };
+  syncState.current = { lastSyncAt: 1_700_000_000_000, identity: "agent@example.com" };
 });
 
 afterEach(async () => {
@@ -89,6 +92,7 @@ afterEach(async () => {
     fieldDb.prospects.clear(),
     fieldDb.outboxProspects.clear(),
     fieldDb.outboxVisits.clear(),
+    fieldDb.sentVisits.clear(),
   ]);
 });
 
@@ -258,5 +262,84 @@ describe("TodayScreen", () => {
     expect(screen.getByRole("button", { name: copy.today.retryPosition })).toBeTruthy();
     // With no position, the card's distance says so instead of a number.
     expect(await screen.findByText(copy.today.distanceUnknown)).toBeTruthy();
+  });
+
+  it("reads n visites sur total, denominator held to the round's own size, across a real re-render", async () => {
+    const stops = Array.from({ length: 5 }, (_, i) =>
+      prospect({ id: `00000000-0000-4000-8000-00000000000${i}`, name: `Stop ${i}` }),
+    );
+    const [first, second, third] = stops as [Prospect, Prospect, Prospect, Prospect, Prospect];
+    await fieldDb.prospects.bulkAdd(stops);
+    await fieldDb.sentVisits.bulkAdd([
+      {
+        id: crypto.randomUUID(),
+        prospectId: first.id,
+        sentAt: Date.now(),
+        writtenBy: "agent@example.com",
+      },
+      {
+        id: crypto.randomUUID(),
+        prospectId: second.id,
+        sentAt: Date.now(),
+        writtenBy: "agent@example.com",
+      },
+    ]);
+
+    renderScreen();
+
+    expect(await screen.findByText(copy.today.progress(2, 5))).toBeTruthy();
+
+    // A visit queued for a third stop, absent from the log — the outbox side
+    // of the union still counts it, so n rises to 3 with the denominator
+    // unmoved.
+    const thirdVisit = visit({ prospectId: third.id });
+    await fieldDb.outboxVisits.add(thirdVisit);
+    expect(await screen.findByText(copy.today.progress(3, 5))).toBeTruthy();
+
+    // The sync accepted it and its outbox row is gone: the line must fall
+    // back to n = 2, a real re-render rather than the DOM the line above
+    // already satisfies (both "2 visites sur 5" and "3 visites sur 5" are
+    // distinct strings, so this assertion can only pass if the count moved).
+    await fieldDb.outboxVisits.delete(thirdVisit.id);
+    expect(await screen.findByText(copy.today.progress(2, 5))).toBeTruthy();
+  });
+
+  it("singularises the day's first visit", async () => {
+    const [first, secondStop] = [prospect({ name: "Curry House" }), prospect({ name: "Chez Léa" })];
+    await fieldDb.prospects.bulkAdd([first, secondStop]);
+    await fieldDb.sentVisits.add({
+      id: crypto.randomUUID(),
+      prospectId: first.id,
+      sentAt: Date.now(),
+      writtenBy: "agent@example.com",
+    });
+
+    renderScreen();
+
+    expect(await screen.findByText(copy.today.progress(1, 2))).toBeTruthy();
+  });
+
+  it("shows no progress line on an empty round", async () => {
+    renderScreen();
+
+    await screen.findByText(copy.today.empty);
+    expect(screen.queryByLabelText(copy.today.progressLabel)).toBeNull();
+  });
+
+  it("reads n visites sur n on a finished round", async () => {
+    const stops = [prospect({ name: "Curry House" }), prospect({ name: "Chez Léa" })];
+    await fieldDb.prospects.bulkAdd(stops);
+    await fieldDb.sentVisits.bulkAdd(
+      stops.map((s) => ({
+        id: crypto.randomUUID(),
+        prospectId: s.id,
+        sentAt: Date.now(),
+        writtenBy: "agent@example.com",
+      })),
+    );
+
+    renderScreen();
+
+    expect(await screen.findByText(copy.today.progress(2, 2))).toBeTruthy();
   });
 });
