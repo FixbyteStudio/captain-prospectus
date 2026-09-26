@@ -10,7 +10,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Local development only
 | Route | Purpose |
 |---|---|
-| `POST /api/dev/seed` | Fills the local database with sample prospects and a script, validated by `devSeedSchema`. Answers 404 unless the request host is localhost **and** `DEV_USER_EMAIL` is set — on localhost the 404 says which is missing. Run through `pnpm db:seed:local` |
+| `POST /api/dev/seed` | Fills the local database with sample prospects, a script and each assigned prospect's visit history over the last 180 Brussels days, validated by `devSeedSchema` → `devSeedResultSchema` `{seeded, inserted: {prospects, visits, orphans}}`. Visits go to the prospect's assignee only and status is derived as sync derives it. Optional per prospect: `manualStatus` (set once, as an admin would, unless `status_set_at` is already set) and `mergeInto`, the `name` of another prospect in the same body (merged once, unless `merged_into` is already set; a name not in the body is **400**). Also quarantines one visit of each reason. Every id is hashed from stable input, so a second run inserts nothing and derives no status while the seeded prospects are unedited, and an orphan repaired since is not quarantined again. A prospect an admin has since assigned or reassigned can gain visits, and one they have unmerged is merged again. The dates stay anchored to the first run, so the 7-day figures empty out after a week; to get fresh ones, delete `.wrangler/state`, then run `pnpm db:migrate:local` and `pnpm db:seed:local` (never `--remote`). Answers 404 unless the request host is localhost **and** `DEV_USER_EMAIL` is set — on localhost the 404 says which is missing. Run through `pnpm db:seed:local` |
 
 ## Agent
 | Route | Purpose |
