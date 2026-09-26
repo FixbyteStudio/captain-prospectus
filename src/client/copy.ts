@@ -133,6 +133,8 @@ export const copy = {
     } satisfies Record<DashboardPeriod, string>,
     openProspects: "Prospects ouverts",
     visits: "Visites",
+    converted: "Convertis",
+    conversionRate: "Taux de conversion",
     /** Follows the delta chip: "+12,4 % vs période précédente". */
     vsPrevious: "vs période précédente",
     /** Read out while the skeletons stand in for the cards. */
@@ -531,6 +533,12 @@ export const copy = {
     visit: "Visiter",
     /** The stops are a walking order, so the round states its own length. */
     remaining: (n: number) => (n === 1 ? "1 arrêt" : `${n} arrêts`),
+    /** GH #119: how much of today's round is done. `total` never repeats the
+     * unit — "n visites sur total aujourd'hui", singularising like `remaining`. */
+    progress: (n: number, total: number) =>
+      n <= 1 ? `${n} visite sur ${total} aujourd'hui` : `${n} visites sur ${total} aujourd'hui`,
+    /** The progress bar's own accessible name (Radix gives the root none). */
+    progressLabel: "Progression de la tournée du jour",
     nextStop: "Prochain arrêt",
     /** Two cases, one message: a field prospect the server has not accepted
      * yet, or a stop whose visit is still sitting in the outbox. Either way
@@ -589,6 +597,19 @@ export const copy = {
     /** The number stepper's − / + buttons (EXPERIENCE.md › Voice and tone). */
     stepDown: "Diminuer",
     stepUp: "Augmenter",
+
+    /* --- the save confirmation, sheet or dialog (EXPERIENCE.md › Save sheet) --- */
+    confirm: {
+      overline: "Validation",
+      title: "Enregistrer cette visite ?",
+      place: "Établissement",
+      flyer: "Flyer",
+      /** 0 and 1 are singular in French, as `today.progress` does for 1. */
+      answers: (n: number) => `${n} ${n <= 1 ? "réponse" : "réponses"}`,
+      reassurance: "La visite reste sur ce téléphone jusqu'à la prochaine synchronisation.",
+      save: "Enregistrer",
+      edit: "Modifier",
+    },
   },
 
   fieldProspect: {

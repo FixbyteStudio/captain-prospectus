@@ -19,6 +19,8 @@ const round = vi.hoisted(() => ({
     locating: false,
     denied: false,
     refresh: vi.fn(),
+    now: 0,
+    outboxVisits: [],
   } as RoundState,
 }));
 vi.mock("./useRound", () => ({ useRound: () => round.current }));
@@ -72,6 +74,8 @@ afterEach(() => {
     locating: false,
     denied: false,
     refresh: vi.fn(),
+    now: 0,
+    outboxVisits: [],
   };
 });
 

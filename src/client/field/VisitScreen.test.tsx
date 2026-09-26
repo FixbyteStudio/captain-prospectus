@@ -13,9 +13,10 @@
  * names the outcome, not the status. That is what most of these tests check.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
+import Dexie from "dexie";
 import { copy, OUTCOME_HINTS, STATUS_LABELS } from "../copy";
 import type { Prospect, Script } from "../../shared/schemas";
 import { OUTCOMES, type Outcome } from "../../shared/constants";
@@ -84,6 +85,9 @@ const SCRIPT2: Script = {
   ],
 };
 
+/** Stands in for Tournée du jour, so a test can see the save navigate there. */
+const ROUND_MARKER = "tournée du jour (test)";
+
 /**
  * The active script is read from Dexie in an effect (`getMeta`), one render
  * after mount — `hasQuestions` is `false` until it settles, which is also the
@@ -97,6 +101,7 @@ async function renderVisit({ expectContinue }: { expectContinue: boolean }) {
     <MemoryRouter initialEntries={[`/tournee/${PROSPECT.id}`]}>
       <Routes>
         <Route path="/tournee/:id" element={<VisitScreen />} />
+        <Route path="/tournee" element={<p>{ROUND_MARKER}</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -115,6 +120,32 @@ async function toStep2(user: ReturnType<typeof userEvent.setup>, outcome: Outcom
   await user.click(outcomeRadio(outcome));
   await user.click(screen.getByRole("button", { name: copy.visit.continue }));
   await screen.findByText(copy.visit.step(2, 2, copy.visit.questions));
+}
+
+/** The save confirmation (GH #125), open. Sheet or Dialog, both `role="dialog"`. */
+async function confirmation(): Promise<HTMLElement> {
+  return screen.findByRole("dialog", { name: copy.visit.confirm.title });
+}
+
+/** A phone: `useIsMobile` matches, so the confirmation is the bottom Sheet.
+ * happy-dom's own `matchMedia` is 1024px wide, which is the Dialog. */
+function asPhone() {
+  return vi.spyOn(window, "matchMedia").mockImplementation(
+    (query: string) =>
+      ({
+        matches: query === "(width < 768px)",
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }) as unknown as MediaQueryList,
+  );
+}
+
+/** « Enregistrer la visite », then the confirmation's « Enregistrer ». */
+async function confirmSave(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: copy.visit.save }));
+  const dialog = await confirmation();
+  await user.click(within(dialog).getByRole("button", { name: copy.visit.confirm.save }));
 }
 
 /** The card's own input, found by its stable `value` rather than its
@@ -164,6 +195,10 @@ afterEach(async () => {
     fieldDb.outboxVisits.clear(),
     fieldDb.outboxProspects.clear(),
     fieldDb.visitHistory.clear(),
+    // Saving goes through `queueVisit`, which writes the daily-progress log
+    // beside the outbox row (GH #119), so this table needs clearing too or
+    // one test's visits are still counted in the next one's.
+    fieldDb.sentVisits.clear(),
     fieldDb.meta.clear(),
   ]);
 });
@@ -577,7 +612,7 @@ describe("VisitScreen — step 2 (Questions)", () => {
     await user.type(screen.getByRole("spinbutton", { name: "Combien de places ?" }), "45");
     await user.click(screen.getByRole("button", { name: copy.visit.stepUp }));
 
-    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    await confirmSave(user);
 
     await vi.waitFor(async () => expect(await fieldDb.outboxVisits.count()).toBe(1));
     const [visit] = await fieldDb.outboxVisits.toArray();
@@ -600,9 +635,9 @@ describe("VisitScreen — step 2 (Questions)", () => {
     // The callout comes before the Questions heading in document order.
     expect(alert.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    await confirmSave(user);
 
-    expect(await fieldDb.outboxVisits.count()).toBe(1);
+    await vi.waitFor(async () => expect(await fieldDb.outboxVisits.count()).toBe(1));
   });
 
   it("no script: Notes sits inline on the single step, and save queues the typed notes", async () => {
@@ -613,10 +648,349 @@ describe("VisitScreen — step 2 (Questions)", () => {
 
     await user.click(outcomeRadio("interested"));
     await user.type(screen.getByLabelText(copy.visit.notes), "Fermé le lundi");
-    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    await confirmSave(user);
 
+    await screen.findByText(ROUND_MARKER);
     const visits = await fieldDb.outboxVisits.toArray();
     expect(visits).toHaveLength(1);
     expect(visits[0]?.notes).toBe("Fermé le lundi");
+  });
+
+  /**
+   * The daily-progress count (GH #119) is only ever fed by this one save, so
+   * without this the log write could vanish — the outbox assertions above all
+   * still pass — and the count would silently fall back to zero the moment a
+   * sync accepted the visit and deleted its outbox row.
+   */
+  it("logs the visit for the day's progress count beside the outbox row", async () => {
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+
+    await user.click(outcomeRadio("interested"));
+    await confirmSave(user);
+
+    await screen.findByText(ROUND_MARKER);
+    const [queued] = await fieldDb.outboxVisits.toArray();
+    const [loggedVisit] = await fieldDb.sentVisits.toArray();
+    expect(queued).toBeTruthy();
+    // Same visit id on both, so the union in `dailyProgress` counts it once,
+    // and the stop it belongs to so the denominator can exclude it.
+    expect(loggedVisit?.id).toBe(queued?.id);
+    expect(loggedVisit?.prospectId).toBe(queued?.prospectId);
+    expect(loggedVisit?.writtenBy).toBe(queued?.writtenBy);
+  });
+});
+
+/**
+ * The save confirmation (GH #125): « Enregistrer la visite » validates and
+ * asks once; only the confirmation's « Enregistrer » queues, through the same
+ * `queueVisit` the daily-progress count reads (#119).
+ */
+describe("VisitScreen — save confirmation", () => {
+  /** Step 2 of SCRIPT2 with every question answered, the flyer ticked and a note. */
+  async function fillWholeVisit(user: ReturnType<typeof userEvent.setup>) {
+    await setMeta(fieldDb, "script", SCRIPT2);
+    await renderVisit({ expectContinue: true });
+    await user.click(screen.getByRole("checkbox", { name: new RegExp(copy.visit.flyerGiven) }));
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.continue }));
+    await screen.findByText(copy.visit.step(2, 2, copy.visit.questions));
+    await user.click(screen.getByRole("radio", { name: copy.visit.yes }));
+    await user.click(screen.getByRole("radio", { name: "Papier" }));
+    await user.click(screen.getByRole("radio", { name: "4" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Combien de places ?" }), "45");
+    await user.type(screen.getByLabelText(copy.visit.notes), "Repasser jeudi");
+  }
+
+  it("opens on a valid draft with the whole summary, and queues nothing yet", async () => {
+    const user = userEvent.setup();
+    await fillWholeVisit(user);
+
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    const dialog = await confirmation();
+
+    const view = within(dialog);
+    expect(view.getByText(copy.visit.confirm.overline)).toBeTruthy();
+    expect(view.getByText(PROSPECT.name)).toBeTruthy();
+    expect(view.getByText("Intéressé")).toBeTruthy();
+    expect(view.getByText(copy.visit.flyerGiven)).toBeTruthy();
+    expect(view.getByText(copy.visit.confirm.answers(4))).toBeTruthy();
+    expect(view.getByText("Repasser jeudi")).toBeTruthy();
+    expect(view.getByText(copy.visit.confirm.reassurance)).toBeTruthy();
+    // INVARIANT 3: the outcome is named, never coloured like a status.
+    for (const el of dialog.querySelectorAll("*")) {
+      expect(el.getAttribute("class") ?? "").not.toMatch(/outcome-|status/);
+    }
+    expect(await fieldDb.outboxVisits.count()).toBe(0);
+    expect(await fieldDb.sentVisits.count()).toBe(0);
+  });
+
+  it("does not open on an invalid draft", async () => {
+    const user = userEvent.setup();
+    await toStep2(user);
+
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+
+    expect((await screen.findAllByText(copy.visit.answerRequired)).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Enregistrer queues exactly one visit with its answers and script, logs it, and returns to the round", async () => {
+    const user = userEvent.setup();
+    await fillWholeVisit(user);
+
+    await confirmSave(user);
+
+    expect(await screen.findByText(ROUND_MARKER)).toBeTruthy();
+    const visits = await fieldDb.outboxVisits.toArray();
+    expect(visits).toHaveLength(1);
+    expect(visits[0]?.answers).toEqual({
+      delivery: true,
+      cash_register: "Papier",
+      satisfaction: 4,
+      seats: 45,
+    });
+    expect(visits[0]?.scriptId).toBe(SCRIPT2.id);
+    expect(visits[0]?.flyerGiven).toBe(true);
+    expect(visits[0]?.notes).toBe("Repasser jeudi");
+    const logged = await fieldDb.sentVisits.toArray();
+    expect(logged.map((row) => row.id)).toEqual([visits[0]?.id]);
+  });
+
+  it("a double tap on Enregistrer still queues one visit and reports no failure", async () => {
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    const button = within(await confirmation()).getByRole("button", {
+      name: copy.visit.confirm.save,
+    });
+
+    const add = vi.spyOn(fieldDb.outboxVisits, "add");
+
+    // Back to back, with no await between them: the second lands while the
+    // first write is still in flight.
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(await screen.findByText(ROUND_MARKER)).toBeTruthy();
+    // The row count alone cannot tell: a second `add` of the same visit id
+    // fails and rolls back, leaving one row either way — and reporting a
+    // failed save for a visit that was queued. So the write itself runs once.
+    expect(add).toHaveBeenCalledTimes(1);
+    expect(await fieldDb.outboxVisits.count()).toBe(1);
+    expect(await fieldDb.sentVisits.count()).toBe(1);
+  });
+
+  it("Modifier closes it with every answer, the flyer, the outcome and the note intact", async () => {
+    const user = userEvent.setup();
+    await fillWholeVisit(user);
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+
+    await user.click(
+      within(await confirmation()).getByRole("button", { name: copy.visit.confirm.edit }),
+    );
+
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect((screen.getByRole("radio", { name: copy.visit.yes }) as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect((screen.getByRole("radio", { name: "Papier" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "4" }) as HTMLInputElement).checked).toBe(true);
+    expect(
+      (screen.getByRole("spinbutton", { name: "Combien de places ?" }) as HTMLInputElement).value,
+    ).toBe("45");
+    expect((screen.getByLabelText(copy.visit.notes) as HTMLTextAreaElement).value).toBe(
+      "Repasser jeudi",
+    );
+    // Not Radix's doing: with no Trigger it would drop focus on <body>.
+    // This is `returnFocusTo`, and removing it must fail here.
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: copy.visit.save })),
+    );
+    expect(await fieldDb.outboxVisits.count()).toBe(0);
+
+    await user.click(screen.getByRole("button", { name: copy.visit.backToOutcome }));
+    expect(outcomeRadio("interested").checked).toBe(true);
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: new RegExp(copy.visit.flyerGiven),
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+  });
+
+  it("Escape closes it like Modifier, and queues nothing", async () => {
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    await confirmation();
+
+    await user.keyboard("{Escape}");
+
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(outcomeRadio("interested").checked).toBe(true);
+    expect(await fieldDb.outboxVisits.count()).toBe(0);
+  });
+
+  it("with no script, no flyer and no note, those rows are absent", async () => {
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("not_interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+
+    const view = within(await confirmation());
+    expect(view.getByText("Pas intéressé")).toBeTruthy();
+    expect(view.queryByText(copy.visit.questions)).toBeNull();
+    expect(view.queryByText(copy.visit.confirm.flyer)).toBeNull();
+    expect(view.queryByText(copy.visit.notes)).toBeNull();
+  });
+
+  it("counts only answered questions: personne sur place with none reads 0 réponse", async () => {
+    const user = userEvent.setup();
+    await toStep2(user, "no_contact");
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+
+    expect(within(await confirmation()).getByText(copy.visit.confirm.answers(0))).toBeTruthy();
+    expect(copy.visit.confirm.answers(0)).toBe("0 réponse");
+  });
+
+  it("a failed write keeps it open with the error, does not navigate, and can be retried", async () => {
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("interested"));
+    const add = vi
+      .spyOn(fieldDb.outboxVisits, "add")
+      .mockRejectedValueOnce(new DOMException("full", "QuotaExceededError"));
+
+    await confirmSave(user);
+
+    const dialog = await confirmation();
+    expect(await within(dialog).findByRole("alert")).toHaveProperty(
+      "textContent",
+      copy.visit.saveFailed,
+    );
+    expect(screen.queryByText(ROUND_MARKER)).toBeNull();
+    expect(await fieldDb.outboxVisits.count()).toBe(0);
+    expect(await fieldDb.sentVisits.count()).toBe(0);
+
+    add.mockRestore();
+    await user.click(within(dialog).getByRole("button", { name: copy.visit.confirm.save }));
+
+    expect(await screen.findByText(ROUND_MARKER)).toBeTruthy();
+    expect(await fieldDb.outboxVisits.count()).toBe(1);
+  });
+
+  it("is a bottom sheet with stacked buttons below 768px, and a dialog with side-by-side buttons from 768px", async () => {
+    const user = userEvent.setup();
+    const narrow = asPhone();
+    const first = await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    const sheet = await confirmation();
+    expect(sheet.getAttribute("data-slot")).toBe("sheet-content");
+    expect(
+      within(sheet).getByRole("button", { name: copy.visit.confirm.save }).parentElement?.className,
+    ).toMatch(/flex-col/);
+    first.unmount();
+    narrow.mockRestore();
+
+    await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    const dialog = await confirmation();
+    expect(dialog.getAttribute("data-slot")).toBe("dialog-content");
+    expect(
+      within(dialog).getByRole("button", { name: copy.visit.confirm.save }).parentElement
+        ?.className,
+    ).toMatch(/flex-row/);
+  });
+
+  it("on a phone, Modifier closes the sheet and hands focus back to Enregistrer la visite", async () => {
+    asPhone();
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+    const sheet = await confirmation();
+    expect(sheet.getAttribute("data-slot")).toBe("sheet-content");
+
+    await user.click(within(sheet).getByRole("button", { name: copy.visit.confirm.edit }));
+
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: copy.visit.save })),
+    );
+    expect(outcomeRadio("interested").checked).toBe(true);
+  });
+
+  it("cannot be dismissed while the write runs: Escape is ignored and Modifier is disabled", async () => {
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: false });
+    await user.click(outcomeRadio("interested"));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // Dexie's own promise type, which `add` returns. It resolves on `release`,
+    // so the transaction settles and `afterEach` can clear the tables.
+    vi.spyOn(fieldDb.outboxVisits, "add").mockImplementation(() =>
+      Dexie.Promise.resolve(gate).then(() => "held"),
+    );
+
+    await confirmSave(user);
+    const dialog = await confirmation();
+    expect(
+      within(dialog).getByRole("button", { name: copy.visit.saving }).hasAttribute("disabled"),
+    ).toBe(true);
+    expect(
+      within(dialog)
+        .getByRole("button", { name: copy.visit.confirm.edit })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: copy.visit.confirm.title })).toBe(dialog);
+
+    // Only the dismissal is under test; the held `add` writes nothing.
+    release();
+  });
+
+  it("counts a cleared text and an unticked multi-choice as unanswered", async () => {
+    await setMeta(fieldDb, "script", {
+      ...SCRIPT2,
+      id: 3,
+      questions: [
+        { key: "comment", label: "Un commentaire ?", type: "text", required: false },
+        {
+          key: "channels",
+          label: "Quels canaux ?",
+          type: "multi",
+          options: ["Papier", "Téléphone"],
+          required: false,
+        },
+        { key: "delivery", label: "Proposez-vous la livraison ?", type: "yes_no", required: false },
+      ],
+    });
+    const user = userEvent.setup();
+    await renderVisit({ expectContinue: true });
+    await user.click(outcomeRadio("interested"));
+    await user.click(screen.getByRole("button", { name: copy.visit.continue }));
+    await screen.findByText(copy.visit.step(2, 2, copy.visit.questions));
+
+    const comment = document.getElementById(questionDomId("comment"));
+    if (!comment) throw new Error("no text question rendered");
+    await user.type(comment, "à revoir");
+    await user.clear(comment);
+    await user.type(comment, "   ");
+    const papier = screen.getByRole("checkbox", { name: "Papier" });
+    await user.click(papier);
+    await user.click(papier);
+    await user.click(screen.getByRole("radio", { name: copy.visit.no }));
+    await user.click(screen.getByRole("button", { name: copy.visit.save }));
+
+    expect(within(await confirmation()).getByText(copy.visit.confirm.answers(1))).toBeTruthy();
   });
 });

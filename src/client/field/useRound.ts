@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import type { Point } from "../../shared/geo";
-import { fieldDb } from "./db";
+import { fieldDb, type StoredVisit } from "./db";
 import { buildTodayList, type TodayList } from "./today";
 import { useAgentPosition } from "./useAgentPosition";
 import { useSyncState } from "./useSync";
@@ -25,6 +25,11 @@ export type RoundState = {
   denied: boolean;
   /** Ask again — the agent has moved, or granted permission since. */
   refresh: () => void;
+  /** The deliberately stale "now" the list was built with (see below);
+   * Tournée's daily progress re-runs its own query on it. */
+  now: number;
+  /** The unaccepted visits the list's badges came from, for daily progress. */
+  outboxVisits: StoredVisit[];
 };
 
 export function useRound(): RoundState {
@@ -55,5 +60,5 @@ export function useRound(): RoundState {
   // the round is tens of prospects, and orderByNearestNext is O(n²) on that.
   const list = buildTodayList(prospects, outbox, point, now, queuedVisitProspectIds);
 
-  return { list, point, locating, denied, refresh };
+  return { list, point, locating, denied, refresh, now, outboxVisits };
 }

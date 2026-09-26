@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { deltaTone, formatCount, formatDelta, initials } from "./format";
+import {
+  deltaTone,
+  formatCount,
+  formatDelta,
+  formatPercent,
+  formatPoints,
+  initials,
+} from "./format";
 
 describe("initials", () => {
   it("takes the first letter of the first two dot-separated parts", () => {
@@ -95,5 +102,45 @@ describe("formatCount", () => {
     expect(formatCount(386)).toBe("386");
     // fr-FR groups with a narrow no-break space.
     expect(formatCount(1284)).toBe("1\u202f284");
+  });
+});
+
+describe("formatPercent", () => {
+  it.each([
+    [0.25, "25,0\u00a0%"],
+    [0.106, "10,6\u00a0%"],
+    [0, "0,0\u00a0%"],
+    [1, "100,0\u00a0%"],
+    // A manual conversion without a visit can push it past 100 %.
+    [1.5, "150,0\u00a0%"],
+    [null, "—"],
+  ])("formatPercent(%s) -> %s", (ratio, expected) => {
+    expect(formatPercent(ratio)).toBe(expected);
+  });
+
+  it("rounds half-tenths up, as formatDelta does", () => {
+    expect(formatPercent(0.0005)).toBe("0,1\u00a0%");
+    expect(formatPercent(0.0004)).toBe("0,0\u00a0%");
+    expect(formatPercent(0.1255)).toBe("12,6\u00a0%");
+  });
+});
+
+describe("formatPoints", () => {
+  it.each([
+    [0.012, "+1,2\u00a0pt"],
+    [-0.004, "\u22120,4\u00a0pt"],
+    [0, "0,0\u00a0pt"],
+    [null, "—"],
+    // 0.25 − 0.2 in floating point is 0.04999…, still +5,0 pt.
+    [0.25 - 0.2, "+5,0\u00a0pt"],
+  ])("formatPoints(%s) -> %s", (delta, expected) => {
+    expect(formatPoints(delta)).toBe(expected);
+  });
+
+  it("rounds half-tenths away from zero and drops the sign of a zero", () => {
+    expect(formatPoints(0.0005)).toBe("+0,1\u00a0pt");
+    expect(formatPoints(-0.0005)).toBe("\u22120,1\u00a0pt");
+    expect(formatPoints(0.0004)).toBe("0,0\u00a0pt");
+    expect(formatPoints(-0.0004)).toBe("0,0\u00a0pt");
   });
 });

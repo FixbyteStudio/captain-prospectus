@@ -54,10 +54,32 @@ export function deltaTone(delta: number | null): DeltaTone {
  * minus is U+2212 and the space before % is non-breaking.
  */
 export function formatDelta(delta: number | null): string {
+  return signedTenths(delta, "%");
+}
+
+/**
+ * Taux de conversion's delta chip, in percentage points: "+1,2 pt",
+ * "−0,4 pt", "0,0 pt", or "—". A ratio of 0.012 is 1,2 points, so it rounds
+ * and signs as `formatDelta` does, and `deltaTone` reads it unchanged.
+ */
+export function formatPoints(delta: number | null): string {
+  return signedTenths(delta, "pt");
+}
+
+function signedTenths(delta: number | null, unit: string): string {
   if (delta === null) return "—";
   const t = tenths(delta);
   const sign = t > 0 ? "+" : t < 0 ? "\u2212" : "";
-  return `${sign}${tenth.format(Math.abs(t) / 10)}\u00a0%`;
+  return `${sign}${tenth.format(Math.abs(t) / 10)}\u00a0${unit}`;
+}
+
+/**
+ * Taux de conversion's figure — "10,6 %", or "—" when nothing was visited
+ * (docs/api.md › The dashboard). Rounds like `formatDelta`.
+ */
+export function formatPercent(ratio: number | null): string {
+  if (ratio === null) return "—";
+  return `${tenth.format(tenths(ratio) / 10)}\u00a0%`;
 }
 
 /** Only letters count, so a digit-only alias never survives into the

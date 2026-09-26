@@ -284,17 +284,22 @@ dashboard](api.md#the-dashboard), and the Worker computes it.
 - **KPI card.** A shadcn `Card` with no coloured edge — on this app an edge
   means a status. Top to bottom: the label in `text-overline` with a 32px
   `secondary` icon tile at the top right (Lucide `Store` for Prospects
-  ouverts, `MapPin` for Visites), the figure in `text-display` with tabular
-  figures, then the delta chip and "vs période précédente" in meta. The chip
+  ouverts, `MapPin` for Visites, `BadgeCheck` for Convertis, `Percent` for
+  Taux de conversion), the figure in `text-display` with tabular figures,
+  then the delta chip and "vs période précédente" in meta. The chip
   is a `rounded-sm` Badge: `tint-success` with an up arrow when the rounded
   delta is up, `tint-destructive` with a down arrow when it is down, and
   neutral `secondary` with no arrow for "0,0 %" and for "—" (no previous
   period). The figure is signed, with a real minus: "+12,4 %", "−3,0 %".
   Prospects ouverts is a snapshot, so it has no delta row; an empty row of
   the same height keeps its figure level with its neighbours'.
+  Taux de conversion's figure is a percentage with one decimal, "10,6 %", or
+  "—" when nothing was visited; its chip is in points, "+1,2 pt", "−0,4 pt",
+  toned by the same rounding.
 - **Grid.** Cards are 4 across at ≥ lg, 2 × 2 at md and one column below,
-  24px apart. Only Prospects ouverts and Visites exist so far; the stories
-  that add figures add cards to the same grid.
+  24px apart, in this order: Prospects ouverts, Visites, Convertis, Taux de
+  conversion. The stories that add figures add cards or panels to the same
+  grid.
 - **Loading.** Skeleton cards of the same shape stand in until the first
   answer, with a visually hidden "Chargement du tableau de bord…". Switching
   period keeps the last period's cards on screen, dimmed, until the new
@@ -371,11 +376,10 @@ Five rules this encodes:
   in this app avoids a confirmation dialog — a merge, an assignment, a status
   change are all either reversible or additive. Saving a script is neither: it
   silently reassigns what every agent is asked next, including mid-round, and
-  it is not append-only the way a visit is (compare "no confirmation dialog on
-  saving a visit" on the field side — that rule exists *because* a visit is
-  append-only and this action is not). So Save opens a dialog stating the
-  version number it is about to create and activate, and that is the only
-  place a confirmation dialog appears in this app.
+  it is not append-only the way a visit is. So Save opens a dialog stating the
+  version number it is about to create and activate. The field asks the same
+  once before a visit is saved ("Saving asks once"), for the reason given
+  there.
 - **Version history is a fact, not a feature.** The list on the right shows
   every version with its question count and Active/Inactive, in text — bold
   and `success`-toned for active, muted for inactive — never a coloured pill
@@ -774,6 +778,8 @@ instruction. So it gets a card: a gold 4px inset edge, its own `StopNumber` in
 ├──────────────────────────────────┤
 │ Tournée du jour                  │
 │ 5 arrêts                         │
+│ 2 visites sur 5 aujourd'hui      │
+│  ████████████░░░░░░░░░░░░░░░░░░  │
 │                                  │
 │▎ PROCHAIN ARRÊT                  │
 │▎ (1) Le Bouchon des Filles       │
@@ -799,6 +805,22 @@ instruction. So it gets a card: a gold 4px inset edge, its own `StopNumber` in
 │ Tournée  Ajouter                 │  fixed at the bottom below 768px
 └──────────────────────────────────┘
 ```
+
+**The day's progress sits between the header and the card** (GH #119,
+EXPERIENCE.md): a bold, tabular "{n} visites sur {total} aujourd'hui" and an
+8px bar under it, `--secondary` track and gold fill, `progress.tsx`'s
+indicator carrying its usual `primary-edge` inset (rule 4, "Every gold fill
+carries `primary-edge`", above). Neither the count nor the bar names a
+percentage or an ETA — the round's own header already gives "5 arrêts", and
+this line answers "how much of it", not "how much longer". `total` is the
+union of today's counted stops and the stops still on the list, not `n` plus
+the stops left, so a visited stop staying on the list (invariants 2, 3, "Pas
+encore envoyé" below) never counts twice. The one residual: a stop that has
+since left the list — moved to "Plus tard", or dropped by a pull — still
+holds its place in `total` once its visit is counted, so `total` is the
+day's round *including* stops that have since left it, not always today's
+visible list. Absent when there is nothing to count — nothing logged and no
+stops, which before the first sync is the ordinary case.
 
 **The stops are numbered, and here that is earned.** Numbered markers are
 usually decoration pretending to be structure — but `orderByNearestNext`
@@ -1080,6 +1102,60 @@ questions, the first invalid one can easily sit below the fold, and a button tha
 appears to do nothing is how a form gets abandoned on a pavement. Saving with an
 invalid answer scrolls that question into view and focuses it, as well as marking
 it. This is the same trap `withOutcome` exists to dodge, one screen along.
+
+### Saving asks once
+
+```
+  phone (< 768px): bottom sheet
+┌──────────────────────────────────┐
+│              ────                │  handle, decorative
+│  VALIDATION                      │
+│  Enregistrer cette visite ?      │
+│ ┌──────────────────────────────┐ │
+│ │ Établissement   Curry House  │ │  on secondary
+│ │ Résultat        (Intéressé)  │ │  neutral badge
+│ │ Flyer         (✓ Flyer remis)│ │  only when ticked
+│ │ Questions         4 réponses │ │  only with a script
+│ │ Notes                        │ │  only when typed
+│ │ Repasser jeudi.              │ │
+│ └──────────────────────────────┘ │
+│  ☁ La visite reste sur ce        │
+│    téléphone jusqu'à la          │
+│    prochaine synchronisation.    │
+│  [        Enregistrer        ]   │
+│  [ ✎        Modifier         ]   │
+└──────────────────────────────────┘
+```
+
+« Enregistrer la visite » validates exactly as before, and a blocked save still
+moves the screen to the problem. A valid draft no longer queues at once: it
+opens a summary, and only that summary's « Enregistrer » writes the outbox row,
+through the same `queueVisit` the daily progress count reads. The agent is back
+on Tournée du jour with « Visite enregistrée… », and the count has risen by
+one. From 768px the same content is a centred Dialog, with « Modifier » and «
+Enregistrer » side by side, Enregistrer on the right.
+
+**Why a visit asks at all.** A visit is append-only (INVARIANT 2): once it syncs,
+the agent cannot take it back. The summary is the last look before that, on a
+pavement, at the one moment a wrong outcome tap is cheap to catch. It costs one
+tap, and it never waits on the network: the reassurance line says the visit
+stays on the phone until the next sync.
+
+**The summary names, it never previews.** The outcome is a neutral badge,
+never an `outcome-*` colour and never the status it leads to (INVARIANT 3). A
+row that does not apply is absent rather than "Non": no flyer row when none was
+left, no Notes row when none were typed, and no Questions row on a visit with no
+script. With a script, the row counts only what was answered — a cleared text
+or an unticked multi-choice is not an answer — so Personne sur place with
+nothing answered reads « 0 réponse ».
+
+**« Modifier » loses nothing.** It closes the summary and puts focus back on «
+Enregistrer la visite ». The form was never unmounted, so every answer, the
+note and step 1's choices are still there. Escape and the scrim do the same.
+While the write runs, both buttons are disabled and « Enregistrer » reads «
+Enregistrement… », so a second tap cannot queue the visit twice. If the write
+fails, the summary stays open with the storage error, and « Enregistrer » can
+be tapped again (INVARIANT 5).
 
 ### Adding a place
 

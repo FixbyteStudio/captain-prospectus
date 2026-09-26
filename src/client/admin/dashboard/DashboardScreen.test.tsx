@@ -1,6 +1,6 @@
 /**
- * Tableau de bord's states — GH #107: skeletons, the two cards, the period
- * selector and the load-failed alert. Rendered on its own with a fresh
+ * Tableau de bord's states — GH #107, #109: skeletons, the four cards, the
+ * period selector and the load-failed alert. Rendered on its own with a fresh
  * client per test, so no answer leaks between them.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import { DashboardScreen } from "./DashboardScreen";
 function answer(
   period: number,
   over: Partial<DashboardResponse["visits"]> = {},
+  rate: Partial<DashboardResponse["conversionRate"]> = {},
 ): DashboardResponse {
   const visits = { value: period * 10, previous: period * 8, delta: 0.25, ...over };
   return {
@@ -22,7 +23,15 @@ function answer(
     from: 0,
     to: 1,
     visits,
-    openProspects: 278,
+    openProspects: 1284,
+    converted: { value: period + 2, previous: period, delta: 2 / period },
+    conversionRate: {
+      value: 0.106,
+      previous: 0.094,
+      delta: 0.012,
+      visitedProspects: { value: period * 9, previous: period * 7 },
+      ...rate,
+    },
   };
 }
 
@@ -55,9 +64,9 @@ function renderScreen() {
   return client;
 }
 
-/** The delta chip inside the Visites card. */
-function chip(): HTMLElement {
-  const element = card(copy.dashboard.visits).querySelector<HTMLElement>("[data-slot=badge]");
+/** The delta chip inside a card, Visites unless told otherwise. */
+function chip(label: string = copy.dashboard.visits): HTMLElement {
+  const element = card(label).querySelector<HTMLElement>("[data-slot=badge]");
   if (!element) throw new Error("no delta chip");
   return element;
 }
@@ -75,7 +84,7 @@ afterEach(() => {
 });
 
 describe("DashboardScreen", () => {
-  it("shows skeletons, then both cards for 30 jours by default", async () => {
+  it("shows skeletons, then the four cards for 30 jours by default", async () => {
     const fetchMock = stubFetch((period) => json(answer(period)));
     renderScreen();
 
@@ -83,7 +92,10 @@ describe("DashboardScreen", () => {
     expect(await screen.findByText("300")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith("/api/admin/dashboard?period=30", expect.anything());
 
-    expect(within(card(copy.dashboard.openProspects)).getByText("278")).toBeTruthy();
+    // formatCount groups with a narrow no-break space, which the default
+    // normalizer folds to a space; textContent keeps the real one.
+    const open = within(card(copy.dashboard.openProspects)).getByText("1 284");
+    expect(open.textContent).toBe("1\u202f284");
     const visits = within(card(copy.dashboard.visits));
     // The default normalizer folds formatDelta's no-break space to a space.
     expect(visits.getByText("+25,0 %")).toBeTruthy();
@@ -95,6 +107,42 @@ describe("DashboardScreen", () => {
     expect(
       screen.getByRole("radio", { name: copy.dashboard.periods[30] }).getAttribute("aria-checked"),
     ).toBe("true");
+
+    const converted = within(card(copy.dashboard.converted));
+    expect(converted.getByText("32")).toBeTruthy();
+    expect(converted.getByText("+6,7 %")).toBeTruthy();
+    const rate = within(card(copy.dashboard.conversionRate));
+    expect(rate.getByText("10,6 %")).toBeTruthy();
+    // Points, not a relative change (docs/api.md › The dashboard).
+    expect(rate.getByText("+1,2 pt")).toBeTruthy();
+    expect(chip(copy.dashboard.conversionRate).dataset.variant).toBe("tint-success");
+  });
+
+  it("shows « — » for a rate with nothing visited, and for its delta (I/O matrix, no visits)", async () => {
+    stubFetch((period) =>
+      json(
+        answer(
+          period,
+          {},
+          { value: null, delta: null, visitedProspects: { value: 0, previous: period } },
+        ),
+      ),
+    );
+    renderScreen();
+
+    const rate = within(await findCard(copy.dashboard.conversionRate));
+    await waitFor(() => expect(rate.getAllByText("—")).toHaveLength(2));
+    expect(chip(copy.dashboard.conversionRate).dataset.variant).toBe("secondary");
+  });
+
+  it("shows a falling rate as a red chip in points (I/O matrix, rate delta)", async () => {
+    stubFetch((period) => json(answer(period, {}, { value: 0.2, previous: 0.25, delta: -0.05 })));
+    renderScreen();
+
+    const rate = within(await findCard(copy.dashboard.conversionRate));
+    expect(await rate.findByText("20,0 %")).toBeTruthy();
+    expect(rate.getByText("\u22125,0 pt")).toBeTruthy();
+    expect(chip(copy.dashboard.conversionRate).dataset.variant).toBe("tint-destructive");
   });
 
   it("changes Visites with the period while Prospects ouverts stays put", async () => {
@@ -106,7 +154,7 @@ describe("DashboardScreen", () => {
     await user.click(screen.getByRole("radio", { name: copy.dashboard.periods[7] }));
 
     expect(await within(card(copy.dashboard.visits)).findByText("70")).toBeTruthy();
-    expect(within(card(copy.dashboard.openProspects)).getByText("278")).toBeTruthy();
+    expect(within(card(copy.dashboard.openProspects)).getByText("1 284")).toBeTruthy();
   });
 
   it("keeps the period when the chosen one is pressed again", async () => {
@@ -178,7 +226,7 @@ describe("DashboardScreen", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain(copy.dashboard.loadFailed);
     expect(screen.getByText("300")).toBeTruthy();
-    expect(within(card(copy.dashboard.openProspects)).getByText("278")).toBeTruthy();
+    expect(within(card(copy.dashboard.openProspects)).getByText("1 284")).toBeTruthy();
   });
 
   it("offers « Réessayer » when loading fails, and it refetches (I/O matrix, load fails)", async () => {

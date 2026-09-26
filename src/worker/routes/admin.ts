@@ -32,6 +32,7 @@ import {
   OVERPASS_CACHE_TTL_MS,
   PLACES_CACHE_TTL_MS,
   SCRIPTS_PAGE_SIZE,
+  type Status,
 } from "../../shared/constants";
 import {
   CSV_ATTRIBUTION,
@@ -81,7 +82,7 @@ import type {
 } from "../../shared/schemas";
 import { parseEmails, roleFor } from "../auth";
 import { validate } from "../validate";
-import { boundParamsPerRow, getDb } from "../db/client";
+import { boundParamsPerRow, getDb, type Db } from "../db/client";
 import { overpassCache, prospects, scripts, visits, visitsOrphaned } from "../db/schema";
 import {
   OVERPASS_ENDPOINT,
@@ -202,7 +203,7 @@ adminRoutes.get("/dashboard", validate("query", dashboardQuerySchema), async (c)
   // 1 for a visit in the current period, 0 for one in the previous period.
   const inCurrent = sql`(case when ${visits.visitedAt} >= ${from} then 1 else 0 end)`;
 
-  const [visitCounts, open] = await Promise.all([
+  const [visitCounts, open, conversions] = await Promise.all([
     /**
      * Both periods in one range read, which `visits_visited_idx` serves.
      * Not filtered on `merged_into`: an absorbed prospect keeps its visits and
@@ -221,10 +222,13 @@ adminRoutes.get("/dashboard", validate("query", dashboardQuerySchema), async (c)
       .select({ n: count() })
       .from(prospects)
       .where(and(isNull(prospects.mergedInto), inArray(prospects.status, [...OPEN_STATUSES]))),
+    conversionCounts(db, { from, to, previousFrom }),
   ]);
 
   const value = visitCounts[0]?.value ?? 0;
   const previous = visitCounts[0]?.previous ?? 0;
+  const rate = rateOf(conversions.converted, conversions.visited);
+  const previousRate = rateOf(conversions.convertedPrevious, conversions.visitedPrevious);
 
   return c.json<DashboardResponse>({
     period,
@@ -232,8 +236,83 @@ adminRoutes.get("/dashboard", validate("query", dashboardQuerySchema), async (c)
     to,
     visits: { value, previous, delta: deltaOf(value, previous) },
     openProspects: open[0]?.n ?? 0,
+    converted: {
+      value: conversions.converted,
+      previous: conversions.convertedPrevious,
+      delta: deltaOf(conversions.converted, conversions.convertedPrevious),
+    },
+    conversionRate: {
+      value: rate,
+      previous: previousRate,
+      // Points, not a relative change: the one exception to the Delta rule.
+      delta: rate === null || previousRate === null ? null : rate - previousRate,
+      visitedProspects: { value: conversions.visited, previous: conversions.visitedPrevious },
+    },
   });
 });
+
+function rateOf(n: number, d: number): number | null {
+  return d === 0 ? null : n / d;
+}
+
+type ConversionCounts = {
+  converted: number;
+  convertedPrevious: number;
+  visited: number;
+  visitedPrevious: number;
+};
+
+/**
+ * Convertis and the rate's denominator for both periods, in one statement —
+ * docs/api.md › The dashboard defines them.
+ *
+ * Each row of the inner union is one event: a visit in `[previousFrom, to)`
+ * (served by `visits_visited_idx`), or a prospect whose current status is a
+ * manual `converted` set in that range and not since overridden by a visit
+ * (served by `prospects_status_idx`).
+ * Events are keyed by `coalesce(merged_into, id)`, so an absorbed prospect
+ * counts as its survivor, and `count(distinct …)` counts each place once.
+ */
+async function conversionCounts(
+  db: Db,
+  { from, to, previousFrom }: { from: number; to: number; previousFrom: number },
+): Promise<ConversionCounts> {
+  const converted = "converted" satisfies Status;
+  const key = sql`coalesce(${prospects.mergedInto}, ${prospects.id})`;
+  const rows = await db.all<Record<keyof ConversionCounts, number | null>>(sql`
+    select
+      count(distinct case when in_current = 1 and is_conversion = 1 then prospect_key end) as converted,
+      count(distinct case when in_current = 0 and is_conversion = 1 then prospect_key end) as convertedPrevious,
+      count(distinct case when in_current = 1 and is_visit = 1 then prospect_key end) as visited,
+      count(distinct case when in_current = 0 and is_visit = 1 then prospect_key end) as visitedPrevious
+    from (
+      select
+        ${key} as prospect_key,
+        ${visits.visitedAt} >= ${from} as in_current,
+        1 as is_visit,
+        ${visits.outcome} = ${converted} as is_conversion
+      from ${visits}
+      inner join ${prospects} on ${prospects.id} = ${visits.prospectId}
+      where ${visits.visitedAt} >= ${previousFrom} and ${visits.visitedAt} < ${to}
+      union all
+      select ${key}, ${prospects.statusSetAt} >= ${from}, 0, 1
+      from ${prospects}
+      where ${prospects.status} = ${converted}
+        and ${prospects.statusSetAt} >= ${previousFrom}
+        and ${prospects.statusSetAt} < ${to}
+        -- Still the manual status: a later visit sets status and leaves
+        -- status_set_at alone (the complement of visitWins in status.ts).
+        and (${prospects.lastVisitAt} is null or ${prospects.lastVisitAt} <= ${prospects.statusSetAt})
+    )
+  `);
+  const row = rows[0];
+  return {
+    converted: Number(row?.converted ?? 0),
+    convertedPrevious: Number(row?.convertedPrevious ?? 0),
+    visited: Number(row?.visited ?? 0),
+    visitedPrevious: Number(row?.visitedPrevious ?? 0),
+  };
+}
 
 /* ---------------------------------------------------------------- prospects */
 

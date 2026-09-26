@@ -61,6 +61,32 @@ identity opens the field screens only, never `/admin/*`.
 | `outboxVisits` | Visits not yet accepted, each stamped `writtenBy` the same way |
 | `visitHistory` | Cached `GET /api/agent/prospects/:id/visits` results, one prospect's cache replaced per pull, so the visit form's « Visites précédentes » still shows something with no signal |
 | `meta` | active script, last sync time, the last identity `/api/me` returned |
+| `sentVisits` | A log of the visit ids queued today (id, `prospectId`, `sentAt`, `writtenBy`), written by `queueVisit` on the same write as the outbox row |
+
+**"{n} visites sur {total} aujourd'hui" (GH #119, server-gap G8).** `n` is
+`sentVisits` unioned with the pending `outboxVisits`, deduplicated by visit
+id — the union, not the log alone, is what still counts a visit an older
+build queued with no log entry. Both sides are bound to the same Brussels
+calendar day: the log is already bound by `todaysSentVisits`, and the outbox
+side is filtered by each visit's own `visitedAt`, so a visit queued
+yesterday and still unsent this morning does not read as today's — without
+that bound the agent's count would disagree with the admin's "Visites
+aujourd'hui", which the next sentence says can never happen. `total` is the
+union of every prospect id counted in `n` and the stops still on today's
+list, not `n` plus the stops left: a visit's stop stays on today's list
+after it is logged (invariant 3 — status is the server's to derive), so
+adding the two would double-count it, and a stop that has since left the
+list (moved to "Plus tard", or dropped by a pull) still holds its place in
+`total` because it is still counted in `n`. A visit is **counted, never
+deleted**: unlike the outbox, `sentVisits` rows survive a sync, and only a
+housekeeping prune below the day boundary removes them — never in response
+to the server. "Today" is a Europe/Brussels calendar day,
+`brusselsPeriod(now, 1).from` (`src/shared/period.ts`), the same boundary the
+admin dashboard counts "Visites aujourd'hui" with, so the two can never
+disagree. Both sides of the union are filtered through `sendableBy`, exactly
+like the outbox: on a shared phone, the line is the signed-in agent's own
+progress, and an unstamped row from before Dexie v3 counts for whoever syncs
+it first.
 
 The today list itself is built from `prospects` **and** `outboxProspects`
 together: a field prospect the server has not accepted yet still has to be
