@@ -758,11 +758,13 @@ The palette and the typeface are not re-decided for this side. Tokens are shared
 (`app.css`), the mark is shared, the band is shared. What changes is **density,
 target size, and how much the screen commits to one thing at a time.**
 
-### The next stop is the screen
+### Next-stop card
 
 Nearest-next ordering means the first item in the list is not a row — it is an
-instruction. So it is given the width, the space and the actions, and the rest
-of the round is a quiet ledger beneath it.
+instruction. So it gets a card: a gold 4px inset edge, its own `StopNumber` in
+`variant="next"`, the name, "type · address", the distance, then "Y aller" and
+"Visiter" — the same pair a stop row reveals on tap. Every other stop is a
+`StopRow`, a quiet ledger beneath the card.
 
 ```
 ┌──────────────────────────────────┐
@@ -770,22 +772,28 @@ of the round is a quiet ledger beneath it.
 ├──────────────────────────────────┤
 │ Hors ligne. Vos visites sont…    │  strip: only when there is something to say
 ├──────────────────────────────────┤
+│ Tournée du jour                  │
+│ 5 arrêts                         │
 │                                  │
-│ ▎1  Le Bouchon des Filles        │
-│     Restaurant                   │
-│     12 rue Sainte-Catherine      │
-│                           120 m  │
-│     ┌─────────┐  ┌────────────┐  │
-│     │ Y aller │  │  Visiter   │  │  48 px; « Visiter » is the gold one
-│     └─────────┘  └────────────┘  │
+│▎ PROCHAIN ARRÊT                  │
+│▎ (1) Le Bouchon des Filles       │
+│▎     Restaurant · 12 rue Ste-C.  │  gold 4px edge, gold disc
+│▎                         120 m   │
+│▎ ┌────────────┐ ┌────────────┐   │
+│▎ │  Y aller   │ │  Visiter   │   │  48 px; « Visiter » is the gold one
+│▎ └────────────┘ └────────────┘   │
 │                                  │
-├──────────────────────────────────┤
-│ ▎2  Café de la Poste      340 m  │
-│ ▎3  Chez Marcel           410 m  │  the rest of the round: compact rows
-│ ▎4  Pizzeria Vesuvio      820 m  │
+│┃ (2) Café de la Poste     340 m  │  stop row, status edge, collapsed
+│┃ (3) Chez Marcel          410 m  │
+│┃ (4) Pizzeria Vesuvio     820 m  │
+│┃     [Pas encore envoyé]         │  a queued visit: badge, same place
+│┃     ┌─────────┐ ┌─────────┐     │  row 4 tapped open
+│┃     │ Y aller │ │ Visiter │     │
+│┃     └─────────┘ └─────────┘     │
 │                                  │
-│  Plus tard                       │
-│ ▎  Le Comptoir          18 sept. │  future follow-ups, subordinate
+│ Plus tard                        │
+│┃ Le Comptoir                     │  future follow-ups, not walkable
+│┃ À relancer le 18/09/2026        │
 ├──────────────────────────────────┤
 │   ⬤        ⬤                    │  tab bar (GH #66, "Tab bar" below):
 │ Tournée  Ajouter                 │  fixed at the bottom below 768px
@@ -795,11 +803,40 @@ of the round is a quiet ledger beneath it.
 **The stops are numbered, and here that is earned.** Numbered markers are
 usually decoration pretending to be structure — but `orderByNearestNext`
 produces a walking order, so this list genuinely *is* a sequence, and "I am on
-my fourth of eleven" is something an agent wants to know. The number sits in the
-left gutter beside the status edge, tabular and muted.
+my fourth of eleven" is something an agent wants to know. `StopNumber` is a
+32px tabular disc: gold on the card, `secondary` on a row.
 
-**No card around the next stop.** It is set apart by space and by being the only
-thing carrying actions — not by a box, a shadow or a different radius.
+**The card carries the only actions that do not need a tap.** A stop row is
+collapsed by default — number, name, "type · address", the outbox badge when
+there is one, and the distance, `min-h-16` with its own 4px status edge — and
+tapping its header (`aria-expanded`, `aria-controls`) expands it in place to
+the same "Y aller"/"Visiter" pair as the card, no navigation and nothing
+written to Dexie. Opening one row closes whichever was already open: at most
+one is expanded at a time. Neither action needs a swipe (story 117.3 adds
+that as a second way in, not the only one). Without coordinates, "Y aller" is
+absent and "Visiter" takes the row's full width — on the card too.
+
+**Pas encore envoyé.** A stop whose visit is sitting in `outboxVisits`, or a
+field prospect still in `outboxProspects`, carries a `warn`-tinted badge with
+that text on its row. It is read-only knowledge of the outbox: it never hides
+the stop, changes its status or moves it in the walking order (invariants 2,
+3) — the row looks exactly like any other until a sync replaces `prospects`
+and the badge is simply not there any more.
+
+**Plus tard** is follow-ups not yet due, each a plain `<li>` — no button, no
+link, name and "À relancer le {date}" only. They "can't be visited from here"
+(EXPERIENCE.md): the round is not the place to jump a follow-up's own date.
+
+**The round carries no "Ajouter un prospect" button of its own.** The Ajouter
+tab — bottom on a phone, inline in the band from 768px ("Tab bar" below) — is
+the one way to add a place, so the screen does not duplicate it under the list.
+
+**From 768px, the list sits left and the next stop right.** A `md:grid
+md:grid-cols-5` splits the screen roughly 40/60: the list and Plus tard take
+the first two columns, the card the remaining three, `md:sticky` so it stays
+in view while the list scrolls. The card is still first in the DOM — only its
+grid placement moves it to the right — so a screen reader or a keyboard tab
+order meets it before the list either way.
 
 ### One decision per screen
 

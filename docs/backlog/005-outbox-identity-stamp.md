@@ -87,6 +87,13 @@ the wrong thing.
 
 ## Notes
 
+**Merge order: this must merge before epic 4's story #119 "Daily progress".**
+Both bump `FieldDb` to Dexie version 3, #119 for its log of today's sent visit
+ids. Whichever lands second must become version 4, with an upgrade test from
+3, so this one goes first and #119 rebases onto it. If #119 is already on `main`
+when this runs, it is blocked (night-shift skill, step 8). Open the draft PR;
+do not renumber the versions yourself.
+
 This is the one finding from the M2 review that a straightforward fix could
 not close inline: it needs its own Dexie migration and its own tests, which is
 why it is a separate task rather than folded into that PR. The other two
