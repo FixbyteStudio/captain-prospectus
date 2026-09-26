@@ -584,6 +584,19 @@ export const copy = {
     /** The number stepper's − / + buttons (EXPERIENCE.md › Voice and tone). */
     stepDown: "Diminuer",
     stepUp: "Augmenter",
+
+    /* --- the save confirmation, sheet or dialog (EXPERIENCE.md › Save sheet) --- */
+    confirm: {
+      overline: "Validation",
+      title: "Enregistrer cette visite ?",
+      place: "Établissement",
+      flyer: "Flyer",
+      /** 0 and 1 are singular in French, as `today.progress` does for 1. */
+      answers: (n: number) => `${n} ${n <= 1 ? "réponse" : "réponses"}`,
+      reassurance: "La visite reste sur ce téléphone jusqu'à la prochaine synchronisation.",
+      save: "Enregistrer",
+      edit: "Modifier",
+    },
   },
 
   fieldProspect: {

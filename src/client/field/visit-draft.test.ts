@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Script } from "../../shared/schemas";
 import {
+  answeredCount,
   dateInputToEpochMs,
   emptyDraft,
   epochMsToDateInput,
@@ -308,5 +309,24 @@ describe("toVisit — the script's answers", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.visit.scriptId).toBe(7);
+  });
+});
+
+describe("answeredCount", () => {
+  const keys = ["delivery", "seats", "comment", "channels"];
+
+  it("counts every kind of real answer, false and 0 included", () => {
+    expect(
+      answeredCount({ delivery: false, seats: 0, comment: "ok", channels: ["Papier"] }, keys),
+    ).toBe(4);
+  });
+
+  it("does not count a blank text or an empty multi-choice", () => {
+    expect(answeredCount({ delivery: true, comment: "   ", channels: [] }, keys)).toBe(1);
+  });
+
+  it("counts only the keys it is given", () => {
+    expect(answeredCount({ delivery: true, stale: "left over" }, keys)).toBe(1);
+    expect(answeredCount({}, keys)).toBe(0);
   });
 });
