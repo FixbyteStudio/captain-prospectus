@@ -26,8 +26,8 @@ the task that scaffolds the test runner. Vitest, `@cloudflare/vitest-plugin` and
 fourteen test files are already here, so the smallest real, isolated,
 fully-specified task takes that job instead.
 
-- [ ] Read the ADR and either accept it or say what is wrong with it
-- [ ] Read 001's acceptance criteria as if you were the one implementing it at
+- [x] Read the ADR and either accept it or say what is wrong with it
+- [x] Read 001's acceptance criteria as if you were the one implementing it at
       01:00 with nobody to ask. Every vague line is a vague PR
 
 ## 2. Land `main` first — blocking
@@ -37,8 +37,8 @@ lines behind `feat/m2-field-pwa`, and that branch is not even pushed. A night
 shift starting tonight would build on an app without the field screens, the
 sync wiring or the vendored field controls.
 
-- [ ] Push and merge `feat/m2-field-pwa` (or at least push it, so it is visible)
-- [ ] Commit this setup work and merge it too — the skill and the backlog have to
+- [x] Push and merge `feat/m2-field-pwa` (or at least push it, so it is visible)
+- [x] Commit this setup work and merge it too — the skill and the backlog have to
       be *on `main`* for a run to see them
 - [ ] From then on: **landing the branch is part of stopping work for the day**
       (ADR-0016, first consequence)
@@ -50,7 +50,7 @@ item; the night shift needs it now.
 
 - [ ] GitHub → Settings → Branches → protect `main`: require a pull request,
       require one approval, require the CI status check, squash-merge only
-- [ ] Confirm `claude/*` is not covered by any auto-merge rule
+- [x] Confirm `claude/*` is not covered by any auto-merge rule
 
 ## 4. Cloud environment
 
