@@ -155,6 +155,7 @@ write on every imported row. Revisit if the base grows by an order of magnitude.
 | `visits(prospect_id, visited_at)` | visit history on a prospect |
 | `visits(received_at)` | live feed |
 | `visits(agent_email, visited_at)` | an agent's own history |
+| `visits(visited_at)` | the dashboard's period counts, across every prospect and agent |
 | `scripts(is_active)` | the sync pull's "which script is live" |
 | `scripts(is_active)` unique **where `is_active = 1`** | "exactly one active script at a time" |
 | `scripts(name, version)` unique | a version is a version *of* a script |

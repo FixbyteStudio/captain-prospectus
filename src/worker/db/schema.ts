@@ -128,6 +128,7 @@ export const visits = sqliteTable(
     index("visits_prospect_visited_idx").on(t.prospectId, t.visitedAt),
     index("visits_received_idx").on(t.receivedAt),
     index("visits_agent_visited_idx").on(t.agentEmail, t.visitedAt),
+    index("visits_visited_idx").on(t.visitedAt),
   ],
 );
 

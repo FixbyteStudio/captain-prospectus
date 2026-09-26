@@ -43,6 +43,13 @@
       "when": 1790210656835,
       "tag": "0005_admin_status_set_at",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790383140681,
+      "tag": "0006_visits_visited_index",
+      "breakpoints": true
     }
   ]
 }
