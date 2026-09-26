@@ -41,7 +41,10 @@ export function FieldCheckbox({
   checked,
   onCheckedChange,
   children,
+  hint,
+  id,
   className,
+  "aria-describedby": describedByProp,
   ...props
 }: Omit<
   React.ComponentProps<"input">,
@@ -50,7 +53,26 @@ export function FieldCheckbox({
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   children: React.ReactNode;
+  /** A one-line description below the label — the Flyer remis card's hint. */
+  hint?: React.ReactNode;
 }) {
+  const autoId = React.useId();
+  // Only mint an id when something needs to reference it — an explicit `id`,
+  // or the label/hint wiring below, which only exists when `hint` is set. A
+  // plain checkbox with neither keeps rendering with no `id` at all, exactly
+  // as it did before this prop existed.
+  const needsId = id !== undefined || hint !== undefined;
+  const inputId = needsId ? (id ?? autoId) : undefined;
+  // `aria-labelledby`, not the implicit `<label>` wrap, once there's a hint:
+  // otherwise the hint's own text folds into the input's *name*, and
+  // `aria-describedby` reads the same words again as its *description*.
+  const labelId = hint && inputId ? `${inputId}-label` : undefined;
+  const hintId = hint && inputId ? `${inputId}-hint` : undefined;
+  // A caller's own `aria-describedby` (ScriptQuestions' multi-choice items
+  // pass none today, but the prop is still theirs to use) must not be
+  // silently replaced by the hint's.
+  const describedBy = [describedByProp, hintId].filter(Boolean).join(" ") || undefined;
+
   return (
     <label
       className={cn(
@@ -62,9 +84,12 @@ export function FieldCheckbox({
           it. Both sit in one relative box so the label keeps normal spacing. */}
       <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
         <input
+          id={inputId}
           type="checkbox"
           checked={checked}
           onChange={(e) => onCheckedChange(e.target.checked)}
+          aria-labelledby={labelId}
+          aria-describedby={describedBy}
           className={cn(
             "peer border-input absolute inset-0 appearance-none rounded-[4px] border shadow-xs",
             "checked:border-primary-edge checked:bg-primary transition-colors",
@@ -76,15 +101,30 @@ export function FieldCheckbox({
           <CheckMark />
         </span>
       </span>
-      <span>{children}</span>
+      <span>
+        <span id={labelId} className="block">
+          {children}
+        </span>
+        {hint && (
+          <span id={hintId} className="text-meta text-muted-foreground mt-0.5 block">
+            {hint}
+          </span>
+        )}
+      </span>
     </label>
   );
 }
 
 /**
- * One option in a field radio group. 56px — the `--spacing-decision` token —
- * because the visit outcome has to be hittable without looking carefully
- * (docs/design.md, "One decision per screen").
+ * One option in a field radio group.
+ *
+ * `variant="row"` (the default) is 56px — the `--spacing-decision` token —
+ * with a visible disc and a 12% gold wash, as Ajouter's type chips use it.
+ * `variant="choice"` is DESIGN.md's Choice controls (field): a `bg-card`
+ * tile with a border, no disc (the input is `sr-only`, so arrow keys and the
+ * native radio semantics still work), and a full gold fill with navy text and
+ * the `primary-edge` border when checked — `components.choice-selected` —
+ * since the fill itself is what marks the pick.
  */
 export function FieldRadioOption({
   name,
@@ -93,6 +133,7 @@ export function FieldRadioOption({
   onSelect,
   children,
   className,
+  variant = "row",
   ...props
 }: Omit<
   React.ComponentProps<"input">,
@@ -103,14 +144,18 @@ export function FieldRadioOption({
   checked: boolean;
   onSelect: (value: string) => void;
   children: React.ReactNode;
+  variant?: "row" | "choice";
 }) {
   return (
     <label
       className={cn(
-        "border-border flex min-h-decision cursor-pointer items-center gap-3 rounded-md border px-4 text-base",
+        "border-border flex cursor-pointer items-center gap-3 rounded-md border px-4 text-base",
         "transition-colors select-none",
-        "has-[:checked]:border-primary-edge has-[:checked]:bg-primary/12",
         "has-[:focus-visible]:border-ring has-[:focus-visible]:ring-ring/50 has-[:focus-visible]:ring-[3px]",
+        variant === "row" &&
+          "min-h-decision has-[:checked]:border-primary-edge has-[:checked]:bg-primary/12",
+        variant === "choice" &&
+          "bg-card min-h-touch has-[:checked]:border-primary-edge has-[:checked]:bg-primary has-[:checked]:text-primary-foreground",
         className,
       )}
     >
@@ -121,9 +166,9 @@ export function FieldRadioOption({
         checked={checked}
         onChange={() => onSelect(value)}
         className={cn(
-          "border-input size-5 shrink-0 appearance-none rounded-full border shadow-xs",
-          "checked:border-primary-edge checked:border-[6px] transition-colors",
-          "focus-visible:outline-none",
+          variant === "row" &&
+            "border-input size-5 shrink-0 appearance-none rounded-full border shadow-xs checked:border-primary-edge checked:border-[6px] transition-colors focus-visible:outline-none",
+          variant === "choice" && "sr-only",
         )}
         {...props}
       />
@@ -141,17 +186,21 @@ export function FieldRadioGroup({
   invalid,
   children,
   className,
+  "aria-describedby": describedBy,
 }: {
   label: string;
   invalid?: boolean;
   children: React.ReactNode;
   className?: string;
+  /** Ties the group to its own error line, so focus and message read as one. */
+  "aria-describedby"?: string;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
       aria-invalid={invalid ? true : undefined}
+      aria-describedby={describedBy}
       className={cn("grid gap-2", className)}
     >
       {children}

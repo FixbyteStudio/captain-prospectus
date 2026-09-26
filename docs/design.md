@@ -865,19 +865,33 @@ else is allowed to compete.
 ┌──────────────────────────────────┐
 │ ←  Le Bouchon des Filles         │
 ├──────────────────────────────────┤
-│  Flyer remis               [ ●]  │
+│  ┌────────────────────────────┐  │
+│  │ [x] Flyer remis            │  │  a card, not a bare row
+│  │     Cochez si vous avez    │  │
+│  │     laissé un flyer sur    │  │
+│  │     place.                 │  │
+│  └────────────────────────────┘  │
 ├──────────────────────────────────┤
 │  Résultat                        │
 │  ┌────────────────────────────┐  │
-│  │ Personne sur place         │  │
+│  │ [ic] Personne sur place ( )│  │  icon tile · label · hint · disc
+│  │     Fermé ou personne pour │  │
+│  │     répondre. On repassera.│  │
 │  ├────────────────────────────┤  │
-│  │ Intéressé                  │  │  five targets, 56 px, full width
+│  │ [ic] Intéressé          (x)│  │  ← gold: chosen, never a status
+│  │     Ouvert à la discussion,│  │
+│  │     pas encore d'accord.   │  │
 │  ├────────────────────────────┤  │
-│  │ Pas intéressé              │  │
+│  │ [ic] Pas intéressé      ( )│  │
+│  │     Refus clair.           │  │
 │  ├────────────────────────────┤  │
-│  │ À relancer                 │  │
+│  │ [ic] À relancer         ( )│  │
+│  │     Un rendez-vous à       │  │
+│  │     reprendre. Indiquez la │  │
+│  │     date.                  │  │
 │  ├────────────────────────────┤  │
-│  │ Converti                   │  │
+│  │ [ic] Converti           ( )│  │
+│  │     Accord obtenu.         │  │
 │  └────────────────────────────┘  │
 │                                  │
 │  Relancer le   [ 29/09/2026 ]    │  only when the outcome is « À relancer »
@@ -895,13 +909,36 @@ else is allowed to compete.
 
 The outcome list takes an unreasonable share of the screen on purpose. It is the
 one thing the whole app exists to capture, and it has to be hittable by a thumb
-without the agent looking carefully. Five stacked full-width targets, not a
-select and not a grid of chips.
+without the agent looking carefully. Five stacked full-width cards, `min-h-
+decision` each, not a select and not a grid of chips.
 
-**The form never shows what the outcome will do to the prospect's status.** That
-mapping is the server's (INVARIANT 3, `OUTCOME_TO_STATUS`), and a client that
-previews it is a client that can disagree with it. The new status arrives on the
-next sync, in the list.
+**Every card is the same neutral colour, chosen or not (INVARIANT 3).** A 40px
+`bg-secondary` icon tile — `DoorClosed`, `ThumbsUp`, `ThumbsDown`, `Clock`,
+`BadgeCheck` — sits left of the label and a one-line hint, with a 24px disc on
+the right. The five icons and the five hints are the only thing that tells one
+card from another; nothing about their colour does. Picking a card turns its
+tile and disc gold, adds a check, and washes the card at 12% gold with a
+gold-edge border — DESIGN.md's `outcome-card-selected` component token,
+implemented here with `has-[:checked]:` utilities rather than a class of its
+own. That is *selection*, the same gold that marks the current tab or sidebar
+item, never a preview of the status `OUTCOME_TO_STATUS` would derive from the
+outcome.
+
+**A hint describes what the agent saw or heard, never what it does to the
+prospect.** "Refus clair.", not "passe en Refusé" — the mapping to a status is
+the server's alone, and a client that previews it is a client that can disagree
+with it. The new status arrives on the next sync, in the list.
+
+**Flyer remis is a card too, not a bare checkbox row**, so it reads at the same
+weight as the decision beneath it: a checked square, the label, and a hint
+underneath saying what to check it for.
+
+**A blocked "Continuer" (or, with no script, "Enregistrer la visite") moves the
+screen to the decision.** "Choisissez un résultat." appears under Résultat as a
+`role="alert"`, and focus moves to the first outcome card's own radio,
+scrolled to the centre of the screen — the message says why, the focus says
+where, and a thumb that was already near the outcome list never has to hunt for
+either.
 
 ### The script is the second screen
 
@@ -914,34 +951,50 @@ with it, so the questions do not join it — they follow it.
      step 1                             step 2
 ┌──────────────────────────────────┐ ┌──────────────────────────────────┐
 │ ←  Le Bouchon des Filles         │ │ ←  Résultat                      │
+│ ●  Étape 1 sur 2 · Résultat      │ │ ●  Étape 2 sur 2 · Questions     │
 ├──────────────────────────────────┤ ├──────────────────────────────────┤
-│  Flyer remis               [ ●]  │ │  Questions                       │
+│ [x] Flyer remis                  │ │  Questions                       │
 ├──────────────────────────────────┤ │                                  │
 │  Résultat                        │ │  Proposez-vous la livraison ?    │
-│  ┌────────────────────────────┐  │ │  ┌───────────┐ ┌──────────────┐  │
-│  │ Personne sur place         │  │ │  │    Oui    │ │     Non      │  │
-│  ├────────────────────────────┤  │ │  └───────────┘ └──────────────┘  │
-│  │ Intéressé                  │  │ │                                  │
+│  ┌────────────────────────────┐  │ │  ┌───────────┐┌───────────┐      │
+│  │ [ic] Personne sur place ( )│  │ │  │    Oui    ││    Non    │      │
+│  ├────────────────────────────┤  │ │  └───────────┘└───────────┘      │
+│  │ [ic] Intéressé          (x)│  │ │                                  │
 │  ├────────────────────────────┤  │ │  Quelle caisse utilisez-vous ?   │
-│  │ Pas intéressé              │  │ │  ┌────────────────────────────┐  │
+│  │ [ic] Pas intéressé      ( )│  │ │  ┌────────────────────────────┐  │
 │  ├────────────────────────────┤  │ │  │ Aucune                     │  │
-│  │ À relancer                 │  │ │  ├────────────────────────────┤  │
+│  │ [ic] À relancer         ( )│  │ │  ├────────────────────────────┤  │
 │  ├────────────────────────────┤  │ │  │ Papier                     │  │
-│  │ Converti                   │  │ │  └────────────────────────────┘  │
+│  │ [ic] Converti           ( )│  │ │  └────────────────────────────┘  │
 │  └────────────────────────────┘  │ │                                  │
-│                                  │ │  Notes                           │
-│  Relancer le   [ 29/09/2026 ]    │ │  ┌────────────────────────────┐  │
-│                                  │ │  └────────────────────────────┘  │
-├──────────────────────────────────┤ ├──────────────────────────────────┤
-│  [        Continuer          ]   │ │  [   Enregistrer la visite   ]   │
-└──────────────────────────────────┘ └──────────────────────────────────┘
+│                                  │ │  Satisfaction ?                  │
+│  Relancer le   [ 29/09/2026 ]    │ │  ┌──┐┌──┐┌──┐┌──┐┌──┐            │
+├──────────────────────────────────┤ │  │1 ││2 ││3 ││4 ││5 │            │
+│  [        Continuer          ]   │ │  └──┘└──┘└──┘└──┘└──┘            │
+└──────────────────────────────────┘ │                                  │
+                                     │  Combien de places ?             │
+                                     │  ( − )   [    3    ]   ( + )     │
+                                     │                                  │
+                                     │  Notes                           │
+                                     │  ┌────────────────────────────┐  │
+                                     │  └────────────────────────────┘  │
+                                     ├──────────────────────────────────┤
+                                     │  [   Enregistrer la visite   ]   │
+                                     └──────────────────────────────────┘
 ```
 
-**The button names where you are going, and that is the whole step indicator.**
-No "1 sur 2", no dots, no progress bar. An action keeps its name through the
-flow, so « Enregistrer la visite » appears exactly once — on the screen that
-actually saves. Step 1 offers « Continuer », which is a promise of one more
-screen and nothing else.
+**The step indicator names where you stand, not just where the button goes.**
+This reverses an earlier call here — "no 1 sur 2, no dots, no progress bar" —
+because DESIGN.md's redesign (› Step indicator) asks for one, echoed in
+EXPERIENCE.md › Step indicator: an action's own name is not enough to say
+*which* step an agent is on. A `size-1.5` gold dot leads a `text-overline` line
+reading « Étape 1 sur 2 · Résultat » or « Étape 2 sur 2 · Questions », on both
+steps, and it is absent only when the visit has one step to begin with — a
+script with nothing this build can render must never make the one-step path
+read "1 sur 2". An action still keeps its own name through the flow, so «
+Enregistrer la visite » still appears exactly once, on the screen that
+actually saves, and step 1 still offers « Continuer » — the indicator says
+*which* step, the button still says *what happens next*.
 
 **The back link names its destination rather than pointing vaguely backwards.**
 On step 2 it reads « Résultat », not « Retour à la tournée »: it returns to step
@@ -949,17 +1002,36 @@ On step 2 it reads « Résultat », not « Retour à la tournée »: it returns 
 one step further out. Nothing an agent has typed is ever one stray tap from
 being lost.
 
+**Every choice on step 2 is a tile, not a disc.** DESIGN.md › Choice controls
+(field): yes/no is two equal tiles, single-choice is full-width rows, and the
+1–5 rating is five equal tiles, all unselected on `{colors.card}` with a
+border. Picking one fills it gold with navy text and the `primary-edge`
+border — `components.choice-selected` — over a native, visually hidden radio,
+so the fill itself is what marks the pick and arrow keys still move between
+options. Questions are not wrapped in a card of their own: the tiles already
+read as the "questions as cards" EXPERIENCE.md asks for, and a card around
+them would flatten that.
+
+**The number stepper never goes below zero.** A typeable value in display
+weight sits between two 48px secondary buttons, "−" and "+" ("Diminuer" /
+"Augmenter"). "−" disables itself once the value is already 0 or empty, typing
+a negative number clamps to 0 on the way in, and clearing the field is no
+answer at all — not zero, which is an answer and a different thing.
+
 **Step 2 exists only when there is something to ask.** No cached script, or a
-script whose questions this build cannot render, and the form is exactly what it
-was in M2 — one screen, notes inline, « Enregistrer la visite ». A missing
-questionnaire must never stand between an agent and a saved visit, and it must
-not cost a tap either.
+script whose questions this build cannot render, and the form is one screen
+with Notes inline, « Enregistrer la visite ». A missing questionnaire must
+never stand between an agent and a saved visit, and it must not cost a tap
+either.
 
 **`no_contact` still gets step 2, with nothing required.** Nobody was there to
 ask, so `field-operations.md` waives the required questions — but the notes live
 on this screen, and "ferme le lundi" written off a sign in the window is the most
 valuable thing an agent can record about a door nobody answered. Hiding the step
-would hide the notes with it. So the step stays and the obligation goes.
+would hide the notes with it. So the step stays and the obligation goes. What
+replaces the required questions is a callout at the top of the step, above the
+first question: « Personne sur place : répondez seulement si vous savez. » — the
+one thing an agent must not read as an instruction to guess.
 
 **A blocked save moves the screen to the problem.** With a variable number of
 questions, the first invalid one can easily sit below the fold, and a button that
@@ -1102,17 +1174,22 @@ one that has one — both `calc()`'d off `--spacing-tab-bar-height` and the
 safe-area inset rather than a guessed pixel figure.
 
 **Four possible slots, two or three ship now.** Tournée and Ajouter for every
-role, Tableau de bord last for an admin who is online — `me.role === "admin"
-&& !offline`, the one signal `App.tsx` already computes, never a second one.
-Carte is the fourth slot the mockup draws; it stays out until
-epic-field-screens ships the screen it would point to, same rule as the
-sidebar's own nav items. Tableau de bord disappears outright rather than
-showing disabled, because the admin side needs the network to do anything at
-all — but `offline` itself is decided once, when identity resolves (app
-start, or after "Se reconnecter"), from whether that one `/api/me` fetch
-reached the server; there is no live online/offline listener, so a session
-that loses its connection mid-round keeps the tab until the next such check,
-not the instant the network actually drops.
+role, Tableau de bord last for an admin — and two gates, not one, decide that
+last slot (spec-gh-115, `field/identity.ts`'s `adminAccess`). `screens` is the
+security decision (invariant 10): a server-confirmed admin in this session,
+unaffected by the network coming and going. `entry` — what the tab and the
+`/` redirect read — additionally requires a live network, read from `window`'s
+`online`/`offline` events (`useOnline`) rather than `useSync`'s trigger 2,
+which listens for `online` only, so the tab goes the instant the network
+drops and is back the instant it returns, with no reload. Carte is the fourth
+slot the mockup draws; it stays out until epic-field-screens ships the screen
+it would point to, same rule as the sidebar's own nav items. Tableau de bord
+disappears outright rather than showing disabled, because the admin side
+needs the network to do anything at all. A session that opened offline on a
+cached admin identity re-asks `/api/me` once the network is confirmed live; a
+confirmed admin regains the tab and the admin screens without a reload.
+Losing the network hides only the tab: an admin already on an `/admin`
+screen keeps it (#97 designs what that screen says with no network).
 
 **A tab tap never silently discards a draft (#74).** `/tournee`'s own rule
 differs from every other tab's — it is an index route, so it must match only

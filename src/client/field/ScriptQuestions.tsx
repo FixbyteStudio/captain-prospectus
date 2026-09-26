@@ -13,8 +13,8 @@
  * nothing is how a form gets abandoned on a pavement.
  */
 import { FieldCheckbox, FieldRadioGroup, FieldRadioOption } from "@/ui/field-controls";
-import { Input } from "@/ui/input";
 import { Textarea } from "@/ui/textarea";
+import { NumberStepper } from "./NumberStepper";
 import { copy } from "../copy";
 import type { Answers, Question } from "../../shared/schemas";
 
@@ -41,7 +41,7 @@ function QuestionControl({
   switch (question.type) {
     case "yes_no":
       return (
-        <FieldRadioGroup label={question.label} invalid={invalid}>
+        <FieldRadioGroup label={question.label} invalid={invalid} className="grid-cols-2">
           {[
             { value: "true", label: copy.visit.yes },
             { value: "false", label: copy.visit.no },
@@ -53,6 +53,8 @@ function QuestionControl({
               value={option.value}
               checked={value === (option.value === "true")}
               onSelect={(next) => onChange(next === "true")}
+              variant="choice"
+              className="justify-center"
             >
               {option.label}
             </FieldRadioOption>
@@ -71,6 +73,7 @@ function QuestionControl({
               value={option}
               checked={value === option}
               onSelect={(next: string) => onChange(next)}
+              variant="choice"
             >
               {option}
             </FieldRadioOption>
@@ -112,19 +115,12 @@ function QuestionControl({
 
     case "number":
       return (
-        <Input
+        <NumberStepper
           id={id}
-          type="number"
-          inputMode="decimal"
-          touch
-          value={typeof value === "number" ? String(value) : ""}
-          aria-invalid={invalid ? true : undefined}
-          onChange={(event) => {
-            // "" is the agent clearing the field, which is no answer at all —
-            // not zero, which is an answer and a different thing.
-            const raw = event.target.value;
-            onChange(raw === "" ? undefined : Number(raw));
-          }}
+          value={typeof value === "number" ? value : undefined}
+          invalid={invalid}
+          label={question.label}
+          onChange={onChange}
         />
       );
 
@@ -139,6 +135,7 @@ function QuestionControl({
               value={String(rating)}
               checked={value === rating}
               onSelect={(next) => onChange(Number(next))}
+              variant="choice"
               className="justify-center"
             >
               {String(rating)}

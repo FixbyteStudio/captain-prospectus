@@ -15,12 +15,17 @@
  * announced; it owns no validation and, above all, no persistence.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
+import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import { BackLink } from "./BackLink";
+import { OutcomeCard, outcomeDomId } from "./OutcomeCard";
+import { StepIndicator } from "./StepIndicator";
 import { useLiveQuery } from "dexie-react-hooks";
 import { buttonVariants } from "@/ui/button-variants";
-import { FieldCheckbox, FieldRadioGroup, FieldRadioOption } from "@/ui/field-controls";
+import { FieldCheckbox, FieldRadioGroup } from "@/ui/field-controls";
+import { Alert, AlertDescription } from "@/ui/alert";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/ui/form";
 import { ScriptQuestions, questionDomId } from "./ScriptQuestions";
 import { Input } from "@/ui/input";
@@ -38,6 +43,10 @@ import { emptyDraft, toVisit, withOutcome, type VisitDraft } from "./visit-draft
 import { useAgentPosition } from "./useAgentPosition";
 import { useRegisterDirty } from "./leave-guard";
 import { useSyncState } from "./useSync";
+
+/** Ties the outcome radiogroup to its own error line (docs/design.md, "One
+ * decision per screen": the message says why, the focus says where). */
+const OUTCOME_ERROR_ID = "visit-outcome-error";
 
 export function VisitScreen() {
   const { id } = useParams<{ id: string }>();
@@ -132,6 +141,49 @@ export function VisitScreen() {
   useRegisterDirty(form.formState.isDirty);
 
   /**
+   * design.md: a blocked save (or a blocked "Continuer") moves the screen to
+   * the problem rather than sitting there looking like nothing happened. The
+   * outcome is missing far more often than a question is, so it is checked
+   * first; a missing outcome always wins the focus over a below-the-fold
+   * answer, since the agent cannot reach step 2's questions without one.
+   *
+   * Reads `getFieldState`, not `form.formState.errors`: the latter is the
+   * value from the *last render*, and `goToQuestions` calls this in the same
+   * tick `form.trigger(...)` resolves, before React has re-rendered with the
+   * new errors. `getFieldState` reads react-hook-form's live internal state
+   * instead, so both callers see the same, current answer.
+   *
+   * `flushSync` around `setStep`: this can run from step 2 (an outcome- or
+   * date-shaped issue `visitSchema` alone catches, past `goToQuestions`'s own
+   * check), and outside `flushSync` React only *schedules* the step-1 render.
+   * Without it, `getElementById`/`setFocus` below would run against step 2's
+   * still-mounted DOM and find nothing to focus.
+   */
+  const focusFirstProblem = useCallback(() => {
+    if (form.getFieldState("outcome").invalid) {
+      flushSync(() => setStep("outcome"));
+      const element = document.getElementById(outcomeDomId(OUTCOMES[0]));
+      element?.scrollIntoView({ block: "center" });
+      element?.focus({ preventScroll: true });
+      return;
+    }
+    if (form.getFieldState("followUpDate").invalid) {
+      flushSync(() => setStep("outcome"));
+      form.setFocus("followUpDate");
+      return;
+    }
+
+    const firstKey = questions.find(
+      (question) => form.getFieldState(`answers.${question.key}`).invalid,
+    )?.key;
+    if (!firstKey) return;
+
+    const element = document.getElementById(questionDomId(firstKey));
+    element?.scrollIntoView({ block: "center", behavior: "smooth" });
+    element?.focus({ preventScroll: true });
+  }, [form, questions]);
+
+  /**
    * Step 1 does not save; it checks its own two controls and moves on. Doing
    * this with `trigger` rather than a submit keeps the questions' requiredness
    * out of it — they belong to the screen after this one.
@@ -139,29 +191,8 @@ export function VisitScreen() {
   const goToQuestions = useCallback(async () => {
     const ok = await form.trigger(["outcome", "followUpDate"]);
     if (ok) setStep("questions");
-  }, [form]);
-
-  /**
-   * design.md: a blocked save moves the screen to the problem. With a variable
-   * number of questions the first bad answer is easily below the fold, and a
-   * button that appears to do nothing is how a form gets abandoned outdoors.
-   */
-  const showFirstProblem = useCallback(() => {
-    const invalid = form.formState.errors;
-    if (invalid.outcome || invalid.followUpDate) {
-      setStep("outcome");
-      return;
-    }
-    const answerErrorKeys = Object.keys(
-      (invalid.answers as Record<string, unknown> | undefined) ?? {},
-    );
-    const firstKey = questions.find((question) => answerErrorKeys.includes(question.key))?.key;
-    if (!firstKey) return;
-
-    const element = document.getElementById(questionDomId(firstKey));
-    element?.scrollIntoView({ block: "center", behavior: "smooth" });
-    element?.focus({ preventScroll: true });
-  }, [form, questions]);
+    else focusFirstProblem();
+  }, [form, focusFirstProblem]);
 
   /** Per-question errors, flattened back to the shape `ScriptQuestions` reads. */
   const answerErrors = useMemo(() => {
@@ -173,6 +204,29 @@ export function VisitScreen() {
     }
     return flat;
   }, [errors.answers]);
+
+  /**
+   * Notes lives on step 2 when there is one, and on the one-step path
+   * otherwise (docs/design.md, "one screen, notes inline") — a no-script
+   * visit still needs somewhere to write "ferme le lundi". Extracted so the
+   * two call sites render the exact same field rather than a second copy of
+   * it drifting from the first.
+   */
+  const notesField = (
+    <FormField
+      control={form.control}
+      name="notes"
+      render={({ field }) => (
+        <FormItem className="mt-6 gap-0">
+          <FormLabel className="text-base font-medium">{copy.visit.notes}</FormLabel>
+          <FormControl>
+            <Textarea className="mt-1.5 text-base md:text-base" rows={3} {...field} />
+          </FormControl>
+          <FormMessage className="mt-1.5">{copy.visit.notesTooLong}</FormMessage>
+        </FormItem>
+      )}
+    />
+  );
 
   const prospect = useLiveQuery(
     async () => (id ? ((await fieldDb.prospects.get(id)) ?? null) : null),
@@ -228,6 +282,7 @@ export function VisitScreen() {
         prospectId: id,
         visitedAt: Date.now(),
         position: point,
+        script: script ?? null,
       });
 
       // Unreachable: the resolver ran this same function on these same values.
@@ -254,7 +309,7 @@ export function VisitScreen() {
       void syncNow();
       await navigate("/tournee", { replace: true, state: { saved: true } });
     },
-    [id, identity, navigate, point, syncNow, visitId],
+    [id, identity, navigate, point, script, syncNow, visitId],
   );
 
   const name = prospect?.name ?? pendingProspect?.name;
@@ -281,7 +336,7 @@ export function VisitScreen() {
     <Form {...form}>
       <form
         className="pb-action-bar"
-        onSubmit={(e) => void form.handleSubmit(save, showFirstProblem)(e)}
+        onSubmit={(e) => void form.handleSubmit(save, () => focusFirstProblem())(e)}
         noValidate
       >
         <header>
@@ -289,15 +344,19 @@ export function VisitScreen() {
             <BackLink />
           ) : (
             /* Back to step 1 with the draft intact — leaving the visit is one
-               step further out, never a single stray tap (design.md). */
+               step further out, never a single stray tap (design.md). Same
+               look as BackLink, since both name the place they return to. */
             <button
               type="button"
-              className="text-muted-foreground -ml-1 inline-flex min-h-touch items-center gap-1 px-1 text-sm"
+              className="text-muted-foreground hover:text-foreground -ml-1 inline-flex min-h-touch items-center gap-2 text-sm"
               onClick={() => setStep("outcome")}
             >
-              <span aria-hidden>←</span> {copy.visit.backToOutcome}
+              <ArrowLeftIcon aria-hidden className="size-4" />
+              {copy.visit.backToOutcome}
             </button>
           )}
+          {/* Hidden with no questions: the one-step path must not read "1 sur 2". */}
+          {hasQuestions && <StepIndicator step={step === "outcome" ? 1 : 2} />}
           <h2 className="mt-1 text-xl font-semibold tracking-[-0.005em]">{name ?? ""}</h2>
           {type && <p className="text-muted-foreground text-sm">{TYPE_LABELS[type]}</p>}
         </header>
@@ -309,39 +368,47 @@ export function VisitScreen() {
                 control={form.control}
                 name="flyerGiven"
                 render={({ field }) => (
-                  <FieldCheckbox checked={field.value} onCheckedChange={field.onChange}>
-                    {copy.visit.flyerGiven}
-                  </FieldCheckbox>
+                  <div className="border-border bg-card rounded-xl border p-4">
+                    <FieldCheckbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      hint={copy.visit.flyerHint}
+                    >
+                      {copy.visit.flyerGiven}
+                    </FieldCheckbox>
+                  </div>
                 )}
               />
             </div>
 
             <div className="border-border mt-4 border-t pt-4">
               <p className="mb-3 font-medium">{copy.visit.outcome}</p>
-              <FieldRadioGroup label={copy.visit.outcome} invalid={errors.outcome !== undefined}>
+              <FieldRadioGroup
+                label={copy.visit.outcome}
+                invalid={errors.outcome !== undefined}
+                aria-describedby={errors.outcome ? OUTCOME_ERROR_ID : undefined}
+                className="gap-3"
+              >
                 {OUTCOMES.map((option) => (
-                  <FieldRadioOption
+                  <OutcomeCard
                     key={option}
-                    name="outcome"
-                    value={option}
+                    outcome={option}
                     checked={outcome === option}
-                    onSelect={(value) => {
+                    onSelect={(value: Outcome) => {
                       // `withOutcome` drops a follow-up date the new outcome does
                       // not use — see its comment for what sending one would do.
-                      const next = withOutcome(form.getValues(), value as Outcome);
+                      const next = withOutcome(form.getValues(), value);
                       form.setValue("outcome", next.outcome);
                       form.setValue("followUpDate", next.followUpDate);
                       // The date control may have just been unmounted; an error
                       // pinned to it would block saving with nothing on screen.
                       form.clearErrors(["outcome", "followUpDate"]);
                     }}
-                  >
-                    {OUTCOME_LABELS[option]}
-                  </FieldRadioOption>
+                  />
                 ))}
               </FieldRadioGroup>
               {errors.outcome && (
-                <p role="alert" className="text-destructive mt-1.5 text-sm">
+                <p role="alert" id={OUTCOME_ERROR_ID} className="text-destructive mt-1.5 text-sm">
                   {copy.visit.outcomeRequired}
                 </p>
               )}
@@ -368,16 +435,30 @@ export function VisitScreen() {
                 )}
               />
             )}
+            {/* One screen, notes inline (docs/design.md): with no script
+                there is no step 2 to carry Notes, so it lives here instead —
+                once the script read has settled, so Notes never flashes here
+                and then moves to step 2 under the agent's thumb. */}
+            {script !== undefined && !hasQuestions && notesField}
           </>
         )}
 
         {step === "questions" && (
           <>
+            {outcome === "no_contact" && (
+              /* `role="note"`: a standing hint, not an event. The Alert's own
+                 `role="alert"` would be announced as urgent on every step-2 mount,
+                 and would read like the error lines under each question. */
+              <Alert role="note" className="mt-6">
+                <InfoIcon />
+                <AlertDescription className="text-base">
+                  {copy.visit.questionsOptional}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="border-border mt-6 border-t pt-4">
               <h3 className="font-medium">{copy.visit.questions}</h3>
-              {outcome === "no_contact" && (
-                <p className="text-muted-foreground mt-1 text-sm">{copy.visit.questionsOptional}</p>
-              )}
               <div className="mt-4">
                 <ScriptQuestions
                   questions={questions}
@@ -390,19 +471,7 @@ export function VisitScreen() {
               </div>
             </div>
 
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem className="mt-6 gap-0">
-                  <FormLabel className="text-base font-medium">{copy.visit.notes}</FormLabel>
-                  <FormControl>
-                    <Textarea className="mt-1.5 text-base md:text-base" rows={3} {...field} />
-                  </FormControl>
-                  <FormMessage className="mt-1.5">{copy.visit.notesTooLong}</FormMessage>
-                </FormItem>
-              )}
-            />
+            {notesField}
           </>
         )}
 

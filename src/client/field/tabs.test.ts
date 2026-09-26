@@ -3,38 +3,38 @@ import { fieldTabs, isCurrentTab } from "./tabs";
 
 describe("fieldTabs", () => {
   it("gives an agent two tabs: Tournée, then Ajouter", () => {
-    expect(fieldTabs({ isAdmin: false }).map((t) => t.path)).toEqual([
+    expect(fieldTabs({ adminOnline: false }).map((t) => t.path)).toEqual([
       "/tournee",
       "/tournee/nouveau",
     ]);
   });
 
   it("appends Tableau de bord last for an admin", () => {
-    expect(fieldTabs({ isAdmin: true }).map((t) => t.path)).toEqual([
+    expect(fieldTabs({ adminOnline: true }).map((t) => t.path)).toEqual([
       "/tournee",
       "/tournee/nouveau",
-      "/admin/prospects",
+      "/admin",
     ]);
   });
 
   it("never adds a fourth tab or a Carte tab", () => {
-    const paths = fieldTabs({ isAdmin: true }).map((t) => t.path);
+    const paths = fieldTabs({ adminOnline: true }).map((t) => t.path);
     expect(paths).toHaveLength(3);
     expect(paths).not.toContain("/carte");
   });
 
   it("gives every tab a non-empty label and aria-label", () => {
-    for (const tab of fieldTabs({ isAdmin: true })) {
+    for (const tab of fieldTabs({ adminOnline: true })) {
       expect(tab.label.length).toBeGreaterThan(0);
       expect(tab.ariaLabel.length).toBeGreaterThan(0);
     }
   });
 
   it("marks `end` true only for the index tab /tournee, so NavLink's own matcher agrees with isCurrentTab", () => {
-    expect(fieldTabs({ isAdmin: true }).map((t) => [t.path, t.end])).toEqual([
+    expect(fieldTabs({ adminOnline: true }).map((t) => [t.path, t.end])).toEqual([
       ["/tournee", true],
       ["/tournee/nouveau", false],
-      ["/admin/prospects", false],
+      ["/admin", false],
     ]);
   });
 });
@@ -61,7 +61,7 @@ describe("isCurrentTab", () => {
   });
 
   it("Admin online: Tableau de bord is not current on /tournee", () => {
-    expect(isCurrentTab("/tournee", "/admin/prospects")).toBe(false);
+    expect(isCurrentTab("/tournee", "/admin")).toBe(false);
   });
 
   it("does not let a sibling prefix pass, same rule as admin/nav.ts", () => {
