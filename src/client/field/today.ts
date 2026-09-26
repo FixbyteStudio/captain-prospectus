@@ -30,6 +30,14 @@ export type TodayItem = {
   pending: boolean;
   /** Metres from the agent, or null when either end has no position. */
   distanceM: number | null;
+  /**
+   * A visit for this stop is sitting in `outboxVisits`, not yet accepted.
+   *
+   * Read-only knowledge of the outbox: it never changes `status` or the
+   * walking order (invariants 2, 3) — the row just says "Pas encore envoyé"
+   * until the server has it (docs/design.md, "Pas encore envoyé").
+   */
+  visitQueued: boolean;
 };
 
 export type TodayList = {
@@ -51,6 +59,7 @@ function fromProspect(p: Prospect): TodayItem {
     nextVisitAt: p.nextVisitAt,
     pending: false,
     distanceM: null,
+    visitQueued: false,
   };
 }
 
@@ -68,7 +77,14 @@ function fromOutbox(p: FieldProspect): TodayItem {
     nextVisitAt: null,
     pending: true,
     distanceM: null,
+    visitQueued: false,
   };
+}
+
+/** Flags each item whose stop has a visit sitting in the outbox, unaccepted. */
+function withVisitQueued(items: TodayItem[], queued: ReadonlySet<string>): TodayItem[] {
+  if (queued.size === 0) return items;
+  return items.map((item) => (queued.has(item.id) ? { ...item, visitQueued: true } : item));
 }
 
 /** A follow-up whose next visit is still in the future is not due today. */
@@ -97,12 +113,13 @@ export function buildTodayList(
   outbox: readonly FieldProspect[],
   from: Point | null,
   now: number,
+  queuedVisitProspectIds: ReadonlySet<string> = new Set(),
 ): TodayList {
   const known = new Set(prospects.map((p) => p.id));
-  const items = [
-    ...prospects.map(fromProspect),
-    ...outbox.filter((p) => !known.has(p.id)).map(fromOutbox),
-  ];
+  const items = withVisitQueued(
+    [...prospects.map(fromProspect), ...outbox.filter((p) => !known.has(p.id)).map(fromOutbox)],
+    queuedVisitProspectIds,
+  );
 
   const due: TodayItem[] = [];
   const later: TodayItem[] = [];
