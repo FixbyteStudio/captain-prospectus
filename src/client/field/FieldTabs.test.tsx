@@ -42,18 +42,18 @@ function FormThatCanClose() {
 }
 
 function renderTabs({
-  isAdmin = false,
+  adminOnline = false,
   path = "/tournee/abc123",
   children,
 }: {
-  isAdmin?: boolean;
+  adminOnline?: boolean;
   path?: string;
   children?: React.ReactNode;
 } = {}) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <LeaveGuardProvider>
-        <FieldTabs isAdmin={isAdmin} />
+        <FieldTabs adminOnline={adminOnline} />
         {children}
         <CurrentPath />
       </LeaveGuardProvider>
@@ -75,13 +75,13 @@ describe("FieldTabs", () => {
   });
 
   it("shows Tableau de bord only for an online admin", () => {
-    const { unmount } = renderTabs({ isAdmin: false });
+    const { unmount } = renderTabs({ adminOnline: false });
     expect(screen.queryByRole("link", { name: copy.nav.tabs.dashboard })).toBeNull();
     unmount();
 
-    renderTabs({ isAdmin: true });
+    renderTabs({ adminOnline: true });
     expect(screen.getByRole("link", { name: copy.nav.tabs.dashboard }).getAttribute("href")).toBe(
-      "/admin/prospects",
+      "/admin",
     );
   });
 

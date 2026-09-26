@@ -1156,17 +1156,22 @@ one that has one — both `calc()`'d off `--spacing-tab-bar-height` and the
 safe-area inset rather than a guessed pixel figure.
 
 **Four possible slots, two or three ship now.** Tournée and Ajouter for every
-role, Tableau de bord last for an admin who is online — `me.role === "admin"
-&& !offline`, the one signal `App.tsx` already computes, never a second one.
-Carte is the fourth slot the mockup draws; it stays out until
-epic-field-screens ships the screen it would point to, same rule as the
-sidebar's own nav items. Tableau de bord disappears outright rather than
-showing disabled, because the admin side needs the network to do anything at
-all — but `offline` itself is decided once, when identity resolves (app
-start, or after "Se reconnecter"), from whether that one `/api/me` fetch
-reached the server; there is no live online/offline listener, so a session
-that loses its connection mid-round keeps the tab until the next such check,
-not the instant the network actually drops.
+role, Tableau de bord last for an admin — and two gates, not one, decide that
+last slot (spec-gh-115, `field/identity.ts`'s `adminAccess`). `screens` is the
+security decision (invariant 10): a server-confirmed admin in this session,
+unaffected by the network coming and going. `entry` — what the tab and the
+`/` redirect read — additionally requires a live network, read from `window`'s
+`online`/`offline` events (`useOnline`) rather than `useSync`'s trigger 2,
+which listens for `online` only, so the tab goes the instant the network
+drops and is back the instant it returns, with no reload. Carte is the fourth
+slot the mockup draws; it stays out until epic-field-screens ships the screen
+it would point to, same rule as the sidebar's own nav items. Tableau de bord
+disappears outright rather than showing disabled, because the admin side
+needs the network to do anything at all. A session that opened offline on a
+cached admin identity re-asks `/api/me` once the network is confirmed live; a
+confirmed admin regains the tab and the admin screens without a reload.
+Losing the network hides only the tab: an admin already on an `/admin`
+screen keeps it (#97 designs what that screen says with no network).
 
 **A tab tap never silently discards a draft (#74).** `/tournee`'s own rule
 differs from every other tab's — it is an index route, so it must match only

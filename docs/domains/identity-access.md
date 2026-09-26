@@ -46,6 +46,20 @@ cached identity, the cached round and the cached visit history together. The
 outbox survives it — a revoked session is not the server listing those rows in
 `accepted`, and INVARIANT 5 says only that may delete them.
 
+**The cached identity opens the field side only.** An admin identity read from
+the cache never unlocks the Tableau de bord tab or the admin routes — only a
+live `/api/me` answer does (invariant 10). A session that started this way
+re-asks `/api/me` itself once the network is confirmed live, rather than
+waiting for a reload: `App.tsx` tracks the browser's own `online`/`offline`
+state for as long as it runs (`useOnline`), and re-checks whenever that state
+reads live *while* the identity is still cache-sourced — which fires at once
+if the network was already reporting live when the cache fallback happened
+(a Worker error or a captive portal, not a browser-visible disconnection), not
+only after a later `online` event. A confirmed admin regains the tab and the
+admin screens the moment that re-check lands (spec-gh-115,
+`field/identity.ts`'s `adminAccess`). A session the server already confirmed
+never re-checks — going offline and back costs it nothing.
+
 The cached identity is a rendering convenience, never proof: the Worker
 re-derives identity from the verified JWT on every request regardless of what
 the client claims to be. Its only other effect is that if the identity that

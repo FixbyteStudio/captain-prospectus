@@ -25,14 +25,15 @@ export type FieldTab = {
 };
 
 /**
- * Tournée and Ajouter for every role; Tableau de bord last, only for an admin
- * who is online (the caller passes the same `isAdmin` App.tsx already
- * computes — `me.role === "admin" && !offline` — never a second signal).
+ * Tournée and Ajouter for every role; Tableau de bord last, only when the
+ * caller's `adminOnline` is true — `adminAccess(...).entry` from
+ * `field/identity.ts` (spec-gh-115), the tab-and-redirect gate layered on top
+ * of the admin-screens one, never a second signal of its own.
  *
  * No Carte tab: epic-field-screens ships that screen, and nothing here links
  * to a screen that does not exist yet.
  */
-export function fieldTabs({ isAdmin }: { isAdmin: boolean }): readonly FieldTab[] {
+export function fieldTabs({ adminOnline }: { adminOnline: boolean }): readonly FieldTab[] {
   const tabs: FieldTab[] = [
     {
       path: "/tournee",
@@ -49,9 +50,14 @@ export function fieldTabs({ isAdmin }: { isAdmin: boolean }): readonly FieldTab[
       end: false,
     },
   ];
-  if (isAdmin) {
+  if (adminOnline) {
     tabs.push({
-      path: "/admin/prospects",
+      // `end: false` here, `true` for the same /admin path in `admin/nav.ts`
+      // — not a disagreement: `adminOnline` is `adminAccess(...).entry`,
+      // which implies `screens`, so a rendered instance of this tab is never
+      // on an /admin/* route at all (App.tsx mounts AdminApp there instead);
+      // `end`'s exact-vs-subtree choice is unobservable for it either way.
+      path: "/admin",
       label: copy.nav.tabs.dashboard,
       ariaLabel: copy.nav.tabs.dashboard,
       icon: LayoutGrid,
