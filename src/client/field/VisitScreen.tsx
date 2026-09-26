@@ -282,6 +282,7 @@ export function VisitScreen() {
         prospectId: id,
         visitedAt: Date.now(),
         position: point,
+        script: script ?? null,
       });
 
       // Unreachable: the resolver ran this same function on these same values.
@@ -308,7 +309,7 @@ export function VisitScreen() {
       void syncNow();
       await navigate("/tournee", { replace: true, state: { saved: true } });
     },
-    [id, identity, navigate, point, syncNow, visitId],
+    [id, identity, navigate, point, script, syncNow, visitId],
   );
 
   const name = prospect?.name ?? pendingProspect?.name;
