@@ -548,6 +548,11 @@ export const copy = {
     noPreviousVisits: "Première visite à cet endroit.",
     historyOffline: "Les visites précédentes s'afficheront au retour du réseau.",
     flyerHint: "Cochez si vous avez laissé un flyer sur place.",
+    /** The step indicator, after its gold dot (DESIGN.md › Step indicator;
+     * docs/design.md, "The script is the second screen"). `name` is the
+     * step's own name — `visit.outcome` or `visit.questions` — never the
+     * prospect's, so the two steps read as one flow. */
+    step: (n: number, total: number, name: string) => `Étape ${n} sur ${total} · ${name}`,
     saving: "Enregistrement…",
     /**
      * The outbox write itself failed, so nothing is queued and nothing will be
@@ -643,6 +648,22 @@ export const OUTCOME_LABELS: Readonly<Record<Outcome, string>> = {
   not_interested: "Pas intéressé",
   follow_up: "À relancer",
   converted: "Converti",
+};
+
+/**
+ * Step 1's outcome hints (invariant 3, GH #123).
+ *
+ * Each describes what the agent saw or heard, never what it does to the
+ * prospect's status — "Refus clair.", not "passe en Refusé" — so the phone
+ * never previews `OUTCOME_TO_STATUS`. `VisitScreen.test.tsx` also asserts none
+ * of these contains a `STATUS_LABELS` value.
+ */
+export const OUTCOME_HINTS: Readonly<Record<Outcome, string>> = {
+  no_contact: "Fermé ou personne pour répondre. On repassera.",
+  interested: "Ouvert à la discussion, pas encore d'accord.",
+  not_interested: "Refus clair.",
+  follow_up: "Un rendez-vous à reprendre. Indiquez la date.",
+  converted: "Accord obtenu.",
 };
 
 export const STATUS_LABELS: Readonly<Record<Status, string>> = {

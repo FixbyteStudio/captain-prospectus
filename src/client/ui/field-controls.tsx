@@ -41,7 +41,10 @@ export function FieldCheckbox({
   checked,
   onCheckedChange,
   children,
+  hint,
+  id,
   className,
+  "aria-describedby": describedByProp,
   ...props
 }: Omit<
   React.ComponentProps<"input">,
@@ -50,7 +53,26 @@ export function FieldCheckbox({
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   children: React.ReactNode;
+  /** A one-line description below the label — the Flyer remis card's hint. */
+  hint?: React.ReactNode;
 }) {
+  const autoId = React.useId();
+  // Only mint an id when something needs to reference it — an explicit `id`,
+  // or the label/hint wiring below, which only exists when `hint` is set. A
+  // plain checkbox with neither keeps rendering with no `id` at all, exactly
+  // as it did before this prop existed.
+  const needsId = id !== undefined || hint !== undefined;
+  const inputId = needsId ? (id ?? autoId) : undefined;
+  // `aria-labelledby`, not the implicit `<label>` wrap, once there's a hint:
+  // otherwise the hint's own text folds into the input's *name*, and
+  // `aria-describedby` reads the same words again as its *description*.
+  const labelId = hint && inputId ? `${inputId}-label` : undefined;
+  const hintId = hint && inputId ? `${inputId}-hint` : undefined;
+  // A caller's own `aria-describedby` (ScriptQuestions' multi-choice items
+  // pass none today, but the prop is still theirs to use) must not be
+  // silently replaced by the hint's.
+  const describedBy = [describedByProp, hintId].filter(Boolean).join(" ") || undefined;
+
   return (
     <label
       className={cn(
@@ -62,9 +84,12 @@ export function FieldCheckbox({
           it. Both sit in one relative box so the label keeps normal spacing. */}
       <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
         <input
+          id={inputId}
           type="checkbox"
           checked={checked}
           onChange={(e) => onCheckedChange(e.target.checked)}
+          aria-labelledby={labelId}
+          aria-describedby={describedBy}
           className={cn(
             "peer border-input absolute inset-0 appearance-none rounded-[4px] border shadow-xs",
             "checked:border-primary-edge checked:bg-primary transition-colors",
@@ -76,7 +101,16 @@ export function FieldCheckbox({
           <CheckMark />
         </span>
       </span>
-      <span>{children}</span>
+      <span>
+        <span id={labelId} className="block">
+          {children}
+        </span>
+        {hint && (
+          <span id={hintId} className="text-meta text-muted-foreground mt-0.5 block">
+            {hint}
+          </span>
+        )}
+      </span>
     </label>
   );
 }
@@ -141,17 +175,21 @@ export function FieldRadioGroup({
   invalid,
   children,
   className,
+  "aria-describedby": describedBy,
 }: {
   label: string;
   invalid?: boolean;
   children: React.ReactNode;
   className?: string;
+  /** Ties the group to its own error line, so focus and message read as one. */
+  "aria-describedby"?: string;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
       aria-invalid={invalid ? true : undefined}
+      aria-describedby={describedBy}
       className={cn("grid gap-2", className)}
     >
       {children}
