@@ -21,7 +21,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Admin
 | Route | Purpose |
 |---|---|
-| `GET /api/admin/dashboard?period=7\|30\|90` | Tableau de bord's figures, `dashboardResponseSchema`: `{period, from, to, visits: {value, previous, delta}, openProspects}`. `period` defaults to 30; any other value is **400**. Read-only. See [The dashboard](#the-dashboard) |
+| `GET /api/admin/dashboard?period=7\|30\|90` | Tableau de bord's figures, `dashboardResponseSchema`: `{period, from, to, visits: {value, previous, delta}, openProspects, converted: {value, previous, delta}, conversionRate: {value, previous, delta, visitedProspects: {value, previous}}}`. `period` defaults to 30; any other value is **400**. Read-only. See [The dashboard](#the-dashboard) |
 | `GET /api/admin/agents` | `{agents: [{email, role}]}` — everyone a prospect can be assigned to |
 | `GET /api/admin/prospects?status=&assignedTo=&source=&limit=&offset=` | `{prospects[], total}`, newest edit first |
 | `POST /api/admin/prospects/batch` | Upsert `{source: "csv" \| "osm", rows[]}` by dedupe key → `{created, updated}` |
@@ -117,7 +117,8 @@ figures to the same response, additively.
   period is never `N × 24 h` across one. `brusselsPeriod` in
   `src/shared/period.ts` is the one place this is computed.
 - **Delta** = (value − previous) ÷ previous, as a ratio (`0.124` is +12,4 %).
-  It is `null` when previous is 0, and the screen shows "—".
+  It is `null` when previous is 0, and the screen shows "—". Taux de
+  conversion is the one exception, below.
 - **Visites** (`visits`): rows in `visits` whose `visited_at` — already clamped
   (INVARIANT 12) — falls in the period. Visits of merged prospects count,
   because they still happened; quarantined visits do not, because they are in
@@ -126,6 +127,30 @@ figures to the same response, additively.
 - **Prospects ouverts** (`openProspects`): live prospects (`merged_into IS NULL`)
   whose status is in `OPEN_STATUSES` (new, assigned, follow_up). A snapshot of
   now: it ignores the period and has no delta.
+- **Convertis** (`converted`): distinct prospects converted in the period. A
+  prospect converted when it has a visit with outcome `converted` in the period
+  (clamped `visited_at`, quarantined visits out), or when its status is
+  `converted` with `status_set_at` in the period — a manual change. It counts
+  once however many times either happens, and still counts if it was reopened
+  later: a conversion is an event, so a past period never shrinks. Every visit
+  and manual change is keyed by `coalesce(merged_into, id)`, so an absorbed
+  prospect counts as its survivor (one hop; A→B→C counts A under B). Its delta
+  follows the rule above.
+  *Limitation:* `status_set_at` keeps only the latest manual change, and a
+  later visit replaces the status without touching it. So a manual status
+  counts only while it is still in force (`last_visit_at` null or not after
+  `status_set_at`): a manual conversion a later visit or edit overrode is not
+  counted, and a visit's conversion is never mistaken for a manual one dated
+  at an earlier manual change.
+- **Taux de conversion** (`conversionRate`): Convertis ÷ distinct prospects
+  with a visit in the period (`visitedProspects`, keyed the same way), as a
+  ratio (`0.106` is 10,6 %). `null` when nothing was visited, shown "—". A
+  prospect converted by hand with no visit in the period is in the numerator
+  only, so the rate can in theory exceed 1. Its `delta` is in percentage
+  points, `value − previous` (`0.012` is +1,2 pt), and `null` when either rate
+  is `null`. Convertis and both denominators come from one statement: a
+  `visits_visited_idx` range read joined to `prospects`, `UNION ALL` the manual
+  conversions read on `prospects_status_idx`.
 
 ## The repair queue
 

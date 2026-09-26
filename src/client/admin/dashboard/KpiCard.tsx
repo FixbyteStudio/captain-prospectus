@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { copy } from "../../copy";
-import { deltaTone, formatCount, formatDelta } from "../../format";
+import { deltaTone, formatDelta } from "../../format";
 import { Badge } from "../../ui/badge";
 import { Card } from "../../ui/card";
 import { Skeleton } from "../../ui/skeleton";
@@ -18,24 +18,30 @@ const TONE = {
   flat: { variant: "secondary", Arrow: null },
 } as const;
 
+type DeltaFormat = (delta: number | null) => string;
+
 /**
  * One KPI — docs/design.md › Tableau de bord: overline label and icon tile,
  * the figure, then the delta chip and "vs période précédente".
  *
+ * `value` arrives formatted, since a count and a rate read differently.
  * `delta` left out means the figure is a snapshot (Prospects ouverts) and has
  * no delta row at all; `null` means there was no previous period, shown "—".
- * No coloured edge: on this app an edge means a status.
+ * `deltaFormat` is `formatDelta` unless the delta is in points (Taux de
+ * conversion). No coloured edge: on this app an edge means a status.
  */
 export function KpiCard({
   label,
   icon: IconTile,
   value,
   delta,
+  deltaFormat = formatDelta,
 }: {
   label: string;
   icon: Icon;
-  value: number;
+  value: string;
   delta?: number | null;
+  deltaFormat?: DeltaFormat;
 }) {
   return (
     <Card className={SHELL}>
@@ -45,18 +51,18 @@ export function KpiCard({
           <IconTile className="size-4" aria-hidden="true" />
         </span>
       </div>
-      <p className="text-display tnum">{formatCount(value)}</p>
+      <p className="text-display tnum">{value}</p>
       {delta === undefined ? (
         // Keeps the figure at the same height as its neighbours' (mockup).
         <div className="h-7" aria-hidden="true" />
       ) : (
-        <DeltaRow delta={delta} />
+        <DeltaRow delta={delta} format={deltaFormat} />
       )}
     </Card>
   );
 }
 
-function DeltaRow({ delta }: { delta: number | null }) {
+function DeltaRow({ delta, format }: { delta: number | null; format: DeltaFormat }) {
   const { variant, Arrow } = TONE[deltaTone(delta)];
   return (
     <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
@@ -65,7 +71,7 @@ function DeltaRow({ delta }: { delta: number | null }) {
           text-xs is the meta size already. */}
       <Badge variant={variant} className="tnum rounded-sm">
         {Arrow && <Arrow aria-hidden="true" />}
-        {formatDelta(delta)}
+        {format(delta)}
       </Badge>
       <span className="text-meta text-muted-foreground">{copy.dashboard.vsPrevious}</span>
     </p>

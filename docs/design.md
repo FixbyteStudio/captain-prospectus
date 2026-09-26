@@ -284,17 +284,22 @@ dashboard](api.md#the-dashboard), and the Worker computes it.
 - **KPI card.** A shadcn `Card` with no coloured edge — on this app an edge
   means a status. Top to bottom: the label in `text-overline` with a 32px
   `secondary` icon tile at the top right (Lucide `Store` for Prospects
-  ouverts, `MapPin` for Visites), the figure in `text-display` with tabular
-  figures, then the delta chip and "vs période précédente" in meta. The chip
+  ouverts, `MapPin` for Visites, `BadgeCheck` for Convertis, `Percent` for
+  Taux de conversion), the figure in `text-display` with tabular figures,
+  then the delta chip and "vs période précédente" in meta. The chip
   is a `rounded-sm` Badge: `tint-success` with an up arrow when the rounded
   delta is up, `tint-destructive` with a down arrow when it is down, and
   neutral `secondary` with no arrow for "0,0 %" and for "—" (no previous
   period). The figure is signed, with a real minus: "+12,4 %", "−3,0 %".
   Prospects ouverts is a snapshot, so it has no delta row; an empty row of
   the same height keeps its figure level with its neighbours'.
+  Taux de conversion's figure is a percentage with one decimal, "10,6 %", or
+  "—" when nothing was visited; its chip is in points, "+1,2 pt", "−0,4 pt",
+  toned by the same rounding.
 - **Grid.** Cards are 4 across at ≥ lg, 2 × 2 at md and one column below,
-  24px apart. Only Prospects ouverts and Visites exist so far; the stories
-  that add figures add cards to the same grid.
+  24px apart, in this order: Prospects ouverts, Visites, Convertis, Taux de
+  conversion. The stories that add figures add cards or panels to the same
+  grid.
 - **Loading.** Skeleton cards of the same shape stand in until the first
   answer, with a visually hidden "Chargement du tableau de bord…". Switching
   period keeps the last period's cards on screen, dimmed, until the new

@@ -25,6 +25,7 @@ lives in `src/client/copy.ts`, so the whole UI vocabulary stays reviewable in on
 | **Flyer** | Flyer | The leaflet handed over during a visit | prospectus, brochure |
 | **Dashboard** | Tableau de bord | The admin's landing screen at `/admin`: how canvassing is going over 7, 30 or 90 days | home, overview |
 | **Open prospect** | Prospect ouvert | A live prospect (`merged_into IS NULL`) whose status is `new`, `assigned` or `follow_up` | active lead |
+| **Conversion rate** | Taux de conversion | Prospects converted in a period ÷ distinct prospects visited in it ([api.md › The dashboard](api.md#the-dashboard)) | win rate, close rate |
 
 ## Enum values
 
