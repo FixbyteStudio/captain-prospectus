@@ -938,9 +938,9 @@ with it, so the questions do not join it — they follow it.
 │ [x] Flyer remis                  │ │  Questions                       │
 ├──────────────────────────────────┤ │                                  │
 │  Résultat                        │ │  Proposez-vous la livraison ?    │
-│  ┌────────────────────────────┐  │ │  ┌─────────┐ ┌────────────┐      │
-│  │ [ic] Personne sur place ( )│  │ │  │   Oui   │ │    Non     │      │
-│  ├────────────────────────────┤  │ │  └─────────┘ └────────────┘      │
+│  ┌────────────────────────────┐  │ │  ┌───────────┐┌───────────┐      │
+│  │ [ic] Personne sur place ( )│  │ │  │    Oui    ││    Non    │      │
+│  ├────────────────────────────┤  │ │  └───────────┘└───────────┘      │
 │  │ [ic] Intéressé          (x)│  │ │                                  │
 │  ├────────────────────────────┤  │ │  Quelle caisse utilisez-vous ?   │
 │  │ [ic] Pas intéressé      ( )│  │ │  ┌────────────────────────────┐  │
@@ -949,12 +949,20 @@ with it, so the questions do not join it — they follow it.
 │  ├────────────────────────────┤  │ │  │ Papier                     │  │
 │  │ [ic] Converti           ( )│  │ │  └────────────────────────────┘  │
 │  └────────────────────────────┘  │ │                                  │
-│                                  │ │  Notes                           │
-│  Relancer le   [ 29/09/2026 ]    │ │  ┌────────────────────────────┐  │
-├──────────────────────────────────┤ │  └────────────────────────────┘  │
-│  [        Continuer          ]   │ ├──────────────────────────────────┤
-└──────────────────────────────────┘ │  [   Enregistrer la visite   ]   │
-                                      └──────────────────────────────────┘
+│                                  │ │  Satisfaction ?                  │
+│  Relancer le   [ 29/09/2026 ]    │ │  ┌──┐┌──┐┌──┐┌──┐┌──┐            │
+├──────────────────────────────────┤ │  │1 ││2 ││3 ││4 ││5 │            │
+│  [        Continuer          ]   │ │  └──┘└──┘└──┘└──┘└──┘            │
+└──────────────────────────────────┘ │                                  │
+                                     │  Combien de places ?             │
+                                     │  ( − )   [    3    ]   ( + )     │
+                                     │                                  │
+                                     │  Notes                           │
+                                     │  ┌────────────────────────────┐  │
+                                     │  └────────────────────────────┘  │
+                                     ├──────────────────────────────────┤
+                                     │  [   Enregistrer la visite   ]   │
+                                     └──────────────────────────────────┘
 ```
 
 **The step indicator names where you stand, not just where the button goes.**
@@ -976,17 +984,36 @@ On step 2 it reads « Résultat », not « Retour à la tournée »: it returns 
 one step further out. Nothing an agent has typed is ever one stray tap from
 being lost.
 
+**Every choice on step 2 is a tile, not a disc.** DESIGN.md › Choice controls
+(field): yes/no is two equal tiles, single-choice is full-width rows, and the
+1–5 rating is five equal tiles, all unselected on `{colors.card}` with a
+border. Picking one fills it gold with navy text and the `primary-edge`
+border — `components.choice-selected` — over a native, visually hidden radio,
+so the fill itself is what marks the pick and arrow keys still move between
+options. Questions are not wrapped in a card of their own: the tiles already
+read as the "questions as cards" EXPERIENCE.md asks for, and a card around
+them would flatten that.
+
+**The number stepper never goes below zero.** A typeable value in display
+weight sits between two 48px secondary buttons, "−" and "+" ("Diminuer" /
+"Augmenter"). "−" disables itself once the value is already 0 or empty, typing
+a negative number clamps to 0 on the way in, and clearing the field is no
+answer at all — not zero, which is an answer and a different thing.
+
 **Step 2 exists only when there is something to ask.** No cached script, or a
-script whose questions this build cannot render, and the form is exactly what it
-was in M2 — one screen, notes inline, « Enregistrer la visite ». A missing
-questionnaire must never stand between an agent and a saved visit, and it must
-not cost a tap either.
+script whose questions this build cannot render, and the form is one screen
+with Notes inline, « Enregistrer la visite ». A missing questionnaire must
+never stand between an agent and a saved visit, and it must not cost a tap
+either.
 
 **`no_contact` still gets step 2, with nothing required.** Nobody was there to
 ask, so `field-operations.md` waives the required questions — but the notes live
 on this screen, and "ferme le lundi" written off a sign in the window is the most
 valuable thing an agent can record about a door nobody answered. Hiding the step
-would hide the notes with it. So the step stays and the obligation goes.
+would hide the notes with it. So the step stays and the obligation goes. What
+replaces the required questions is a callout at the top of the step, above the
+first question: « Personne sur place : répondez seulement si vous savez. » — the
+one thing an agent must not read as an instruction to guess.
 
 **A blocked save moves the screen to the problem.** With a variable number of
 questions, the first invalid one can easily sit below the fold, and a button that

@@ -18,13 +18,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import { BackLink } from "./BackLink";
 import { OutcomeCard, outcomeDomId } from "./OutcomeCard";
 import { StepIndicator } from "./StepIndicator";
 import { useLiveQuery } from "dexie-react-hooks";
 import { buttonVariants } from "@/ui/button-variants";
 import { FieldCheckbox, FieldRadioGroup } from "@/ui/field-controls";
+import { Alert, AlertDescription } from "@/ui/alert";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/ui/form";
 import { ScriptQuestions, questionDomId } from "./ScriptQuestions";
 import { Input } from "@/ui/input";
@@ -203,6 +204,29 @@ export function VisitScreen() {
     }
     return flat;
   }, [errors.answers]);
+
+  /**
+   * Notes lives on step 2 when there is one, and on the one-step path
+   * otherwise (docs/design.md, "one screen, notes inline") — a no-script
+   * visit still needs somewhere to write "ferme le lundi". Extracted so the
+   * two call sites render the exact same field rather than a second copy of
+   * it drifting from the first.
+   */
+  const notesField = (
+    <FormField
+      control={form.control}
+      name="notes"
+      render={({ field }) => (
+        <FormItem className="mt-6 gap-0">
+          <FormLabel className="text-base font-medium">{copy.visit.notes}</FormLabel>
+          <FormControl>
+            <Textarea className="mt-1.5 text-base md:text-base" rows={3} {...field} />
+          </FormControl>
+          <FormMessage className="mt-1.5">{copy.visit.notesTooLong}</FormMessage>
+        </FormItem>
+      )}
+    />
+  );
 
   const prospect = useLiveQuery(
     async () => (id ? ((await fieldDb.prospects.get(id)) ?? null) : null),
@@ -410,16 +434,30 @@ export function VisitScreen() {
                 )}
               />
             )}
+            {/* One screen, notes inline (docs/design.md): with no script
+                there is no step 2 to carry Notes, so it lives here instead —
+                once the script read has settled, so Notes never flashes here
+                and then moves to step 2 under the agent's thumb. */}
+            {script !== undefined && !hasQuestions && notesField}
           </>
         )}
 
         {step === "questions" && (
           <>
+            {outcome === "no_contact" && (
+              /* `role="note"`: a standing hint, not an event. The Alert's own
+                 `role="alert"` would be announced as urgent on every step-2 mount,
+                 and would read like the error lines under each question. */
+              <Alert role="note" className="mt-6">
+                <InfoIcon />
+                <AlertDescription className="text-base">
+                  {copy.visit.questionsOptional}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="border-border mt-6 border-t pt-4">
               <h3 className="font-medium">{copy.visit.questions}</h3>
-              {outcome === "no_contact" && (
-                <p className="text-muted-foreground mt-1 text-sm">{copy.visit.questionsOptional}</p>
-              )}
               <div className="mt-4">
                 <ScriptQuestions
                   questions={questions}
@@ -432,19 +470,7 @@ export function VisitScreen() {
               </div>
             </div>
 
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem className="mt-6 gap-0">
-                  <FormLabel className="text-base font-medium">{copy.visit.notes}</FormLabel>
-                  <FormControl>
-                    <Textarea className="mt-1.5 text-base md:text-base" rows={3} {...field} />
-                  </FormControl>
-                  <FormMessage className="mt-1.5">{copy.visit.notesTooLong}</FormMessage>
-                </FormItem>
-              )}
-            />
+            {notesField}
           </>
         )}
 

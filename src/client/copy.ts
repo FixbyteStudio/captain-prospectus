@@ -573,6 +573,9 @@ export const copy = {
     answerInvalid: "Cette réponse n'est pas valide. Vérifiez-la.",
     yes: "Oui",
     no: "Non",
+    /** The number stepper's − / + buttons (EXPERIENCE.md › Voice and tone). */
+    stepDown: "Diminuer",
+    stepUp: "Augmenter",
   },
 
   fieldProspect: {
