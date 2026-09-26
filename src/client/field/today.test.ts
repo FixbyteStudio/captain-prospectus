@@ -208,6 +208,48 @@ describe("buildTodayList", () => {
   });
 });
 
+describe("visitQueued", () => {
+  it("defaults to false, so calls that predate the parameter keep working", () => {
+    const list = buildTodayList([prospect({ name: "a" })], [], GRAND_PLACE, NOW);
+
+    expect(list.now[0]?.visitQueued).toBe(false);
+  });
+
+  it("flags only the stop whose visit is queued, leaving order and later unchanged", () => {
+    const queued = prospect({ name: "en attente", ...near(400) });
+    const list = buildTodayList(
+      [
+        prospect({ name: "loin", ...near(800) }),
+        prospect({ name: "près", ...near(100) }),
+        queued,
+        prospect({
+          name: "plus tard",
+          status: "follow_up",
+          nextVisitAt: NOW + DAY,
+        }),
+      ],
+      [],
+      GRAND_PLACE,
+      NOW,
+      new Set([queued.id]),
+    );
+
+    // Walking order is untouched by the flag.
+    expect(list.now.map((i) => i.name)).toEqual(["près", "en attente", "loin"]);
+    expect(list.now.find((i) => i.id === queued.id)?.visitQueued).toBe(true);
+    expect(list.now.filter((i) => i.visitQueued)).toHaveLength(1);
+    expect(list.later.every((i) => !i.visitQueued)).toBe(true);
+  });
+
+  it("flags a field prospect not yet accepted, on top of its own pending flag", () => {
+    const outboxRow = field({ name: "camion" });
+    const list = buildTodayList([], [outboxRow], GRAND_PLACE, NOW, new Set([outboxRow.id]));
+
+    expect(list.now[0]?.pending).toBe(true);
+    expect(list.now[0]?.visitQueued).toBe(true);
+  });
+});
+
 describe("navigationUrl", () => {
   it("points at the coordinates on OpenStreetMap", () => {
     const url = navigationUrl({ lat: 45.7578, lng: 4.832, name: "Le Bouchon" });

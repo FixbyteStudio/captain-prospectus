@@ -495,10 +495,13 @@ export const copy = {
     /** The stops are a walking order, so the round states its own length. */
     remaining: (n: number) => (n === 1 ? "1 arrêt" : `${n} arrêts`),
     nextStop: "Prochain arrêt",
-    /** A field prospect the server has not accepted yet. */
+    /** Two cases, one message: a field prospect the server has not accepted
+     * yet, or a stop whose visit is still sitting in the outbox. Either way
+     * nothing about the round has changed server-side (invariants 2, 3). */
     notSynced: "Pas encore envoyé",
     dueOn: (when: string) => `À relancer le ${when}`,
-    addProspect: "Ajouter un prospect",
+    /** "type · address", or the type alone when there is no address. */
+    meta: (type: string, address: string | null) => (address ? `${type} · ${address}` : type),
     locating: "Recherche de votre position…",
     positionDenied: "Sans votre position, la tournée n'est pas triée par distance.",
     retryPosition: "Réessayer",
