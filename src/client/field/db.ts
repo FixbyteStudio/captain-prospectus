@@ -14,6 +14,7 @@ import type {
   Visit,
   VisitHistoryEntry,
 } from "../../shared/schemas";
+import { brusselsPeriod } from "../../shared/period";
 
 export type MetaValues = {
   script: Script | null;
@@ -45,6 +46,18 @@ export type StoredVisit = Visit & OutboxStamp;
 export type StoredFieldProspect = FieldProspect & OutboxStamp;
 export type MetaRow = { key: MetaKey; value: MetaValues[MetaKey] };
 
+/**
+ * One row of the client-only log of visits queued today — GH #119, G8.
+ *
+ * `id` is the visit id (the outbox's own primary key), so the union with
+ * `outboxVisits` dedupes for free. `prospectId` is the stop the visit
+ * belongs to, so `dailyProgress` can exclude a stop already counted from the
+ * denominator. `writtenBy` is the identity that queued it, filtered exactly
+ * like the outbox side (`sendableBy`) so a shared phone's count is the
+ * signed-in agent's own. Never sent: this store never touches the wire.
+ */
+export type SentVisit = { id: string; prospectId: string; sentAt: number; writtenBy: string };
+
 export class FieldDb extends Dexie {
   prospects!: Table<Prospect, string>;
   outboxProspects!: Table<StoredFieldProspect, string>;
@@ -57,6 +70,8 @@ export class FieldDb extends Dexie {
    * outbox, losing this loses nothing.
    */
   visitHistory!: Table<VisitHistoryEntry, string>;
+  /** The log `queueVisit` writes and `todaysSentVisits` reads — see `SentVisit`. */
+  sentVisits!: Table<SentVisit, string>;
 
   constructor(name = "captain-prospectus") {
     super(name);
@@ -95,6 +110,15 @@ export class FieldDb extends Dexie {
         await tx.table("outboxVisits").toCollection().modify(stamp);
         await tx.table("outboxProspects").toCollection().modify(stamp);
       });
+    /**
+     * v4 ADDS a table and changes no existing one — the same shape v2 used,
+     * for the same reason v2's comment gives: the sync-contract-change
+     * skill's step 3 says a version bump must migrate outbox rows, never
+     * clear them, and the safest way to honour that is not to touch them.
+     */
+    this.version(4).stores({
+      sentVisits: "id, sentAt",
+    });
   }
 }
 
@@ -145,6 +169,61 @@ export async function outboxCounts(db: FieldDb, identity: string): Promise<Outbo
 }
 
 /**
+ * Brussels midnight today — the admin dashboard's own day boundary
+ * (`src/shared/period.ts`), reused so the agent's count and the admin's
+ * "Visites aujourd'hui" can never disagree about where "today" starts.
+ */
+function dayStart(now: number): number {
+  return brusselsPeriod(now, 1).from;
+}
+
+/**
+ * The one queueing function (GH #119, docs/domains/field-operations.md
+ * #offline-sync). One transaction, two writes — the outbox `add` and the log
+ * `put` — so a visit logged but never queued (which would overcount for
+ * ever) and a visit queued but never logged (which would undercount) are
+ * both impossible: either both happen or, on a rejected write, neither does.
+ *
+ * The prune deliberately runs after this commits, not inside it: it is a
+ * multi-row delete, and giving a bookkeeping delete the power to roll back a
+ * queued visit is exactly what INVARIANT 5 forbids. Its failure is silent —
+ * `todaysSentVisits` bounds the read at both ends, so an unpruned row from a
+ * previous day is already invisible.
+ */
+export async function queueVisit(db: FieldDb, visit: Visit, identity: string): Promise<void> {
+  await db.transaction("rw", db.outboxVisits, db.sentVisits, async () => {
+    await db.outboxVisits.add({ ...visit, writtenBy: identity });
+    await db.sentVisits.put({
+      id: visit.id,
+      prospectId: visit.prospectId,
+      sentAt: Date.now(),
+      writtenBy: identity,
+    });
+  });
+
+  void db.sentVisits
+    .where("sentAt")
+    .below(dayStart(Date.now()))
+    .delete()
+    .catch(() => {
+      // Housekeeping only — see the function comment for why a failure here
+      // costs nothing.
+    });
+}
+
+/**
+ * Today's logged visits, Brussels calendar day, bounded at **both** ends: the
+ * upper bound stops a phone whose clock runs ahead from logging a row that
+ * would otherwise count today and again tomorrow, and the lower bound is what
+ * makes "today" mean today rather than "ever queued" (`between`, not a bare
+ * `aboveOrEqual`).
+ */
+export async function todaysSentVisits(db: FieldDb, now: number): Promise<SentVisit[]> {
+  const { from, to } = brusselsPeriod(now, 1);
+  return db.sentVisits.where("sentAt").between(from, to, true, false).toArray();
+}
+
+/**
  * Replace a prospect's cached history with what the server just returned.
  *
  * Scoped to one prospect: another prospect's cache is still valid, and an
@@ -174,11 +253,17 @@ export async function cacheVisitHistory(
  * `accepted` list delete a queued visit, and a revoked session is not that.
  * The next identity does not send those rows either: each is stamped with its
  * writer and `runSync` holds back any stamped by someone else.
+ *
+ * `sentVisits` goes with the rest, not with the outbox: it is read-only
+ * knowledge for rendering "{n} visites sur {total}" (GH #119), not a queued
+ * write, so leaving the previous agent's visit ids, prospect ids and email on
+ * the device would be the same leak this function exists to close.
  */
 export async function clearAgentCache(db: FieldDb): Promise<void> {
   await Promise.all([
     db.prospects.clear(),
     db.visitHistory.clear(),
+    db.sentVisits.clear(),
     db.meta.delete("identity" satisfies MetaKey),
   ]);
 }
