@@ -495,6 +495,7 @@ export const dashboardQuerySchema = z.object({
 });
 
 const countSchema = z.int().check(z.nonnegative());
+const rateSchema = z.number().check(z.nonnegative());
 
 /**
  * `GET /api/admin/dashboard` — every figure is computed by the Worker and
@@ -514,6 +515,27 @@ export const dashboardResponseSchema = z.object({
   }),
   /** A snapshot of now, so it carries no delta and ignores the period. */
   openProspects: countSchema,
+  /** Distinct prospects converted in the period, by visit or by hand. */
+  converted: z.object({
+    value: countSchema,
+    previous: countSchema,
+    /** `null` when `previous` is 0, as for `visits`. */
+    delta: z.nullable(z.number()),
+  }),
+  /**
+   * Convertis ÷ distinct prospects visited, as a ratio (0.106 is 10,6 %).
+   * Not capped at 1: a prospect converted by hand without a visit adds to the
+   * numerator only (docs/api.md › The dashboard).
+   */
+  conversionRate: z.object({
+    /** `null` when no prospect was visited in the period. */
+    value: z.nullable(rateSchema),
+    previous: z.nullable(rateSchema),
+    /** `value − previous`, so 0.05 is +5,0 pt; `null` when either is `null`. */
+    delta: z.nullable(z.number()),
+    /** The denominator: distinct prospects with a visit in each period. */
+    visitedProspects: z.object({ value: countSchema, previous: countSchema }),
+  }),
 });
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
 

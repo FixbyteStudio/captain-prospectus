@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { MapPin, Store } from "lucide-react";
+import { BadgeCheck, MapPin, Percent, Store } from "lucide-react";
 import {
   DASHBOARD_DEFAULT_PERIOD,
   DASHBOARD_PERIODS,
   type DashboardPeriod,
 } from "../../../shared/constants";
 import { copy } from "../../copy";
+import { formatCount, formatPercent, formatPoints } from "../../format";
 import { cn } from "../../lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "../../ui/alert";
 import { Button } from "../../ui/button";
@@ -100,17 +101,32 @@ export function DashboardScreen() {
               <KpiCard
                 label={copy.dashboard.openProspects}
                 icon={Store}
-                value={data.openProspects}
+                value={formatCount(data.openProspects)}
               />
               <KpiCard
                 label={copy.dashboard.visits}
                 icon={MapPin}
-                value={data.visits.value}
+                value={formatCount(data.visits.value)}
                 delta={data.visits.delta}
+              />
+              <KpiCard
+                label={copy.dashboard.converted}
+                icon={BadgeCheck}
+                value={formatCount(data.converted.value)}
+                delta={data.converted.delta}
+              />
+              <KpiCard
+                label={copy.dashboard.conversionRate}
+                icon={Percent}
+                value={formatPercent(data.conversionRate.value)}
+                delta={data.conversionRate.delta}
+                deltaFormat={formatPoints}
               />
             </>
           ) : (
             <>
+              <KpiCardSkeleton />
+              <KpiCardSkeleton />
               <KpiCardSkeleton />
               <KpiCardSkeleton />
             </>

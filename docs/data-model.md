@@ -141,7 +141,7 @@ been told it is `accepted` and has dropped it, so this table is the only copy.
 |---|---|
 | `prospects(dedupe_key)` unique | import upsert, field-prospect dedupe |
 | `prospects(assigned_to, status)` | sync pull |
-| `prospects(status)` | admin list filtered by status |
+| `prospects(status)` | admin list filtered by status; the dashboard's manual conversions (Convertis) |
 | `prospects(source)` | admin list filtered by source (`csv`, `osm`, `google`, `field`) |
 | `prospects(updated_at)` | admin list default order |
 | `prospects(merged_into)` | live-prospect filter, and finding what a survivor absorbed |

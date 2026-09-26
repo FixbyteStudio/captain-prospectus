@@ -131,6 +131,8 @@ export const copy = {
     } satisfies Record<DashboardPeriod, string>,
     openProspects: "Prospects ouverts",
     visits: "Visites",
+    converted: "Convertis",
+    conversionRate: "Taux de conversion",
     /** Follows the delta chip: "+12,4 % vs période précédente". */
     vsPrevious: "vs période précédente",
     /** Read out while the skeletons stand in for the cards. */

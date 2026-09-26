@@ -284,10 +284,9 @@ describe("POST /api/dev/seed — the dashboard's data", () => {
       expect(figures.visits.previous, `Visites before, ${period} days`).toBeGreaterThan(0);
       expect(figures.visits.delta).not.toBeNull();
       expect(figures.openProspects).toBeGreaterThan(0);
-
-      const { from, to, previousFrom } = brusselsPeriod(now, period);
-      expect(await converted(from, to), `Convertis, ${period} days`).toBeGreaterThan(0);
-      expect(await converted(previousFrom, from), `Convertis before, ${period}`).toBeGreaterThan(0);
+      expect(figures.converted.value, `Convertis, ${period} days`).toBeGreaterThan(0);
+      expect(figures.converted.previous, `Convertis before, ${period}`).toBeGreaterThan(0);
+      expect(figures.conversionRate.delta, `Taux de conversion delta, ${period}`).not.toBeNull();
     }
 
     const db = getDb(env.DB);

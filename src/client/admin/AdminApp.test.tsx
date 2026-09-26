@@ -18,6 +18,13 @@ const DASHBOARD: DashboardResponse = {
   to: 1,
   visits: { value: 386, previous: 343, delta: 0.1254 },
   openProspects: 278,
+  converted: { value: 41, previous: 36, delta: 0.1389 },
+  conversionRate: {
+    value: 0.106,
+    previous: 0.094,
+    delta: 0.012,
+    visitedProspects: { value: 386, previous: 383 },
+  },
 };
 
 function json(body: unknown): Response {
