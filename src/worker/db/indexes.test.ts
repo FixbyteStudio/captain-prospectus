@@ -59,3 +59,27 @@ describe("Convertis' statement", () => {
     expect(plan.some((detail) => detail.startsWith("SCAN prospects"))).toBe(false);
   });
 });
+
+describe("Visites dans le temps' statement", () => {
+  // The shape of visitsByDay in routes/admin.ts: a visited_at range grouped by
+  // Brussels day and outcome (GH #110).
+  it("serves the range from visits_visited_idx", async () => {
+    const plan = await planOf(
+      `SELECT cast((visited_at + CASE WHEN visited_at >= ?3 THEN ?4 ELSE ?5 END) / ?6 AS integer) - ?7 AS day,
+              outcome, count(*)
+       FROM visits
+       WHERE visited_at >= ?1 AND visited_at < ?2
+       GROUP BY day, outcome`,
+      Date.UTC(2026, 2, 1),
+      Date.UTC(2026, 5, 1),
+      Date.UTC(2026, 2, 29, 1),
+      7_200_000,
+      3_600_000,
+      86_400_000,
+      20_513,
+    );
+
+    expect(plan.some((detail) => detail.includes("visits_visited_idx"))).toBe(true);
+    expect(plan.some((detail) => detail.startsWith("SCAN visits"))).toBe(false);
+  });
+});

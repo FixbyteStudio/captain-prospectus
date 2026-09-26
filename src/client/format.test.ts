@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   deltaTone,
   formatCount,
+  formatDay,
+  formatDayTick,
   formatDelta,
   formatPercent,
   formatPoints,
@@ -142,5 +144,15 @@ describe("formatPoints", () => {
     expect(formatPoints(-0.0005)).toBe("\u22120,1\u00a0pt");
     expect(formatPoints(0.0004)).toBe("0,0\u00a0pt");
     expect(formatPoints(-0.0004)).toBe("0,0\u00a0pt");
+  });
+});
+
+describe("formatDayTick and formatDay (GH #110)", () => {
+  it("reads a Brussels date as that date, in fr-FR", () => {
+    expect(formatDayTick("2026-09-21", true)).toBe("lun. 21");
+    expect(formatDayTick("2026-09-21", false)).toBe("21/09");
+    expect(formatDay("2026-09-21")).toBe("lundi 21 septembre");
+    // New Year's Day stays on 1 January, whatever the machine's zone.
+    expect(formatDayTick("2026-01-01", false)).toBe("01/01");
   });
 });

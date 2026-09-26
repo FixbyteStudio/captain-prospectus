@@ -21,7 +21,7 @@ Base path `/api`. JSON in, JSON out. Every route requires a verified Access iden
 ## Admin
 | Route | Purpose |
 |---|---|
-| `GET /api/admin/dashboard?period=7\|30\|90` | Tableau de bord's figures, `dashboardResponseSchema`: `{period, from, to, visits: {value, previous, delta}, openProspects, converted: {value, previous, delta}, conversionRate: {value, previous, delta, visitedProspects: {value, previous}}}`. `period` defaults to 30; any other value is **400**. Read-only. See [The dashboard](#the-dashboard) |
+| `GET /api/admin/dashboard?period=7\|30\|90` | Tableau de bord's figures, `dashboardResponseSchema`: `{period, from, to, visits: {value, previous, delta}, openProspects, converted: {value, previous, delta}, conversionRate: {value, previous, delta, visitedProspects: {value, previous}}, visitsByDay: [{date, counts: {<outcome>: n}}]}`. `period` defaults to 30; any other value is **400**. Read-only. See [The dashboard](#the-dashboard) |
 | `GET /api/admin/agents` | `{agents: [{email, role}]}` — everyone a prospect can be assigned to |
 | `GET /api/admin/prospects?status=&assignedTo=&source=&limit=&offset=` | `{prospects[], total}`, newest edit first |
 | `POST /api/admin/prospects/batch` | Upsert `{source: "csv" \| "osm", rows[]}` by dedupe key → `{created, updated}` |
@@ -151,6 +151,14 @@ figures to the same response, additively.
   is `null`. Convertis and both denominators come from one statement: a
   `visits_visited_idx` range read joined to `prospects`, `UNION ALL` the manual
   conversions read on `prospects_status_idx`.
+- **Visites dans le temps** (`visitsByDay`): the period's visits — the same
+  rows as Visites — per Brussels calendar day and outcome. Exactly `period`
+  entries, oldest first; `date` is the Brussels date `YYYY-MM-DD` and
+  `counts` has all five outcomes, zeros included, so the entries of a period
+  sum to `visits.value`. One range read on `visits_visited_idx` groups by
+  `(visited_at + offset) / 86 400 000`, the Brussels day number: the offset
+  changes at most once in a period (`periodOffsets` in `src/shared/period.ts`),
+  so the statement binds a handful of parameters whatever the period.
 
 ## The repair queue
 

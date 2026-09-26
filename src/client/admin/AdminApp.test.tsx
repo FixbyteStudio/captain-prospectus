@@ -25,6 +25,7 @@ const DASHBOARD: DashboardResponse = {
     delta: 0.012,
     visitedProspects: { value: 386, previous: 383 },
   },
+  visitsByDay: [],
 };
 
 function json(body: unknown): Response {

@@ -13,6 +13,7 @@ import { Button } from "../../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../ui/toggle-group";
 import { useDashboard } from "../queries";
 import { KpiCard, KpiCardSkeleton } from "./KpiCard";
+import { VisitsChart, VisitsChartSkeleton } from "./VisitsChart";
 
 function isPeriod(value: number): value is DashboardPeriod {
   return (DASHBOARD_PERIODS as readonly number[]).includes(value);
@@ -131,6 +132,18 @@ export function DashboardScreen() {
               <KpiCardSkeleton />
             </>
           )}
+        </div>
+      )}
+
+      {(data || !dashboard.isError) && (
+        // 2:1 with Pipeline par statut at ≥ lg (story 8 fills the third).
+        <div
+          aria-busy={dashboard.isFetching}
+          className={cn("grid gap-6 lg:grid-cols-3", dashboard.isPlaceholderData && "opacity-60")}
+        >
+          <div className="min-w-0 lg:col-span-2">
+            {data ? <VisitsChart days={data.visitsByDay} /> : <VisitsChartSkeleton />}
+          </div>
         </div>
       )}
     </section>

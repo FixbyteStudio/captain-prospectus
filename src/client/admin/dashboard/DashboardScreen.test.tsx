@@ -1,6 +1,6 @@
 /**
- * Tableau de bord's states — GH #107, #109: skeletons, the four cards, the
- * period selector and the load-failed alert. Rendered on its own with a fresh
+ * Tableau de bord's states — GH #107, #109, #110: skeletons, the four cards,
+ * the chart's text equivalent, the period selector and the load-failed alert. Rendered on its own with a fresh
  * client per test, so no answer leaks between them.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,20 @@ import { copy } from "../../copy";
 import type { DashboardResponse } from "../../../shared/schemas";
 import { createAdminQueryClient } from "../query-client";
 import { DashboardScreen } from "./DashboardScreen";
+
+/** `period` days from 1 September 2026, a Tuesday: 1 no_contact and 2 converted on the first, zeros after. */
+function days(period: number): DashboardResponse["visitsByDay"] {
+  return Array.from({ length: period }, (_, i) => ({
+    date: new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10),
+    counts: {
+      no_contact: i === 0 ? 1 : 0,
+      interested: 0,
+      not_interested: 0,
+      follow_up: 0,
+      converted: i === 0 ? 2 : 0,
+    },
+  }));
+}
 
 function answer(
   period: number,
@@ -32,6 +46,7 @@ function answer(
       visitedProspects: { value: period * 9, previous: period * 7 },
       ...rate,
     },
+    visitsByDay: days(period),
   };
 }
 
@@ -116,6 +131,50 @@ describe("DashboardScreen", () => {
     // Points, not a relative change (docs/api.md › The dashboard).
     expect(rate.getByText("+1,2 pt")).toBeTruthy();
     expect(chip(copy.dashboard.conversionRate).dataset.variant).toBe("tint-success");
+  });
+
+  it("gives Visites dans le temps a text equivalent, one row per day (GH #110)", async () => {
+    const user = userEvent.setup();
+    stubFetch((period) => json(answer(period)));
+    renderScreen();
+
+    // Recharts draws nothing at happy-dom's 0 width; the table is what a
+    // screen reader gets, so it is what this reads.
+    const table = await screen.findByRole("table", {
+      name: copy.dashboard.visitsChart.tableCaption,
+    });
+    expect(table.closest(".sr-only")).not.toBeNull();
+    const rows = within(table).getAllByRole("row");
+    // The header row, then one per day of the period.
+    expect(rows).toHaveLength(1 + 30);
+    const header = within(rows[0] as HTMLElement)
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent);
+    expect(header).toEqual([
+      copy.dashboard.visitsChart.day,
+      "Personne sur place",
+      "Intéressé",
+      "Pas intéressé",
+      "À relancer",
+      "Converti",
+      copy.dashboard.visitsChart.total,
+    ]);
+    const first = rows[1] as HTMLElement;
+    expect(within(first).getByRole("rowheader").textContent).toBe("mardi 1 septembre");
+    expect(
+      within(first)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["1", "0", "0", "0", "2", "3"]);
+
+    await user.click(screen.getByRole("radio", { name: copy.dashboard.periods[7] }));
+    await waitFor(() =>
+      expect(
+        within(
+          screen.getByRole("table", { name: copy.dashboard.visitsChart.tableCaption }),
+        ).getAllByRole("row"),
+      ).toHaveLength(1 + 7),
+    );
   });
 
   it("shows « — » for a rate with nothing visited, and for its delta (I/O matrix, no visits)", async () => {
