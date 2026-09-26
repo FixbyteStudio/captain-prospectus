@@ -565,12 +565,9 @@ describe("VisitScreen — step 2 (Questions)", () => {
     expect(await fieldDb.outboxVisits.count()).toBe(0);
   });
 
-  // #142: `save` calls `toVisit` without the pinned script, so today the row
-  // is queued with `answers: {}`. That fix flips this expectation to
-  // `{ delivery: true, cash_register: "Papier", satisfaction: 4, seats: 46 }`.
-  // Pinned to today's value rather than `it.fails`, which would also pass on
-  // an unrelated break anywhere above.
-  it("queues the visit after every control is answered (answers dropped until #142)", async () => {
+  // #142: `save` once called `toVisit` without the pinned script and queued
+  // `answers: {}` with `scriptId: null`.
+  it("queues the visit with every answer and the script it was answered with", async () => {
     const user = userEvent.setup();
     await toStep2(user);
 
@@ -584,7 +581,13 @@ describe("VisitScreen — step 2 (Questions)", () => {
 
     await vi.waitFor(async () => expect(await fieldDb.outboxVisits.count()).toBe(1));
     const [visit] = await fieldDb.outboxVisits.toArray();
-    expect(visit?.answers).toEqual({});
+    expect(visit?.answers).toEqual({
+      delivery: true,
+      cash_register: "Papier",
+      satisfaction: 4,
+      seats: 46,
+    });
+    expect(visit?.scriptId).toBe(SCRIPT2.id);
   });
 
   it("personne sur place: shows the callout at the top of step 2, and saves with nothing answered", async () => {
