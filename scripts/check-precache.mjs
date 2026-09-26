@@ -8,6 +8,10 @@
  * `dist/client/sw.js`, sums the same bytes, and exits non-zero instead of
  * leaving the number for review to catch.
  *
+ * It also fails when a precached chunk holds an admin-only package (GH #95),
+ * read from the chunk-module map `vite.config.ts` writes beside dist/client:
+ * a leak like that would otherwise pass silently until it crossed the ceiling.
+ *
  * Run after `pnpm build` (wired as `check:precache` in package.json and
  * ci.yml), never instead of it: this script trusts the build's own output
  * rather than re-running Rollup or Workbox itself.
@@ -40,6 +44,13 @@ const ROOT = process.env.CHECK_PRECACHE_ROOT
   : join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST_CLIENT = join(ROOT, "dist", "client");
 const SW_PATH = join(DIST_CLIENT, "sw.js");
+const MAP_PATH = join(ROOT, "dist", "client-chunk-modules.json");
+
+// Packages only the admin side imports. Leaflet, Radix and sonner are left out
+// on purpose: the field shares them (ADR-0026) or may.
+const ADMIN_ONLY = ["@tanstack/*", "cmdk", "recharts", "papaparse", "@dnd-kit/*"];
+const isAdminOnly = (name) =>
+  ADMIN_ONLY.some((p) => (p.endsWith("/*") ? name.startsWith(p.slice(0, -1)) : name === p));
 
 let sw;
 try {
@@ -112,9 +123,11 @@ const entries = urls.map((url) => {
   // Decode and stat in one try: a bad escape (a lone "%") must report its own
   // message, not fall through into `join()` with `undefined` and throw a
   // second, unrelated TypeError before the process actually exits.
+  let path;
   let bytes;
   try {
-    bytes = statSync(join(DIST_CLIENT, decodeURIComponent(url))).size;
+    path = decodeURIComponent(url);
+    bytes = statSync(join(DIST_CLIENT, path)).size;
   } catch (error) {
     if (error instanceof URIError) {
       console.error(`check:precache — ${SW_PATH} lists "${url}", which is not a valid URI.`);
@@ -128,7 +141,7 @@ const entries = urls.map((url) => {
     }
     process.exit(1);
   }
-  return { url, bytes, counted: countsTowardTotal(url) };
+  return { url, path, bytes, counted: countsTowardTotal(url) };
 });
 
 const totalBytes = entries.filter((e) => e.counted).reduce((sum, entry) => sum + entry.bytes, 0);
@@ -153,9 +166,49 @@ for (const entry of [...entries].sort((a, b) => b.bytes - a.bytes)) {
   console.log(`  ${(entry.bytes / 1024).toFixed(2)} KiB  ${entry.url}${note}`);
 }
 
+// Every check below reports before the script exits, so one run names both an
+// overweight precache and the leak behind it.
+let failed = false;
+
 if (totalKiB > CEILING_KIB) {
   console.error(
     `check:precache — ${totalKiB.toFixed(2)} KiB exceeds the ${CEILING_KIB} KiB ceiling (ADR-0026). Move the new weight to a lazy admin chunk, or renegotiate the ADR.`,
   );
+  failed = true;
+}
+
+// Fails closed: without a map, or with a precached chunk it does not list,
+// the leak check would pass while checking nothing.
+let chunkModules;
+try {
+  chunkModules = JSON.parse(readFileSync(MAP_PATH, "utf8"));
+} catch {
+  console.error(
+    `check:precache — no readable ${MAP_PATH}. Run "pnpm build" first; the chunkModuleMap plugin in vite.config.ts writes it.`,
+  );
   process.exit(1);
 }
+if (typeof chunkModules !== "object" || chunkModules === null || Array.isArray(chunkModules)) {
+  console.error(`check:precache — ${MAP_PATH} is not a { chunk: modules[] } object.`);
+  process.exit(1);
+}
+
+for (const { url, path } of entries.filter((e) => e.path.endsWith(".js"))) {
+  const modules = Object.hasOwn(chunkModules, path) ? chunkModules[path] : undefined;
+  if (!Array.isArray(modules)) {
+    console.error(
+      `check:precache — "${url}" is precached but has no entry in ${MAP_PATH}. Either the map is stale (run "pnpm build" again) or the file is not a chunk the build emitted, which this check cannot vouch for.`,
+    );
+    failed = true;
+    continue;
+  }
+  const leaked = modules.filter((name) => typeof name === "string" && isAdminOnly(name));
+  if (leaked.length > 0) {
+    console.error(
+      `check:precache — precached "${url}" holds admin-only ${leaked.join(", ")}. Move the import behind the lazy AdminApp import. Only a chunk that is admin-only as a whole belongs in globIgnores in vite.config.ts (ADR-0019); ignoring a shared chunk like index-*.js breaks the field route offline.`,
+    );
+    failed = true;
+  }
+}
+
+if (failed) process.exit(1);

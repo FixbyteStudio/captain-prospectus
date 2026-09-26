@@ -10,15 +10,19 @@
  */
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 const SCRIPT = fileURLToPath(new URL("./check-precache.mjs", import.meta.url));
 
-/** A throwaway root with dist/client/sw.js and, optionally, vite.config.ts. */
-function makeFixture({ swBody, viteGlobPatterns, files = {} } = {}) {
+/**
+ * A throwaway root with dist/client/sw.js and, optionally, vite.config.ts.
+ * `chunkModules` is dist/client-chunk-modules.json: by default every fixture
+ * file with no modules, `null` to leave it out.
+ */
+function makeFixture({ swBody, viteGlobPatterns, files = {}, chunkModules } = {}) {
   const root = mkdtempSync(join(tmpdir(), "check-precache-"));
   const distClient = join(root, "dist", "client");
   mkdirSync(distClient, { recursive: true });
@@ -33,7 +37,12 @@ function makeFixture({ swBody, viteGlobPatterns, files = {} } = {}) {
     );
   }
   for (const [name, bytes] of Object.entries(files)) {
+    mkdirSync(dirname(join(distClient, name)), { recursive: true });
     writeFileSync(join(distClient, name), "x".repeat(bytes));
+  }
+  if (chunkModules !== null) {
+    const map = chunkModules ?? Object.fromEntries(Object.keys(files).map((name) => [name, []]));
+    writeFileSync(join(root, "dist", "client-chunk-modules.json"), JSON.stringify(map));
   }
   return root;
 }
@@ -207,5 +216,94 @@ describe("check-precache.mjs", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("parsed 1 of 2 manifest entries");
+  });
+
+  it("exits non-zero naming the chunk and package when a precached chunk holds an admin-only package", () => {
+    // GH #95: a leak like this used to pass until it pushed the total over the
+    // ceiling. Here it is 2 KiB, far under it.
+    const root = makeFixture({
+      swBody: '{url:"assets/index-a1.js",revision:null},{url:"assets/index-a1.css",revision:null}',
+      viteGlobPatterns: "**/*.{js,css}",
+      files: { "assets/index-a1.js": 1024, "assets/index-a1.css": 1024 },
+      chunkModules: {
+        "assets/index-a1.js": ["react", "@tanstack/react-query", "src/client/App.tsx"],
+      },
+    });
+    roots.push(root);
+
+    const result = run(root, { ceilingKiB: 1000 });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("2 entries (2.00 KiB)");
+    expect(result.stderr).toContain('"assets/index-a1.js" holds admin-only @tanstack/react-query');
+    expect(result.stderr).toContain("globIgnores");
+  });
+
+  it("reports both the ceiling and the leak in one run", () => {
+    const root = makeFixture({
+      swBody: '{url:"a.js",revision:null}',
+      viteGlobPatterns: "**/*.{js}",
+      files: { "a.js": 2048 },
+      chunkModules: { "a.js": ["cmdk"] },
+    });
+    roots.push(root);
+
+    const result = run(root, { ceilingKiB: 1 });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("exceeds the 1 KiB ceiling");
+    expect(result.stderr).toContain('"a.js" holds admin-only cmdk');
+  });
+
+  it("exits 0 when the admin-only package sits in a chunk the manifest does not precache", () => {
+    // AdminApp-*.js is in globIgnores (ADR-0019), so it is absent from sw.js.
+    const root = makeFixture({
+      swBody: '{url:"assets/index-a1.js",revision:null}',
+      viteGlobPatterns: "**/*.{js,css}",
+      files: { "assets/index-a1.js": 1024, "assets/AdminApp-b2.js": 1024 },
+      chunkModules: {
+        "assets/index-a1.js": ["react", "src/client/admin/status.ts"],
+        "assets/AdminApp-b2.js": ["cmdk", "@tanstack/react-query", "@dnd-kit/core"],
+      },
+    });
+    roots.push(root);
+
+    const result = run(root, { ceilingKiB: 1000 });
+
+    expect(result.status).toBe(0);
+  });
+
+  it("exits non-zero and says to build first when the chunk-module map is absent", () => {
+    // Fails closed: without the map the leak check would check nothing.
+    const root = makeFixture({
+      swBody: '{url:"a.js",revision:null}',
+      viteGlobPatterns: "**/*.{js}",
+      files: { "a.js": 1024 },
+      chunkModules: null,
+    });
+    roots.push(root);
+
+    const result = run(root, { ceilingKiB: 1000 });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("client-chunk-modules.json");
+    expect(result.stderr).toContain('Run "pnpm build" first');
+  });
+
+  it("exits non-zero naming the url when a precached chunk has no entry in the map", () => {
+    // A stale map, from an older build: its hashes no longer match sw.js.
+    const root = makeFixture({
+      swBody: '{url:"assets/index-new.js",revision:null},{url:"b.css",revision:null}',
+      viteGlobPatterns: "**/*.{js,css}",
+      files: { "assets/index-new.js": 1024, "b.css": 1024 },
+      chunkModules: { "assets/index-old.js": [] },
+    });
+    roots.push(root);
+
+    const result = run(root, { ceilingKiB: 1000 });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('"assets/index-new.js" is precached but has no entry');
+    expect(result.stderr).not.toContain("b.css");
   });
 });

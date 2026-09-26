@@ -67,8 +67,8 @@ with navy on top and a `primary-edge` border.
 | `band-strip` | `#142038` | `#070B15` | The sync strip: the band, one step darker |
 | `status-new` | 16 % ink | 16 % ink | The `new` row edge |
 | `status-assigned` | 55 % ink | 55 % ink | The `assigned` row edge |
-| `outcome-no-contact` | `#DDE0E5` | `#3A4356` | `no_contact` in charts |
-| `outcome-interested` | `#4F5E81` | `#98A6CD` | `interested` in charts and badges |
+| `outcome-no-contact` | `#8A92A4` | `#7C87A0` | `no_contact` in charts |
+| `outcome-interested` | `#2E3F63` | `#AEBBDB` | `interested` in charts and badges |
 | `outcome-not-interested` | `#5B5F63` | `#8E9399` | `not_interested` in charts |
 
 The outcome colours are admin-only: the stacked visits chart and the outcome
@@ -106,7 +106,7 @@ var(--card))`).
 `converted` would sit 7° in hue from the mustard that means `follow_up`, and
 the two would stop being separable.
 
-### The five rules
+### The six rules
 
 Each is forced by a measurement rather than taste.
 `src/client/styles/palette.test.ts` asserts the tokens behind each rule in
@@ -138,6 +138,12 @@ text on a light surface.
 5. **Status and outcome badge text reaches 4.5:1 on its tint.** This keeps a
    badge's word legible, not just its colour. A tint that fails drops below 12 %
    in that theme until it passes, which is why dark `tint-destructive` is 10 %.
+6. **Every outcome colour clears 3:1 on its theme's card.** A chart series is a
+   graphical object (WCAG 1.4.11), so each of the five, `warn` and `success`
+   included, must stand out from the card it is drawn on. Series are not 3:1
+   against each other and never will be: five mutually distinct colours would
+   need an 81:1 luminance range, and sRGB has 21:1 (#91). The stacked chart
+   separates neighbours structurally instead.
 
 Gold text on the navy band is allowed, because the band is not a light surface.
 

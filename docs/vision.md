@@ -39,7 +39,8 @@ is tied to a city — moving is changing those three places, not a migration.
 - **The field route's precache stays under 1,000 KiB**, as `pnpm build` prints it and
   `pnpm check:precache` fails CI over it
   ([ADR-0026](adr/0026-budget-the-field-precache-not-the-entry-chunk.md)). That is what an agent's phone downloads, on a bad connection, when it
-  installs the app or takes an update. The entry chunk has no cap but is recorded beside it. The
+  installs the app or takes an update. `pnpm check:precache` also fails when a precached chunk holds
+  an admin-only package (GH #95). The entry chunk has no cap but is recorded beside it. The
   history below is how the budget got here: until ADR-0026 it was **the entry chunk under 150 kB
   gzipped**, the budget [ADR-0014](adr/0014-tailwind-and-shadcn-ui.md) asked for.
 
